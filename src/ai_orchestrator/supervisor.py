@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from .contracts import IntakeState, SupervisorResult
 from .engine import Engine
@@ -181,7 +181,7 @@ class Supervisor:
                 self.store.save_intake(intake, "supervisor.finished")
             return intake
 
-    def start(self, intake_id: str, scope: str, actor: str) -> TaskState:
+    def start(self, intake_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         """Operator confirms a proposal. Execution approval is a separate gate."""
         with self.project.lock():
             intake = self.store.get_intake(intake_id)
@@ -201,6 +201,8 @@ class Supervisor:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {intake.task_id}")
             state = TaskState(schema_version=2, spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id, require_execution_approval=True, calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
+            if precondition is not None:
+                precondition()
             self.store.create_from_intake(state, intake, actor, scope)
             atomic_write(path, state.spec.model_dump_json(indent=2) + "\n")
             return state

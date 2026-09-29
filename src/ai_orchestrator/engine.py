@@ -119,7 +119,7 @@ class Engine:
             payload.update(result_contract=2, intake_id=state.intake_id, require_execution_approval=state.require_execution_approval)
         return digest(payload)
 
-    def approve(self, task_id: str, scope: str, actor: str) -> TaskState:
+    def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         with self.project.lock():
             state = self.store.get(task_id)
             self._check(state)
@@ -127,6 +127,8 @@ class Engine:
                 raise OrchestratorError("execution approval requires an actor and an awaiting_approval task")
             if scope != self.approval_scope(state):
                 raise OrchestratorError("approval scope changed; inspect current task/plan/worktree before approving")
+            if precondition is not None:
+                precondition()
             self.store.approve(state, scope, actor)
             return state
 
@@ -320,7 +322,7 @@ class Engine:
                 self.store.save(state, "task." + state.status)
                 return state
 
-    def accept(self, task_id: str, actor: str) -> TaskState:
+    def accept(self, task_id: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         with self.project.lock():
             state = self.store.get(task_id)
             self._check(state)
@@ -330,6 +332,8 @@ class Engine:
                 raise OrchestratorError("task has a cancellation request")
             if state.reviewed_snapshot != self.project.snapshot():
                 raise OrchestratorError("worktree changed since review; create a new task for revalidation/review")
+            if precondition is not None:
+                precondition()
             self.store.artifact(state, "acceptance", {"actor": actor, "snapshot": state.reviewed_snapshot, "accepted_at": now()})
             state.status = "succeeded"
             self.store.save(state, "task.accepted", {"actor": actor})

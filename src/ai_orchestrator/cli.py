@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import uuid
 import json
 import sys
 import sqlite3
@@ -22,20 +24,26 @@ from .project import atomic_write, digest, initialize, load_yaml
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.3 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.4 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
-    commands.add_parser("serve", help="Run the fixed-project MCP stdio frontend; never spawn models here")
+    serve = commands.add_parser("serve", help="Run the fixed-project MCP stdio frontend")
+    serve.add_argument("--single-terminal", action="store_true", help="Opt into client-mediated confirmation forms and automatic separate workers; requires a trusted interactive host")
+    serve.add_argument("--gate-timeout", type=float, default=120, help="Seconds to answer a host form (maximum 600)")
     worker = commands.add_parser("worker", help="Run queued jobs from a separate operator terminal")
     worker.add_argument("--once", action="store_true", help="Process at most one job and exit")
     worker.add_argument("--poll-interval", type=float, default=1.0)
+    worker.add_argument("--idle-seconds", type=float, help="Exit after this idle period instead of staying resident")
     job = commands.add_parser("job", help="Inspect a durable queued operation")
     job.add_argument("job_id")
     cancel_job = commands.add_parser("cancel-job", help="Request queued/running operation cancellation")
     cancel_job.add_argument("job_id")
     skill = commands.add_parser("skill", help="Export the portable Agent Skill; never modify client config implicitly")
     skill.add_argument("--output", type=Path, required=True)
+    skill.add_argument("--replace", action="store_true", help="Back up an existing exported Skill, then replace it explicitly")
+    gate = commands.add_parser("gate", help="Inspect a stored host-confirmation record without changing it")
+    gate.add_argument("gate_id")
     init = commands.add_parser("init")
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
@@ -103,19 +111,36 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     root = args.project.resolve()
     if args.command == "worker":
         from .worker import run_worker
-        result = run_worker(root, once=args.once, poll_interval=args.poll_interval)
+        result = run_worker(root, once=args.once, poll_interval=args.poll_interval, idle_seconds=args.idle_seconds)
         job = result.get("job") or {}
         return result, 1 if job.get("status") in ("failed", "cancelled", "interrupted") else 0
     if args.command in ("job", "cancel-job"):
         from .service import ApplicationService
         method = "get_job" if args.command == "job" else "cancel_job"
         return ApplicationService(root).invoke(method, {"job_id": args.job_id}), 0
+    if args.command == "gate":
+        from .human_gates import GateStore, HumanGateBroker
+        from .project import Project
+        store = GateStore(Project(root))
+        try:
+            return HumanGateBroker.describe(store.get(args.gate_id)), 0
+        finally:
+            store.close()
     if args.command == "skill":
         from importlib.resources import files
-        if args.output.exists() or args.output.is_symlink():
-            raise OrchestratorError("skill output already exists; no file was overwritten")
+        if args.output.is_symlink():
+            raise OrchestratorError("refusing to replace a symlink Skill")
+        backup = None
+        if args.output.exists():
+            if not args.replace:
+                raise OrchestratorError("skill output already exists; no file was overwritten")
+            if not args.output.is_file() or args.output.stat().st_size > 1024 * 1024:
+                raise OrchestratorError("existing Skill is not a bounded regular text file")
+            backup = args.output.with_name(args.output.name + ".bak-" + uuid.uuid4().hex[:12])
+            with backup.open("x", encoding="utf-8") as stream:
+                stream.write(args.output.read_text(encoding="utf-8"))
         atomic_write(args.output, files("ai_orchestrator").joinpath("assets/SKILL.md").read_text(encoding="utf-8"))
-        return {"path": str(args.output), "installed_into_client": False}, 0
+        return {"path": str(args.output), "backup": str(backup) if backup else None, "installed_into_client": False}, 0
     if args.command == "init":
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
@@ -215,9 +240,11 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        if os.environ.get("CLAUDECODE") and (args.command in ("ask", "run") or (args.command == "start" and not args.no_run)):
+            raise OrchestratorError("this command would start a nested model session; use MCP single-terminal requests or a separate operator terminal. No task was created or changed")
         if args.command == "serve":
             from .mcp_server import serve
-            serve(args.project.resolve())
+            serve(args.project.resolve(), single_terminal=args.single_terminal, gate_timeout=args.gate_timeout)
             return 0
         result, code = dispatch(args)
         print(json.dumps(result, ensure_ascii=False, indent=2))

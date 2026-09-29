@@ -1,39 +1,38 @@
 # Changelog
 
+## 0.4.0 — alpha
+
+- Explicit `serve --single-terminal` opt-in; default v0.3 transport/manual mode stays compatible.
+- `request_start`, `request_execution`, `request_acceptance` request native host forms through correlated MCP elicitation, not tool permission heuristics.
+- Scoped HumanGate ledger with expiry, session ownership, local audit labels, exact previews, negative/cancel/error handling, stale-state checks inside kernel locks and no automatic replay of uncertain effects.
+- Automatic separate worker processes with a freshly constructed environment, existing single-worker locking, private logs, bounded failed startups and idle exit. Initial trust remains operator-only.
+- Direct nested start/ask/run from Claude Code rejected before state mutation; previous registration-before-planner-failure UX is avoided.
+- Portable Skill updated for native gates, no home/history searches, no shell polling, no redundant validator execution and explicit manual fallback.
+- `skill --replace` preserves a backup and refuses symlinks; `gate G-ID` provides read-only audit inspection.
+- New form/protocol/worker tests and actual single-terminal wire E2E with model shims; optional official MCP SDK elicitation interoperability test.
+- Existing profile/task schemas, approved artifacts and trust digests unchanged. Separate gates.sqlite3 is additive.
+
+Confirmation remains client-mediated. Neither a local actor label nor elicitation
+proves a human clicked; client hooks/settings can auto-answer. No automatic trust,
+cryptographically signed user approvals, external-effect authorization, OS worker
+isolation, additional providers, DAGs or parallel workspaces are implemented.
+Authenticated live v0.4 host UI verification remains outstanding.
+
 ## 0.3.0 — alpha
 
-- Fixed-project stdio MCP tools with a bounded JSON-RPC transport and no HTTP listener.
-- Durable local ask/run job queue, required idempotency keys, 32 pending-job limit and one-hour start expiry.
-- Separate operator-started worker: retained Claude session guards, recursion marker, single-worker locking and no automatic replay after interruption.
-- Agent-facing inspection, proposal, artifact retrieval, gated execution and cooperative job cancellation; no trust/start/approve/accept or arbitrary shell/path tools.
-- Portable packaged Agent Skill with no-overwrite export, plus Claude Code/Codex connection documentation.
-- Queued profile/worktree binding checked before dispatch; cancellation propagated into Supervisor/provider/validator process checks.
-- Existing v0.2 profile fingerprints/task schemas remain unchanged; separate job database requires no task-state rewrite.
-- Actual stdio/subprocess wire E2E with both provider-role configurations, protocol/error tests and optional official MCP SDK client interoperability test.
-- No authenticated interactive-client v0.3 E2E, multi-user identity boundary, automatic human approval, new provider, arbitrary DAG or parallel workspace execution is claimed.
+Fixed-project stdio MCP tools, idempotent bounded ask/run jobs, operator-started
+separate worker, portable Skill, CLI/client setup documentation and protocol-wire
+E2E. Explicit human start/approve/accept stayed in the operator terminal. Owner
+subsequently reported completed live flows from Claude Code and Codex frontends.
 
 ## 0.2.0 — alpha
 
-### Added
+Natural-language Supervisor intake, scoped proposal confirmation, role-specific
+results with blockers separated from observations, validator preflight/check/
+registration, generated-output controls and compatibility for v0.1 task rows.
 
-- Provider-neutral Supervisor and `ask` natural-language task proposals with explicit clarification, immutable evidence and confirmation scopes.
-- `intake` inspection and `start` confirmation; one-time transactional proposal consumption, then optional automatic planning (never execution approval).
-- Minimum T2/mandatory execution approval for normal ask tasks; explicit advisory mode, known-validator enforcement, blocked external effects and bounded clarification/call/time accounting.
-- PlanResult, ImplementationResult and ReviewResult for new tasks; separate blocking findings and observations.
-- Schema-parameterized Claude/Codex requests without changing the existing native CLI permission modes.
-- Validator registration/check commands, non-executing doctor/preflight, project-relative/PATH/absolute executable resolution and preserved virtualenv interpreter symlinks.
-- Filtered explicit validator environment, default Python bytecode suppression and narrow untracked generated-output roots.
-- Mutation path diagnostics, non-runtime control-file checks and retained validation evidence on integrity failures.
-- Terminal-only interactive execution approval with scope revalidation and escaped previews.
-- Additive runtime database migration and legacy task/result/profile-fingerprint compatibility tests.
-- Offline subprocess-based wire E2E for both provider-role configurations and an owner-reported v0.1 live E2E record.
+## 0.1.0 — alpha
 
-### Compatibility and limits
-
-- TaskSpec YAML/JSON v1 and existing create/run/approve/accept interfaces remain available.
-- Existing task rows keep legacy AgentResult semantics. Newly created task state uses version 2.
-- Unchanged v0.1 profile fingerprints remain stable; configuration changes still require retrust.
-- Back up stopped runtimes before upgrade. Downgrading the upgraded database is unsupported.
-- This is trusted-local orchestration, not authenticated human approval or OS-separated control state.
-- New v0.2 model schemas and Supervisor require a live authenticated smoke test; offline shims are not model verification.
-- Gemini/API adapters, arbitrary DAGs, parallel workers, native subagents, cost/token budgets, automated evidence verification and dynamic workflow selection remain unimplemented.
+Project-driven sequential workflow kernel, Claude/Codex CLI adapters, SQLite
+state/events, artifact hashes, explicit execution approval and final acceptance,
+validator runner and operator-governed project knowledge promotion.

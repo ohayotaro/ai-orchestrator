@@ -6,6 +6,7 @@ import contextlib
 import os
 import signal
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -82,11 +83,13 @@ def process_one(queue: JobQueue, *, registry: dict[str, ProviderAdapter] | None 
     return queue.get(job.id).model_dump()
 
 
-def run_worker(root: Path, *, once: bool = False, poll_interval: float = 1.0) -> dict:
+def run_worker(root: Path, *, once: bool = False, poll_interval: float = 1.0, idle_seconds: float | None = None) -> dict:
     if os.environ.get("CLAUDECODE") or os.environ.get(WORKER_MARKER):
         raise OrchestratorError("start worker manually in a separate normal terminal, not inside an agent/worker; session guards are not cleared")
     if not 0.1 <= poll_interval <= 60:
         raise OrchestratorError("poll interval must be between 0.1 and 60 seconds")
+    if idle_seconds is not None and not 0.1 <= idle_seconds <= 60:
+        raise OrchestratorError("idle-seconds must be between 0.1 and 60")
     project = Project(root)
     project.load()
     stop = threading.Event()
@@ -101,13 +104,17 @@ def run_worker(root: Path, *, once: bool = False, poll_interval: float = 1.0) ->
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     previous[sig] = signal.signal(sig, lambda *_: stop.set())
             os.environ[WORKER_MARKER] = "1"
+            idle_since = time.monotonic()
             while not stop.is_set():
                 result = process_one(queue, stop=stop.is_set)
                 if result is not None:
                     processed += 1
+                    idle_since = time.monotonic()
                 if once:
                     return {"processed": processed, "interrupted_jobs": interrupted, "job": result}
                 if result is None:
+                    if idle_seconds is not None and time.monotonic() - idle_since >= idle_seconds:
+                        return {"processed": processed, "interrupted_jobs": interrupted, "idle_exit": True}
                     stop.wait(poll_interval)
             return {"processed": processed, "interrupted_jobs": interrupted, "stopped": True}
         finally:
