@@ -103,6 +103,8 @@ class Project:
             if not base.exists():
                 continue
             for path in sorted(base.rglob("*")):
+                if path.name == ".DS_Store":
+                    continue
                 relative = path.relative_to(self.root).as_posix()
                 confined(self.root, relative)
                 if path.is_file():
@@ -111,7 +113,13 @@ class Project:
                     context[relative] = read_text(path)
         if len(encode(context).encode()) > MAX_CONTEXT_BYTES:
             raise OrchestratorError("active project context exceeds 64 KiB; curate it before running")
-        return profile, digest({"profile": profile.model_dump(), "context": context}), context
+        # Preserve v0.1 digests when newly introduced optional settings are empty.
+        effective = profile.model_dump()
+        for validator in effective["validators"].values():
+            for key in ("env", "generated_paths"):
+                if not validator[key]:
+                    del validator[key]
+        return profile, digest({"profile": effective, "context": context}), context
 
     @contextlib.contextmanager
     def lock(self) -> Iterator[None]:
@@ -142,7 +150,7 @@ class Project:
             raise OrchestratorError("Git operation failed; use a local Git project with a readable worktree")
         return result.stdout
 
-    def snapshot(self) -> str:
+    def manifest(self) -> dict[str, tuple[str, int]]:
         top = Path(os.fsdecode(self.git("rev-parse", "--show-toplevel")).strip()).resolve()
         if top != self.root:
             raise OrchestratorError("--project must be the Git worktree root")
@@ -174,6 +182,30 @@ class Project:
             else:
                 value, mode = "deleted", 0
             entries.append((relative, value, mode))
+        return {name: (value, mode) for name, value, mode in entries}
+
+    def snapshot(self) -> str:
+        # Preserve the exact v0.1 list/ordering used in approval fingerprints.
+        return digest([(name, value, mode) for name, (value, mode) in self.manifest().items()])
+
+    def control_snapshot(self) -> str:
+        """Detect agent edits to task specs/candidates as well as active policies."""
+        entries = {}
+        count = 0
+        for base, directories, filenames in os.walk(self.control, followlinks=False):
+            parent = Path(base)
+            if parent == self.control:
+                directories[:] = [name for name in directories if name != "runtime"]
+            for name in [*directories, *filenames]:
+                if name == ".DS_Store":
+                    continue
+                relative = (parent / name).relative_to(self.root).as_posix()
+                path = confined(self.root, relative)
+                if path.is_file():
+                    count += 1
+                    if count > 20000 or path.stat().st_size > MAX_FILE_BYTES:
+                        raise OrchestratorError("control snapshot exceeds v0.2 limits")
+                    entries[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
         return digest(entries)
 
     def protected_snapshot(self, profile: Profile) -> str:
@@ -202,6 +234,7 @@ def initialize(root: Path, name: str) -> None:
         "name": name,
         "providers": {"reasoning": {"adapter": "claude"}, "engineering": {"adapter": "codex"}},
         "roles": {
+            "supervisor": {"provider": "reasoning"},
             "planner": {"provider": "reasoning"},
             "implementer": {"provider": "engineering"},
             "reviewer": {"provider": "reasoning"},

@@ -1,54 +1,70 @@
-# Architecture: v0.1
+# Architecture: v0.2
 
-## Boundaries
+## Layers and responsibilities
 
-The kernel is project-driven rather than domain-driven. `Profile` owns provider bindings, role instructions/requirements, declarative machine policy, and named validators. Approved Markdown supplies bounded project context. No domain is required or inferred.
+`Supervisor -> TaskSpec -> deterministic Engine -> role-specific providers/validators` is the core boundary. The Supervisor performs semantic intake, not orchestration authority. The engine alone chooses executable phase transitions and checks budgets, approvals, artifacts and workspace integrity. Policies, skills and knowledge remain project-owned rather than predefined domains.
 
-`models.py` is the versioned contract source. `orchestrator schema` exports JSON Schema directly from the validation models rather than maintaining a second hand-written schema. Unknown fields, unsupported versions, duplicate YAML keys, invalid IDs and traversal paths fail closed.
+The modules are:
 
-`engine.py` is a sequential state machine, not an LLM planner of arbitrary transitions. Logical roles remain separate from adapters. `ProviderAdapter` supplies a family label, declared capabilities, a diagnostic probe, and `execute(RunRequest) -> AgentResult`. Inject a registry into `Engine(root, registry=...)` to test or add adapters. CLI plugin discovery and arbitrary extension loading are intentionally absent.
+- `models.py`: stable TaskSpec/Profile plus versioned task state and validator configuration.
+- `contracts.py`: PlanResult, ImplementationResult, ReviewResult, TaskDraft, SupervisorResult, IntakeState.
+- `supervisor.py`: proposal/clarification invocation, policy normalization, exact-scope operator confirmation.
+- `engine.py`: sequential `build-review` execution, approval/acceptance and named validation.
+- `providers.py`: CLI adapters and schema-parameterized RunRequest; fresh sessions and phase-specific tools.
+- `validators.py`: executable resolution, static preflight, guarded execution and explicit user registration.
+- `project.py`: profile/context loading, fingerprints, path checks and cooperating-controller lock.
+- `store.py`: transactional SQLite state/events/intakes and immutable artifact references.
+- `knowledge.py`: human-governed knowledge/policy/skill promotion, unchanged as a separate lifecycle.
+- `cli.py`: user-facing commands, including ask/start and explicit human gates.
 
-## State machine
+Provider implementations remain Python registry entries injected into `Engine(root, registry=...)`. No arbitrary class/module import is taken from project configuration. Additional vendors are extension points, not implemented adapters in this release.
 
-The phase is `plan`, `execute`, `validate`, `review`, or `accept`. Execution status is independently `ready`, `running`, `awaiting_approval`, `awaiting_acceptance`, `succeeded`, `blocked`, `failed`, or `cancelled`.
+## Natural-language intake
 
-T0 goes from a non-writing planner to operator acceptance. T1-T3 go through all phases. T3 cannot disable execution approval. Lower-tier write tasks also require approval unless the operator explicitly changes and trusts the profile. Validation failure or review rejection re-enters execution with an incremented attempt and bounded feedback. All successful write paths must pass validation and explicit review before operator acceptance.
+`ask` checks trusted effective context, required validator executables, input size, provider capabilities and budgets before making one Supervisor call. Normal intake requires registered validators; explicitly advisory intake may omit them. New profiles declare a supervisor role. Old profiles fall back to their planner binding without a profile mutation.
 
-Provider launch failure, malformed output, timeout, protected-path mutation, or ambiguous interrupted execution does not trigger automatic replay. Only an explicit validation failure/review rejection enters the bounded repair loop. `max_attempts` limits implementations; `max_agent_calls` and cumulative execution seconds bound model calls and validators. Approval wait time is not execution time. CLI preflight probes have their own short timeout. There is no dollar or token budget enforcement.
+The Supervisor receives the user's request, bounded clarification history, approved project context and available validator **names**. It produces a proposal, concrete clarification questions, or a blocked result. IDs come from the operator/controller, never the model. Machine permissions, command registration, approvals and workflow graphs are not representable in TaskDraft.
 
-The profile's `workflow` currently accepts only `build-review`. Editing roles and constraints is supported; arbitrary YAML graphs, parallel dispatch and nested subagents are not.
+The controller validates the output, rejects unknown validators and external effects, and raises normal write requests below T2 to T2 with a visible note. All tasks originating from ask retain explicit execution approval regardless of the profile's lower-tier default. Advisory mode requires T0/no validators and cannot silently turn into writing work. Classification is still model-assisted, not a complete detector of every external consequence.
 
-## Approval and acceptance
+Intakes live in a dedicated SQLite table. Successful outputs also have immutable hashed Supervisor artifacts. Proposal confirmation binds the intake ID, task, request, profile, original worktree snapshot, artifact hash and cumulative execution accounting. `start` rechecks that scope/current state and transactionally creates a task while marking the intake consumed. It never creates an execution approval. The CLI then runs planning unless `--no-run` is selected.
 
-An execution-approval scope hashes the frozen task specification, effective profile/context digest, plan artifact, implementation attempt, and current worktree snapshot. A different scope needs a new approval. Final acceptance verifies the entire artifact chain and compares the worktree against the reviewed snapshot.
+An interruption after registration but before planning leaves a ready task; inspect `intake <id>`/`status <task-id>` and use `run`, not a second `start`. An interrupted Supervisor call creates no task. A stale running intake is not implicitly replayed; inspect it and start a new intake. Clarifications are fresh calls with explicit history, limited to three rounds. Their calls/time count toward the created task's budget.
 
-A project-level POSIX `flock` prevents cooperating controllers from mutating the same workspace concurrently. SQLite commits each state transition and its event in one transaction. Running tasks cannot be resumed blindly. An operator can recover a stale run only after the lock is free; recovery records failure, not success or rollback.
+## Execution and result versioning
 
-An `--by` label records who the operator says they are. It is not authentication. See SECURITY.md before interpreting these approvals as an access-control boundary.
+New TaskState rows have `schema_version: 2`; existing rows missing new fields remain schema v1. TaskSpec and Artifact schemas remain version 1. v1 tasks request legacy AgentResult on every model phase and retain the outcome-only review compatibility rule introduced in commit 2067408.
 
-## Artifacts and reviewer context
+v2 phases request separate result schemas. All model-facing fields are required, unknown properties are forbidden, and no new result format is silently coerced from an old one. The reviewer has `blocking_findings`, `observations`, and `evidence`. A blocked response stops; a requested change or any blocker requests bounded repair; explicit approval with no blockers requests human acceptance. Non-blocking observations are preserved in artifacts but never interpreted as defects.
 
-The controller stores schema-validated result artifacts as immutable uniquely named JSON files with SHA-256 digests. A plan, implementation result, runner validation record, review, and acceptance remain distinguishable by artifact kind and attempt. The database is authoritative; JSON event export is a read view, not a second writable state store.
+The phase graph is still the single built-in sequential build-review workflow. T0 only plans/answers and requests acceptance. Writing tasks implement, validate and freshly review before acceptance. Repair increments the implementation attempt and consumes the same call/time budget. Arbitrary graphs, parallel workers, native subagents and automatic model fallback remain outside v0.2.
 
-Reviewer requests contain the task, approved project context, and runner-produced validation evidence. They intentionally omit implementation summaries, plans, and conversational transcripts. Every adapter call starts a new invocation without resume. Reviewers still inspect the same project files, which may contain model-written text; context construction is not proof of epistemic independence or isolation from every on-disk artifact.
+Reviewer inputs omit Supervisor conversations, implementation summaries and plans. They contain task criteria, approved project context and runner validation evidence. They can inspect current project files, so a fresh invocation is not proof of independent reasoning or isolation from all model-written content on disk.
 
-## Project evolution
+## Validators
 
-Candidates require evidence references and remain outside active prompt context. An operator promotes an exact content digest into `knowledge/accepted`, `policies`, or `skills`. Those directories are included in the effective profile digest. Promotion therefore invalidates prior profile trust and existing task bindings.
+`doctor` and task preflight resolve every selected executable without running validator code. A slash-containing relative executable is anchored at the project root; a bare command uses PATH; an absolute executable stays absolute. Symlinked virtualenv interpreters are deliberately not resolved to their underlying system binary. Inspection does not certify shebang interpreters, installed modules or arbitrary argument semantics.
 
-Approved policy Markdown is model-facing guidance. Only structured `Policy` fields implement machine gates. Promotion never installs a validator, enables a tool, changes risk classifications, or edits the kernel. Operators define validator commands manually and retrust configuration after review.
+`validator check` is a separate operator-authorized execution path using the same runner, filtered environment and integrity checks as task validation. Python bytecode generation is disabled by default; explicit user environment entries can configure test behavior but cannot override reserved path/home/loader/credential-like keys. This is convenience and defense in depth, not an OS sandbox.
 
-v0.1 records evidence references but does not fetch them, determine truth, infer confidence, aggregate observations, or automatically generalize between projects. These mechanisms require future evaluation, provenance and conflict-resolution design.
+`generated_paths` contains literal project-relative directories. The runner rejects traversal, globs, symlink escape, overlap with tracked paths and overlap with protected paths. Only mutations within those untracked directories are allowed during that validator. The roots are rechecked afterwards. Generated output is recorded separately; other mutations cause failure with changed paths. Validation evidence is retained even when the process returns zero but violates the integrity guard.
 
-## Adapter contracts and sources
+Active policy/context hashes and a separate control-file snapshot detect edits to `.orchestrator` outside runtime. Worktree snapshots preserve the v0.1 digest ordering, cover tracked/nonignored untracked files, and ignore `.DS_Store`. Git metadata, ignored output and hostile same-user manipulation remain documented limitations.
 
-Codex uses `exec`, ephemeral sessions, a phase-specific sandbox, explicit noninteractive approval settings, schema output, an output file, and stdin prompts. Claude uses print-mode structured output, no session persistence, explicit file-tool sets, noninteractive denial, empty explicit MCP configuration, and disabled optional customization sources. Runtime settings and administrative policy remain relevant; declared capabilities are not interchangeable security guarantees.
+## Persistence and migration
 
-Upstream documentation reviewed on 2026-09-29:
+Runtime database schema 2 adds `intakes` without rewriting existing task/event/artifact rows. `PRAGMA user_version=2` prevents the older executable from consuming new state unknowingly. Back up the entire stopped runtime before upgrading; downgrades are not supported.
+
+Effective profile fingerprints omit empty newly added validator `env`/`generated_paths` fields, preserving v0.1 hashes for unchanged configurations. Adding a nonempty setting, role or approved context still invalidates trust and task bindings. New task approval scopes also include result-contract version and intake/mandatory-approval metadata. Existing v1 scopes keep the original calculation.
+
+All files, SQLite, and CLIs still run under a local user account. Transactions, hashes and locks provide consistency between cooperating processes, not authenticated authority against hostile actors. See SECURITY.md.
+
+## Upstream interfaces
+
+The v0.1 CLI invocation controls that the owner tested live are retained. v0.2 selects a different JSON Schema per role through the existing structured-output interfaces:
 
 - https://developers.openai.com/codex/noninteractive
-- https://developers.openai.com/codex/cli/reference
 - https://code.claude.com/docs/en/headless
 - https://code.claude.com/docs/en/cli-reference
 
-Adapters are unit-tested against documented envelope/command shapes. They have not been authenticated against live CLIs in the initial development environment. The diagnostic probe checks required flag availability, not every model option or end-to-end compatibility.
+These primary-source interfaces were reviewed during v0.2 implementation. Version/help probes check expected flags, not authenticated end-to-end compatibility. The new schemas and Supervisor require a live v0.2 smoke test after the offline suite.

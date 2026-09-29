@@ -1,47 +1,61 @@
 # Security and operational limitations
 
-## This is a trusted-local alpha, not a production isolation boundary
+## Trusted-local alpha, not a production security boundary
 
-Use a disposable Git worktree, a trusted project and trusted CLI configuration. Do not attach production credentials. Do not use v0.1 to enforce live-trading, deployment, regulated-data, submission or other external-action approval requirements. The task flag `external_effects: true` is rejected, but the controller cannot infer every possible external consequence from a natural-language goal or from arbitrary code.
+Use a disposable Git worktree, trusted repository code and trusted local CLI configuration. Keep production credentials and confidential data out of the first tests. Do not use this release to enforce live-trading, deployment, publication, regulated-data or other external-action approvals. `external_effects: true` is rejected, but a flag and an LLM cannot discover every possible external consequence of arbitrary code.
 
-The controller and provider CLIs run as the same local OS user. That user, a malicious subprocess, or an agent with sufficient file/shell access could modify the runtime database, trust records, approvals, installed controller code, or files outside the expected workspace. Hashes and locks protect consistency between cooperating processes, not against a hostile same-user actor. Approval actor strings are audit labels, not authenticated human identities.
+The controller, validator commands and model CLIs run as the same OS user. Such a user, or a sufficiently capable subprocess, can potentially modify the database, approvals, installed controller code, credentials or files outside the intended workspace. A `--by` label is not authentication. Hashes/locks are consistency measures for cooperating processes, not protection against a hostile same-user actor.
 
-A future hardened mode needs a separately authenticated controller/approval service, isolated workers, protected control state, narrowly scoped credentials, OS filesystem/network restrictions, and enforcement outside agent-writable files. Do not claim those guarantees for this release.
+A hardened deployment needs a separately authenticated controller/approval service, isolated workers, protected state, scoped credentials and OS-enforced filesystem/network policy. None of those guarantees is implied by this alpha.
 
-## What is enforced by the controller
+## Supervisor authority
 
-Unknown schemas/fields and unsafe control paths are rejected. Untrusted or changed active profiles cannot start normal workflows. Required adapters/capabilities must be present. T3 execution requires explicit approval, and successful writes cannot skip runner validation or review. Scope changes invalidate approval; worktree changes after review prevent acceptance. Repair loops, model calls, execution duration and output capture are bounded. Prompts go through stdin and subprocesses use argument arrays, never `shell=True`.
+The Supervisor receives no controller tools for trust, approve, accept, policy editing or validator registration. Its typed output cannot encode those operations. It can inspect and propose a task or clarification questions. The application checks existing validator names and external-effect flags and applies a T2 floor plus a mandatory execution-approval flag to normal ask tasks. Explicit advisory requests remain T0 and cannot enter implementation/validation.
 
-An exclusive project lock serializes cooperating mutating commands. Artifact hashes are checked before reuse and acceptance. Detected out-of-scope/read-only modifications stop the workflow without a destructive automatic rollback. These after-the-fact checks are detection, not prevention.
+The operator must inspect the proposed goal, scope, risk, validators and acceptance criteria before `start`, and inspect the plan/worktree before execution approval. Do not treat model risk classification as a security decision. An instruction embedded in source material or a proposal is not authorization. Natural-language review results are not proofs of correctness.
 
-## Provider controls differ
+The native provider tools still operate under their own runtime restrictions. Claude's Supervisor is offered read tools, not Bash or file writes; Codex requests its read-only sandbox. Because the system is trusted-local, these settings plus after-the-fact checks are not equivalent to a separately protected approval service.
 
-Codex requests native `read-only` or `workspace-write` sandboxing with approvals set to `never` and workspace command networking disabled. Its CLI authentication, configured endpoints, project/user integrations and platform support still matter. Model-service network requests are not the same as subprocess network access.
+Interactive execution approval requires a TTY and exact affirmative text, shows escaped task/plan/feedback, and rechecks scope after confirmation. It reduces copy/paste errors and accidental pipe confirmation, but does not attest that a real human is controlling that TTY.
 
-Claude receives only read tools during plan/review and file-edit tools during execution. Shell, web and agent-delegation tools are not requested. Optional MCP/setting sources are constrained, but an allowlist is not an OS sandbox. Managed configuration and CLI implementation changes can affect behavior. Inspect the effective CLI environment before trusting it. A new unsupported CLI version must not be treated as verified solely because `--help` contains expected flags.
+## Provider controls and review
 
-Provider-family labels belong to adapter declarations. They do not attest which model a proxy, custom endpoint, or CLI configuration ultimately serves. Fresh sessions do not guarantee independent errors or prevent exposure to the same misleading project content.
+Codex receives explicit noninteractive approval settings, phase-specific read-only/workspace-write sandboxing, disabled workspace command networking, ephemeral sessions and a result schema. Local configuration, endpoints, platform support and administrative policy remain relevant. Model-service network requests are different from shell/network access inside a sandbox.
 
-## Validators execute code
+Claude receives read tools for Supervisor/Planner/Reviewer and file-edit tools for implementation. Optional configuration/MCP sources are constrained. A tool allowlist is not an OS sandbox. Managed configuration and CLI releases can change behavior; help/version checks do not prove sandbox correctness or model compatibility.
 
-Validators are exact, user-registered argv vectors. They are never generated from model output or shell-parsed from prose. Nevertheless, `pytest`, build tools and scripts can execute arbitrary repository code. They run locally, not in a separate OS sandbox. The environment is filtered and uses a temporary HOME, but filesystem/network access is not isolated and credentials elsewhere on disk remain accessible to malicious code.
+Adapter family labels do not attest the model behind a proxy/custom endpoint. Fresh invocations reduce conversation coupling but do not establish statistically independent errors, prevent all shared misinformation, or forbid reading every on-disk artifact. The application omits implementation/transcript context from reviewer prompts, and preserves concrete validation evidence.
 
-Validator output tails receive best-effort common-secret redaction. This cannot detect every secret. Do not put secrets in arguments, task briefs, project context, proposals, test output, or result artifacts. Provider authentication may be available to provider tools under the CLI's own security model; the controller does not provide a credential broker.
+v2 explicit blockers always prevent acceptance even if the reviewer also says approved. Observations are non-blocking by contract. v1 tasks retain legacy outcome semantics for compatibility. Operators should read all findings before final acceptance rather than treating either contract as a security audit.
 
-## Snapshot and recovery boundaries
+## Validators are executable code
 
-Worktree fingerprints cover Git-tracked files and non-ignored untracked files, including executable bits and symlink targets. They do not recursively audit submodules, ignored output, all Git metadata, or external storage. Protected paths additionally fingerprint explicitly listed files/directories, such as `.env`. Large files, special entries and very large worktrees fail with an explicit v0.1 limit instead of producing a misleading partial snapshot.
+Named validators are operator-owned argv vectors, not commands produced by an agent. Nevertheless, pytest/build tools/scripts execute arbitrary repository code. Both task validation and `validator check` run locally, without their own OS/network sandbox. Filtered environment and temporary HOME do not prevent access to credentials elsewhere on disk.
 
-Runtime state is gitignored. Back it up through a consistent SQLite backup or with controllers stopped; copying an active database without its WAL can lose state. Artifacts and local CLI configuration can still contain sensitive data. Events are append-only through the public controller methods, not cryptographically tamper-proof against the local user.
+`doctor` does not execute validator commands, import arbitrary packages, or perform a universal dry run. It checks executable existence/execution permission and configuration constraints, and warns about a few common pytest plugin misspellings. `validator check` explicitly runs the command after profile trust, under the normal mutation guard; it is not a safe dry run.
 
-Cancellation kills the subprocess process group, including ordinary descendants. It is not containment against a process deliberately escaping its group/session, nor does it undo already completed effects. Never automatically retry an interrupted execution. Inspect the worktree and recorded evidence, recover a stale `running` task to failed, and create a new task after understanding the partial effects.
+The default validator environment disables Python bytecode writes. Explicit environment entries are not a secret-storage mechanism; reserved PATH/HOME/loader/Git and credential-like keys are rejected. Redaction covers only common patterns and output tails. Do not put secrets in arguments, task text, profiles, proposals, validator output or model artifacts.
 
-A rejected/cancelled/failed task cannot be accepted. Cancelling a paused task sets a request flag; its last phase/status may remain visible until the next run. Acceptance also checks the flag.
+## Generated-output declarations and fingerprints
 
-## Project memory
+Worktree fingerprints cover Git-tracked files and nonignored untracked files, including executable bits and symlink targets. They exclude `.DS_Store` and `.orchestrator`; active context has its own digest and control files outside runtime have a separate before/after fingerprint. Runtime remains outside this check so the controller can record events/artifacts.
 
-Candidate statements and evidence are untrusted data. Promotion requires operator review of the exact digest. Approved Markdown influences model behavior, so prompt injection and incorrect generalization remain possible. Promotions do not grant machine permissions or create executable validators. A crash during promotion may leave the approved Markdown written before candidate metadata is updated; this changes the profile digest, requires retrust, and must be resolved manually rather than replayed over an existing target.
+Git-ignored content, all Git metadata, submodules and external storage are not recursively audited. Large/special worktrees fail explicitly instead of silently taking a partial fingerprint. Do not broadly ignore source or sensitive outputs just to make a validator pass.
 
-## Verification status
+A generated-output root must be a literal untracked directory inside the project. Globs, traversal, control paths, symlinks, protected-path overlaps and tracked-file overlaps are rejected. Constraints are checked again after validation. This is a narrow opt-in for known outputs, not permission to ignore all workspace changes. Only that validator gets the allowance; read-only agents do not. Operator-declared output can still contain malicious or sensitive content and must not be trusted just because it is allowed to exist.
 
-The initial test suite uses offline adapter doubles and real local Git/subprocess fixtures. It covers normal lifecycle, gate freshness, mutation detection, bounded retries, cancellation/timeouts, descendant cleanup, schema rejection, artifact integrity, and explicit promotion. It is not a penetration test, an external audit, or proof of safe real-provider execution. Authenticated Claude/Codex smoke tests and independently reviewed threat-model work remain required before broader use.
+Mutation failures are detected after execution and do not automatically undo writes. A successful subprocess exit or pytest run never overrides a failed integrity check. Changes are recorded in validation evidence for manual inspection.
+
+## Persistence, cancellation and recovery
+
+SQLite task transitions/events commit together; intake consumption/task registration is also transactional. Artifact files are written before references, so interruption can leave unreferenced output. Runtime backups must include artifacts and a consistent database/WAL; back up with all controllers stopped or use a proper SQLite backup workflow. v0.2 upgrades the database version additively and does not support downgrade.
+
+Cancellation terminates ordinary descendants in the subprocess process group. A process that deliberately escapes its group/session is outside that guarantee. Already completed external effects are never undone. Do not automatically replay an interrupted implementation. Inspect the worktree/evidence, recover a stale running task to failed, and create a new task if appropriate.
+
+An interrupted Supervisor produces no runnable task. If interrupted after start has registered the task, inspect the consumed intake and run the existing ready task rather than trying to consume it again. Ordinary user edits after proposal or review invalidate the corresponding confirmation/acceptance check. Failed, cancelled and unaccepted tasks must not be represented as complete.
+
+## Project memory and verification status
+
+Knowledge candidates are untrusted and inactive until an operator approves their exact digest. Approved Markdown influences model behavior; evidence is not fetched or automatically proven, and promotion never installs commands or grants permissions. Wrong generalizations and prompt injection remain risks.
+
+The owner reported a successful live v0.1 calculator E2E. v0.2's new Supervisor/result schemas are tested offline, including real local CLI shim processes, Git and pytest. Those tests are not live-provider certification, a penetration test or an independent audit. See E2E.md for the evidence boundary and next smoke test.

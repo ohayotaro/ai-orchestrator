@@ -8,8 +8,22 @@ import pytest
 import yaml
 
 from ai_orchestrator.engine import Engine
+from ai_orchestrator.contracts import PlanResult, ImplementationResult, ReviewResult
 from ai_orchestrator.models import AgentResult, TaskSpec
 from ai_orchestrator.project import initialize
+
+
+def reply(request, *, outcome, summary, findings, evidence):
+    values = {"outcome": outcome, "summary": summary, "evidence": evidence}
+    if request.result_model is PlanResult:
+        values.update(steps=findings, uncertainties=[])
+    elif request.result_model is ImplementationResult:
+        values.update(changes=findings, uncertainties=[])
+    elif request.result_model is ReviewResult:
+        values.update(blocking_findings=findings if outcome == "changes_required" else [], observations=findings if outcome == "approved" else [])
+    else:
+        values["findings"] = findings
+    return request.result_model(**values)
 
 
 class FakeAdapter:
@@ -34,15 +48,15 @@ class FakeAdapter:
             (request.workspace / "result.txt").write_text("implemented\n")
             if self.mutate_protected:
                 (request.workspace / ".env").write_text("changed")
-            return AgentResult(outcome="completed", summary="IMPLEMENTER_TRANSCRIPT_MARKER", findings=[], evidence=["result.txt"])
+            return reply(request, outcome="completed", summary="IMPLEMENTER_TRANSCRIPT_MARKER", findings=[], evidence=["result.txt"])
         if request.phase == "review":
             if self.mutate_review:
                 (request.workspace / "unexpected.txt").write_text("violation")
             if self.reject_reviews:
                 self.reject_reviews -= 1
-                return AgentResult(outcome="changes_required", summary="Repair the issue", findings=["synthetic defect"], evidence=[])
-            return AgentResult(outcome="approved", summary="Acceptance criteria satisfied", findings=[], evidence=["result.txt"])
-        return AgentResult(outcome="completed", summary="Inspect, implement and test the requested change", findings=[], evidence=[])
+                return reply(request, outcome="changes_required", summary="Repair the issue", findings=["synthetic defect"], evidence=[])
+            return reply(request, outcome="approved", summary="Acceptance criteria satisfied", findings=[], evidence=["result.txt"])
+        return reply(request, outcome="completed", summary="Inspect, implement and test the requested change", findings=[], evidence=[])
 
 
 @pytest.fixture

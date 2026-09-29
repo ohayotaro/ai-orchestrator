@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .models import AgentResult, OrchestratorError, ProviderConfig
+from .models import AgentResult, Contract, OrchestratorError, ProviderConfig
 from .process import run_process
 from .project import encode, read_text
 
@@ -23,6 +23,7 @@ class RunRequest:
     config: ProviderConfig
     timeout: float
     cancel: Callable[[], bool]
+    result_model: type[Contract] = AgentResult
 
 
 class ProviderAdapter(Protocol):
@@ -30,7 +31,7 @@ class ProviderAdapter(Protocol):
     capabilities: frozenset[str]
 
     def doctor(self, config: ProviderConfig, workspace: Path) -> dict[str, str]: ...
-    def execute(self, request: RunRequest) -> AgentResult: ...
+    def execute(self, request: RunRequest) -> Contract: ...
 
 
 class CLIAdapter:
@@ -73,16 +74,16 @@ class CodexAdapter(CLIAdapter):
             args += ["-c", "model_reasoning_effort=" + json.dumps(request.config.effort)]
         return args + ["-"]
 
-    def execute(self, request: RunRequest) -> AgentResult:
+    def execute(self, request: RunRequest) -> Contract:
         with tempfile.TemporaryDirectory(prefix="orchestrator-codex-") as directory:
             schema, output = Path(directory) / "schema.json", Path(directory) / "result.json"
-            schema.write_text(encode(AgentResult.model_json_schema()), encoding="utf-8")
+            schema.write_text(encode(request.result_model.model_json_schema()), encoding="utf-8")
             argv = self.command_line(request, schema, output)
             argv[0] = self.executable(request.config)
             result = run_process(argv, cwd=request.workspace, input_text=request.prompt, timeout=request.timeout, cancel=request.cancel)
             if result.returncode != 0 or not output.is_file():
                 raise OrchestratorError(f"Codex failed (exit {result.returncode}); inspect CLI authentication/configuration, then create a new task")
-            return AgentResult.model_validate_json(read_text(output))
+            return request.result_model.model_validate_json(read_text(output))
 
 
 class ClaudeAdapter(CLIAdapter):
@@ -94,14 +95,14 @@ class ClaudeAdapter(CLIAdapter):
     def command_line(self, request: RunRequest, mcp: Path) -> list[str]:
         tools = "Read,Glob,Grep,Edit,Write" if request.phase == "execute" else "Read,Glob,Grep"
         settings = {"disableAllHooks": True, "autoMemoryEnabled": False}
-        args = [request.config.executable or self.command, "-p", "--output-format", "json", "--json-schema", encode(AgentResult.model_json_schema()), "--no-session-persistence", "--permission-mode", "dontAsk", "--tools", tools, "--allowedTools", tools, "--disallowedTools", "mcp__*", "--strict-mcp-config", "--mcp-config", str(mcp), "--setting-sources", "", "--settings", encode(settings), "--disable-slash-commands"]
+        args = [request.config.executable or self.command, "-p", "--output-format", "json", "--json-schema", encode(request.result_model.model_json_schema()), "--no-session-persistence", "--permission-mode", "dontAsk", "--tools", tools, "--allowedTools", tools, "--disallowedTools", "mcp__*", "--strict-mcp-config", "--mcp-config", str(mcp), "--setting-sources", "", "--settings", encode(settings), "--disable-slash-commands"]
         if request.config.model:
             args += ["--model", request.config.model]
         if request.config.effort:
             args += ["--effort", request.config.effort]
         return args
 
-    def execute(self, request: RunRequest) -> AgentResult:
+    def execute(self, request: RunRequest) -> Contract:
         with tempfile.TemporaryDirectory(prefix="orchestrator-claude-") as directory:
             mcp = Path(directory) / "mcp.json"
             mcp.write_text('{"mcpServers":{}}', encoding="utf-8")
@@ -118,7 +119,7 @@ class ClaudeAdapter(CLIAdapter):
                 raise OrchestratorError("Claude returned an error or denied tool request")
             if "structured_output" not in envelope:
                 raise OrchestratorError("Claude returned no structured output; incompatible CLI or model")
-            return AgentResult.model_validate(envelope["structured_output"])
+            return request.result_model.model_validate(envelope["structured_output"])
 
 
 def default_registry() -> dict[str, ProviderAdapter]:

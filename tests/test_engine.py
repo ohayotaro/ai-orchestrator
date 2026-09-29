@@ -309,7 +309,8 @@ def test_approved_review_may_include_nonblocking_findings(engine):
             return type(result)(
                 outcome="approved",
                 summary="Acceptance criteria satisfied; one informational note remains.",
-                findings=["Non-blocking observation about validator configuration."],
+                blocking_findings=[],
+                observations=["Non-blocking observation about validator configuration."],
                 evidence=["result.txt"],
             )
         return result
@@ -323,4 +324,5 @@ def test_approved_review_may_include_nonblocking_findings(engine):
     assert state.calls == 3
     review = controller.store.latest(state, "review")
     assert review["outcome"] == "approved"
-    assert review["findings"] == ["Non-blocking observation about validator configuration."]
+    assert review["observations"] == ["Non-blocking observation about validator configuration."]
+    assert review["blocking_findings"] == []

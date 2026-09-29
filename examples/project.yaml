@@ -9,6 +9,9 @@ providers:
     adapter: codex
     model: null
 roles:
+  supervisor:
+    provider: reasoning
+    instructions: Propose bounded tasks and ask about missing requirements.
   planner:
     provider: reasoning
     instructions: State assumptions and produce a bounded implementation plan.
@@ -28,5 +31,5 @@ policy:
   task_timeout_seconds: 3600
 validators:
   tests:
-    argv: [python, -m, pytest, -q]
+    argv: [.venv/bin/python, -B, -m, pytest, -q, -p, "no:cacheprovider"]
     timeout_seconds: 120

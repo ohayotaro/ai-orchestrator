@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-from .models import AgentResult, OrchestratorError, TaskSpec, TaskState
+from .contracts import ReviewResult, result_contract
+from .models import AgentResult, Contract, OrchestratorError, TaskSpec, TaskState
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
 from .store import Store, now
+from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 
 
 class Engine:
@@ -43,7 +44,7 @@ class Engine:
             path = confined(self.project.root, f".orchestrator/tasks/{spec.id}.json")
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
-            state = TaskState(spec=spec, profile_digest=self.profile_digest)
+            state = TaskState(schema_version=2, spec=spec, profile_digest=self.profile_digest)
             self.store.save(state, "task.created", {"risk": spec.risk, "profile_digest": self.profile_digest}, create=True)
             atomic_write(path, spec.model_dump_json(indent=2) + "\n")
             return state
@@ -55,11 +56,16 @@ class Engine:
         if not self.store.trusted(current):
             raise OrchestratorError("profile not trusted; inspect it then run trust --ack-local-execution")
         if state.spec.external_effects:
-            raise OrchestratorError("external side effects are unsupported in v0.1, including after approval")
+            raise OrchestratorError("external side effects are unsupported, including after approval")
         self.store.verify(state)
 
     def _binding(self, role: str) -> tuple[ProviderAdapter, Any]:
-        binding = self.profile.roles[role]
+        # Existing v0.1 profiles need no forced rewrite to use natural-language intake.
+        binding = self.profile.roles.get(role)
+        if binding is None and role == "supervisor":
+            binding = self.profile.roles["planner"]
+        if binding is None:
+            raise OrchestratorError(f"role is not configured: {role}")
         if role != "implementer" and "write_files" in binding.requires:
             raise OrchestratorError(f"{role}: read-only phases cannot require write_files")
         config = self.profile.providers[binding.provider]
@@ -74,19 +80,27 @@ class Engine:
             raise OrchestratorError(f"{role}: adapter lacks required capabilities: {', '.join(sorted(missing))}")
         return adapter, config
 
-    def doctor(self) -> dict[str, Any]:
+    def doctor(self, *, validators_only: bool = False) -> dict[str, Any]:
         reports: dict[str, Any] = {}
-        for role in self.profile.roles:
+        for role in ([] if validators_only else sorted(set(self.profile.roles) | {"supervisor"})):
             try:
                 adapter, config = self._binding(role)
                 reports[role] = {"ok": True, **adapter.doctor(config, self.project.root)}
             except OrchestratorError as exc:
                 reports[role] = {"ok": False, "error": str(exc)}
+        for name in self.profile.validators:
+            try:
+                reports[f"validator:{name}"] = inspect_validator(self.project, self.profile, name)
+            except (OrchestratorError, OSError) as exc:
+                reports[f"validator:{name}"] = {"ok": False, "error": str(exc)}
         return reports
 
     def _preflight(self, state: TaskState) -> None:
         self._check(state)
         self.project.snapshot()
+        # Check executables before any billable planning/implementation calls.
+        for name in state.spec.validators:
+            inspect_validator(self.project, self.profile, name)
         roles = ["planner"] if state.spec.risk == "T0" else ["planner", "implementer", "reviewer"]
         for role in roles:
             adapter, config = self._binding(role)
@@ -100,7 +114,10 @@ class Engine:
 
     def approval_scope(self, state: TaskState) -> str:
         self.store.verify(state)
-        return digest({"task": state.spec.model_dump(), "profile": state.profile_digest, "plan": self.store.latest(state, "plan"), "attempt": state.attempt, "workspace": self.project.snapshot()})
+        payload = {"task": state.spec.model_dump(), "profile": state.profile_digest, "plan": self.store.latest(state, "plan"), "attempt": state.attempt, "workspace": self.project.snapshot()}
+        if state.schema_version == 2:
+            payload.update(result_contract=2, intake_id=state.intake_id, require_execution_approval=state.require_execution_approval)
+        return digest(payload)
 
     def approve(self, task_id: str, scope: str, actor: str) -> TaskState:
         with self.project.lock():
@@ -129,9 +146,16 @@ class Engine:
         else:
             # Deliberately exclude implementation summaries, plans and prior conversations.
             payload.update({"validation": self.store.latest(state, "validation"), "phase_instructions": "Independently inspect current project files against acceptance criteria and validation evidence. Do not modify files or read .orchestrator/runtime. Return approved only with no blocking findings; otherwise changes_required or blocked."})
+        if state.schema_version == 2:
+            if role == "reviewer":
+                payload["result_instructions"] = "Put ONLY acceptance-blocking defects in blocking_findings. Put confirmations and non-blocking notes in observations. Approved requires no blockers; never infer test success without runner evidence."
+            elif role == "planner":
+                payload["result_instructions"] = "Return a concrete steps list, uncertainties and evidence."
+            else:
+                payload["result_instructions"] = "Return a changes list, uncertainties and evidence; never claim an unexecuted validator passed."
         return encode(payload)
 
-    def _agent(self, state: TaskState, role: str) -> AgentResult:
+    def _agent(self, state: TaskState, role: str) -> Contract:
         self._check(state)
         policy = self.profile.policy
         if state.calls >= policy.max_agent_calls:
@@ -140,14 +164,18 @@ class Engine:
         if remaining <= 0:
             raise OrchestratorError("task execution-time budget exhausted")
         adapter, config = self._binding(role)
+        before_files = self.project.manifest()
         before = self.project.snapshot()
         protected = self.project.protected_snapshot(self.profile)
+        controls = self.project.control_snapshot()
+        model = result_contract(state.phase, state.schema_version)
         state.status = "running"
         state.calls += 1
         self.store.save(state, "call.started", {"role": role, "family": adapter.family, "model": config.model, "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
         try:
-            result = AgentResult.model_validate(adapter.execute(RunRequest(state.phase, self._prompt(state, role), self.project.root, config, min(policy.call_timeout_seconds, remaining), lambda: self.store.cancelled(state.spec.id))))
+            raw = adapter.execute(RunRequest(state.phase, self._prompt(state, role), self.project.root, config, min(policy.call_timeout_seconds, remaining), lambda: self.store.cancelled(state.spec.id), result_model=model))
+            result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - start
         self._check(state)
@@ -155,14 +183,18 @@ class Engine:
             raise OrchestratorError("execution cancelled")
         if self.project.protected_snapshot(self.profile) != protected:
             raise OrchestratorError("protected files changed; inspect manually (no automatic rollback)")
+        if self.project.control_snapshot() != controls:
+            raise OrchestratorError("agent modified orchestration control files; inspect manually")
         after = self.project.snapshot()
         if role != "implementer" and before != after:
-            raise OrchestratorError("read-only phase modified the worktree; inspect manually")
+            changed = changed_paths(before_files, self.project.manifest())
+            raise OrchestratorError("read-only phase modified the worktree: " + ", ".join(changed[:20]) + "; inspect manually")
         cleaned = result.model_dump()
         cleaned["summary"] = redact(cleaned["summary"])
-        for key in ("findings", "evidence"):
-            cleaned[key] = [redact(item) for item in cleaned[key]]
-        result = AgentResult.model_validate(cleaned)
+        for key, value in cleaned.items():
+            if isinstance(value, list):
+                cleaned[key] = [redact(item) for item in value]
+        result = model.model_validate(cleaned)
         self.store.artifact(state, state.phase, result.model_dump())
         self.store.save(state, "call.finished", {"role": role, "outcome": result.outcome, "snapshot": after})
         if result.outcome == "blocked":
@@ -172,26 +204,40 @@ class Engine:
     def _validate(self, state: TaskState) -> bool:
         state.status = "running"
         self.store.save(state, "validation.started")
-        before = self.project.snapshot()
-        protected = self.project.protected_snapshot(self.profile)
         records = []
         for name in state.spec.validators:
             self._check(state)
-            validator = self.profile.validators[name]
             remaining = self.profile.policy.task_timeout_seconds - state.elapsed_seconds
             start = time.monotonic()
             try:
-                with tempfile.TemporaryDirectory(prefix="orchestrator-validator-") as home:
-                    result = run_process(validator.argv, cwd=self.project.root, timeout=min(validator.timeout_seconds, remaining), cancel=lambda: self.store.cancelled(state.spec.id), env=validator_environment(home))
+                record = run_validator(self.project, self.profile, name, timeout=remaining, cancel=lambda: self.store.cancelled(state.spec.id))
+                records.append(record)
+            except ValidationFailure as exc:
+                records.append(exc.record)
+                self.store.artifact(state, "validation", {"checks": records, "snapshot": self.project.snapshot()})
+                self.store.save(state, "validation.integrity_failed", {"error": str(exc)})
+                raise
             finally:
                 state.elapsed_seconds += time.monotonic() - start
-            records.append({"name": name, "argv": [redact(arg) for arg in validator.argv], "exit_code": result.returncode, "duration_seconds": result.duration, "stdout_tail": redact(result.stdout[-4000:]), "stderr_tail": redact(result.stderr[-4000:])})
             self._check(state)
-            if self.project.protected_snapshot(self.profile) != protected or self.project.snapshot() != before:
-                raise OrchestratorError("validator modified project files; inspect manually and ignore only known generated outputs")
-        self.store.artifact(state, "validation", {"checks": records, "snapshot": before})
-        self.store.save(state, "validation.finished", {"passed": all(item["exit_code"] == 0 for item in records)})
-        return all(item["exit_code"] == 0 for item in records)
+        self.store.artifact(state, "validation", {"checks": records, "snapshot": self.project.snapshot()})
+        passed = all(item["exit_code"] == 0 for item in records)
+        self.store.save(state, "validation.finished", {"passed": passed})
+        return passed
+
+    def check_validator(self, name: str) -> dict[str, Any]:
+        """Explicit operator action; doctor itself never executes validator code."""
+        with self.project.lock():
+            if self.project.load()[1] != self.profile_digest or not self.store.trusted(self.profile_digest):
+                raise OrchestratorError("inspect and trust the current profile before executing validators")
+            try:
+                record = run_validator(self.project, self.profile, name, timeout=self.profile.policy.call_timeout_seconds)
+            except ValidationFailure as exc:
+                record = exc.record
+            artifact = self.store.write_artifact("validator-checks", 0, "validation", record)
+            with self.store.db:
+                self.store._event(None, "validator.checked", {"name": name, "artifact": artifact.model_dump()})
+            return {"ok": record["exit_code"] == 0 and not record["error"], "check": record, "artifact": artifact.model_dump()}
 
     def _rework(self, state: TaskState, feedback: str) -> None:
         if state.attempt >= self.profile.policy.max_attempts:
@@ -234,7 +280,7 @@ class Engine:
                         state.phase, state.status, state.attempt = "execute", "ready", 1
                         self.store.save(state, "plan.completed")
                     elif state.phase == "execute":
-                        gated = state.spec.risk == "T3" or self.profile.policy.require_execution_approval
+                        gated = state.spec.risk == "T3" or self.profile.policy.require_execution_approval or state.require_execution_approval
                         scope = self.approval_scope(state)
                         if gated and not self.store.approved(task_id, scope):
                             state.status = "awaiting_approval"
@@ -253,12 +299,9 @@ class Engine:
                         self.store.save(state, "review.ready")
                     elif state.phase == "review":
                         result = self._agent(state, "reviewer")
-                        # `findings` may contain non-blocking observations/evidence. The
-                        # structured outcome is the review control signal in v0.1; treating
-                        # any finding as rejection caused real reviewers to loop after an
-                        # explicit approval. v0.2 will split review output into blocking
-                        # findings and observations with a role-specific contract.
-                        if result.outcome == "changes_required":
+                        # Explicit blockers always win over an inconsistent approval.
+                        # Legacy v1 results retain the outcome-only compatibility path.
+                        if result.outcome == "changes_required" or (isinstance(result, ReviewResult) and result.blocking_findings):
                             self._rework(state, result.model_dump_json())
                             continue
                         if result.outcome != "approved":

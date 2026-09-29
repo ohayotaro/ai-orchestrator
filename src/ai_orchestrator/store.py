@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .contracts import IntakeState
 from .models import Artifact, OrchestratorError, TaskState, identifier
 from .project import Project, atomic_write, confined, encode, read_text
 
@@ -27,10 +28,9 @@ class Store:
             confined(project.root, f".orchestrator/runtime/state.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        if version not in (0, 1, 2):
             self.db.close()
             raise OrchestratorError("unsupported runtime database version; do not downgrade this project")
-        self.db.execute("PRAGMA user_version=1")
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
@@ -38,7 +38,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS approvals (task_id TEXT NOT NULL, scope TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(task_id, scope));
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS intakes (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """)
+        self.db.execute("PRAGMA user_version=2")
 
     def close(self) -> None:
         self.db.close()
@@ -101,13 +103,18 @@ class Store:
             self._event(task_id, "cancel.requested", {})
 
     def artifact(self, state: TaskState, kind: str, value: Any) -> Artifact:
-        relative = f".orchestrator/runtime/{state.spec.id}/{state.attempt}-{kind}-{uuid.uuid4().hex}.json"
+        artifact = self.write_artifact(state.spec.id, state.attempt, kind, value)
+        state.artifacts.append(artifact)
+        return artifact
+
+    def write_artifact(self, owner: str, attempt: int, kind: str, value: Any) -> Artifact:
+        identifier(owner)
+        identifier(kind)
+        relative = f".orchestrator/runtime/{owner}/{attempt}-{kind}-{uuid.uuid4().hex}.json"
         path = confined(self.project.root, relative)
         text = encode(value) + "\n"
         atomic_write(path, text)
-        artifact = Artifact(kind=kind, path=relative, sha256=hashlib.sha256(text.encode()).hexdigest(), attempt=state.attempt)
-        state.artifacts.append(artifact)
-        return artifact
+        return Artifact(kind=kind, path=relative, sha256=hashlib.sha256(text.encode()).hexdigest(), attempt=attempt)
 
     def read_artifact(self, artifact: Artifact) -> Any:
         path = confined(self.project.root, artifact.path)
@@ -125,3 +132,32 @@ class Store:
             if artifact.kind == kind:
                 return self.read_artifact(artifact)
         return None
+
+
+    def get_intake(self, intake_id: str) -> IntakeState:
+        identifier(intake_id)
+        row = self.db.execute("SELECT data FROM intakes WHERE id=?", (intake_id,)).fetchone()
+        if row is None:
+            raise OrchestratorError(f"unknown intake: {intake_id}")
+        return IntakeState.model_validate_json(row[0])
+
+    def save_intake(self, intake: IntakeState, kind: str, *, create: bool = False) -> None:
+        with self.db:
+            if create:
+                self.db.execute("INSERT INTO intakes(id,data) VALUES (?,?)", (intake.id, intake.model_dump_json()))
+            else:
+                self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake.id))
+            self._event(None, kind, {"intake_id": intake.id, "status": intake.status, "calls": intake.calls})
+
+    def create_from_intake(self, state: TaskState, intake: IntakeState, actor: str, scope: str) -> None:
+        # The project lock serializes controllers; this transaction binds consumption
+        # and task registration even if the process is interrupted afterwards.
+        with self.db:
+            try:
+                self.db.execute("INSERT INTO tasks(id,data) VALUES (?,?)", (state.spec.id, state.model_dump_json()))
+            except sqlite3.IntegrityError as exc:
+                raise OrchestratorError(f"task already exists: {state.spec.id}") from exc
+            intake.status = "consumed"
+            self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake.id))
+            self._event(state.spec.id, "task.created", {"intake_id": intake.id, "risk": state.spec.risk, "profile_digest": state.profile_digest})
+            self._event(state.spec.id, "intake.confirmed", {"intake_id": intake.id, "actor": actor, "scope": scope})

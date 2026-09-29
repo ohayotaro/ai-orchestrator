@@ -50,6 +50,28 @@ class RoleConfig(Contract):
 class ValidatorConfig(Contract):
     argv: list[str] = Field(min_length=1)
     timeout_seconds: int = Field(default=120, ge=1, le=3600, strict=True)
+    env: dict[str, str] = Field(default_factory=dict)
+    generated_paths: list[str] = Field(default_factory=list)
+
+    @field_validator("env")
+    @classmethod
+    def safe_environment(cls, values: dict[str, str]) -> dict[str, str]:
+        reserved = {"PATH", "HOME", "USERPROFILE", "TMPDIR", "PYTHONPATH", "PYTHONHOME", "BASH_ENV", "ENV"}
+        for key, value in values.items():
+            if not re.fullmatch(r"[A-Z_][A-Z0-9_]*", key) or "\x00" in value:
+                raise ValueError("validator environment requires uppercase names and NUL-free strings")
+            if key in reserved or key.startswith(("GIT_", "LD_", "DYLD_")) or any(word in key for word in ("SECRET", "TOKEN", "PASSWORD", "API_KEY")):
+                raise ValueError(f"validator environment key is reserved or credential-like: {key}")
+        return values
+
+    @field_validator("generated_paths")
+    @classmethod
+    def literal_generated_paths(cls, values: list[str]) -> list[str]:
+        for value in values:
+            parts = value.split("/")
+            if not value or any(part in ("", ".", "..", ".git", ".orchestrator") for part in parts) or any(char in value for char in "*?[]\\\x00"):
+                raise ValueError("generated_paths must be literal project-relative directories, without globs or control paths")
+        return sorted(set(values))
 
     @field_validator("argv")
     @classmethod
@@ -139,7 +161,10 @@ class Artifact(Contract):
 
 
 class TaskState(Contract):
-    schema_version: Literal[1] = 1
+    # Existing rows remain v1. New tasks explicitly opt into v2 role outputs.
+    schema_version: Literal[1, 2] = 1
+    intake_id: str | None = None
+    require_execution_approval: StrictBool = False
     spec: TaskSpec
     profile_digest: str
     status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled"] = "ready"

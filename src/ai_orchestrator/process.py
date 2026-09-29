@@ -34,7 +34,7 @@ def redact(text: str) -> str:
 def validator_environment(home: str) -> dict[str, str]:
     # Validators never inherit model/API credentials. This is not a filesystem sandbox.
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT") if key in os.environ}
-    env.update({"HOME": home, "USERPROFILE": home, "GIT_TERMINAL_PROMPT": "0", "CI": "1", "PYTHONNOUSERSITE": "1"})
+    env.update({"HOME": home, "USERPROFILE": home, "GIT_TERMINAL_PROMPT": "0", "CI": "1", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"})
     return env
 
 
@@ -86,7 +86,7 @@ def run_process(argv: list[str], *, cwd: Path, input_text: str = "", timeout: fl
         try:
             process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=source, stdout=stdout, stderr=stderr, start_new_session=True)
         except OSError as exc:
-            raise OrchestratorError(f"could not start executable: {argv[0]}") from exc
+            raise OrchestratorError(f"could not start executable: {argv[0]} (cwd={cwd}; errno={exc.errno}: {exc.strerror})") from exc
         try:
             while True:
                 if cancel():
