@@ -154,6 +154,11 @@ class Project:
             if not raw:
                 continue
             relative = os.fsdecode(raw)
+            # Finder metadata is ambient OS state, not project state. It can be
+            # rewritten while a read-only provider is running and must not
+            # create a false integrity violation, even if accidentally tracked.
+            if Path(relative).name == ".DS_Store":
+                continue
             if relative == ".orchestrator" or relative.startswith(".orchestrator/"):
                 continue
             path = self.root / relative
