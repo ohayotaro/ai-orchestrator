@@ -181,7 +181,9 @@ class HumanGateBroker:
                 raise OrchestratorError("worktree changed since intake")
             task = intake.task
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths, "supervisor_summary": intake.result.summary, "notes": intake.notes}
-            state = intake.model_dump(exclude_none=True)
+            state = intake.model_dump()
+            if state.get("allowed_paths") is None:
+                state.pop("allowed_paths", None)
         else:
             state_object = engine.store.get(subject)
             engine._check(state_object)
@@ -189,6 +191,8 @@ class HumanGateBroker:
                 raise OrchestratorError("task has a cancellation request")
             task = state_object.spec
             state = state_object.model_dump()
+            if state.get("allowed_paths") is None:
+                state.pop("allowed_paths", None)
             if kind == "execution":
                 if state_object.status != "awaiting_approval" or state_object.phase != "execute":
                     raise OrchestratorError("task is not awaiting execution approval")
