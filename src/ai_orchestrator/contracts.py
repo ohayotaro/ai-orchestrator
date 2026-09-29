@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, StrictBool, field_validator, model_validator
+from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
-from .models import AgentResult, Artifact, Contract, TaskSpec, identifier
+from .models import AgentResult, Artifact, Contract, TaskSpec, allowed_paths, identifier
 
 
 class PlanResult(Contract):
@@ -50,6 +50,32 @@ class TaskDraft(Contract):
         return values
 
 
+class TaskDraftScoped(TaskDraft):
+    """Current model-facing task draft; legacy persisted TaskDraft stays readable."""
+
+    allowed_paths: list[str] = Field(description="Exact project-relative files this task may create or modify. Empty only for advisory work.")
+    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
+
+
+class SupervisorResultScoped(Contract):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, title="SupervisorResult")
+
+    outcome: Literal["proposed", "needs_clarification", "blocked"]
+    summary: str = Field(min_length=1, max_length=20000)
+    task: TaskDraftScoped | None
+    questions: list[str]
+
+    @model_validator(mode="after")
+    def coherent(self) -> SupervisorResultScoped:
+        if self.outcome == "proposed" and (self.task is None or self.questions):
+            raise ValueError("proposed requires a task and no unanswered questions")
+        if self.outcome != "proposed" and self.task is not None:
+            raise ValueError("blocked/needs_clarification must not supply an executable task")
+        if self.outcome == "needs_clarification" and not any(q.strip() for q in self.questions):
+            raise ValueError("needs_clarification requires a concrete question")
+        return self
+
+
 class SupervisorResult(Contract):
     outcome: Literal["proposed", "needs_clarification", "blocked"]
     summary: str = Field(min_length=1, max_length=20000)
@@ -80,7 +106,10 @@ class IntakeState(Contract):
     status: Literal["running", "proposed", "needs_clarification", "blocked", "failed", "cancelled", "consumed"] = "running"
     result: SupervisorResult | None = None
     task: TaskSpec | None = None
+    allowed_paths: list[str] | None = None
     artifact: Artifact | None = None
+
+    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
     # Cumulative across clarification rounds; carried into the created task budget.
     calls: int = Field(default=0, ge=0, strict=True)
     elapsed_seconds: float = Field(default=0.0, ge=0)

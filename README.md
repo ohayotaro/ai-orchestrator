@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.4.0 alpha** adds optional single-terminal host confirmations and automatic
+**v0.4.1 alpha** adds optional single-terminal host confirmations and automatic
 separate workers. This remains a trusted-local application, not authenticated
 human identity or an OS-isolated control plane.
 
@@ -29,6 +29,18 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.4.1 refinements
+
+- Confirmation uses an explicit **Yes / No enum choice** rather than a checkbox plus Accept.
+- New Supervisor write tasks declare exact `allowed_paths`; the kernel records a
+  `write_set` artifact and fails if implementation changes any other tracked/nonignored path.
+- Use `wait_job` for bounded waiting. With an MCP progress token, the server emits
+  `notifications/progress`; repeated polling and "continue" are normally unnecessary.
+- Frontends should use write_set + validation + review artifacts instead of running
+  their own git diff/status or rerunning tests solely to re-check Orchestrator evidence.
+
+Legacy/manual tasks without an allowed-path contract retain prior behavior.
 
 ## Important approval distinction
 

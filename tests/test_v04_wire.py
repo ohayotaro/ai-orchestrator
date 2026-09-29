@@ -38,7 +38,7 @@ else:
     assert '--ephemeral' in args
 role = schema['title']
 if role == 'SupervisorResult':
-    result = {'outcome':'proposed','summary':'Add multiplication','task':{'goal':'Add multiply(a,b) and a regression test','acceptance':['multiply(2,3)==6','Existing add test passes'],'risk':'T2','validators':['check'],'external_effects':False},'questions':[]}
+    result = {'outcome':'proposed','summary':'Add multiplication','task':{'goal':'Add multiply(a,b) and a regression test','acceptance':['multiply(2,3)==6','Existing add test passes'],'risk':'T2','validators':['check'],'external_effects':False,'allowed_paths':['calculator.py','test_calculator.py']},'questions':[]}
 elif role == 'PlanResult':
     result = {'outcome':'completed','summary':'Focused plan','steps':['Add multiply','Add test'],'uncertainties':[],'evidence':['calculator.py']}
 elif role == 'ImplementationResult':
@@ -99,7 +99,7 @@ class Client:
         rid = self.request('tools/call', {'name':name, 'arguments':arguments})
         form = self.read()
         assert form['method']=='elicitation/create', form
-        assert form['params']['requestedSchema']['properties']['confirm']['default'] is False
+        assert form['params']['requestedSchema']['properties']['decision']['enum'] == ['yes','no']
         assert 'scope' in form['params']['message']
         ping = self.request('ping')
         assert self.read()['id'] == ping  # host stays responsive while dialog open
@@ -237,7 +237,7 @@ def test_official_sdk_native_elicitation_decline(workspace):
     callbacks=[]
     async def elicit(context,params):
         callbacks.append(params)
-        assert params.requestedSchema['properties']['confirm']['type']=='boolean'
+        assert params.requestedSchema['properties']['decision']['enum']==['yes','no']
         return types.ElicitResult(action='decline')
     async def exercise():
         server=StdioServerParameters(command=sys.executable,args=['-I','-m','ai_orchestrator','--project',str(workspace),'serve','--single-terminal'])

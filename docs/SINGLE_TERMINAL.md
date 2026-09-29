@@ -216,3 +216,20 @@ Primary sources reviewed for the design:
 - https://developers.openai.com/plugins/build/mcp-server
 - https://github.com/openai/codex/blob/main/codex-rs/codex-mcp/src/elicitation.rs
 - https://github.com/modelcontextprotocol/python-sdk/tree/v1.x
+
+
+## v0.4.1 interaction refinements
+
+Confirmation now uses a two-value string enum (`yes` / `no`) rather than a
+default-false checkbox. Only `action=accept` plus `decision=yes` applies a
+gate; rendering remains client-controlled.
+
+New Supervisor write proposals include exact project-relative `allowed_paths`.
+The kernel compares manifests around implementation, stores a `write_set`
+artifact, and fails if any changed path is outside the list. Detection is not
+rollback. Existing manual/legacy tasks without this contract keep prior behavior.
+
+Use `wait_job` instead of polling loops. It waits at most 300 seconds (default
+120). With `_meta.progressToken`, the server emits standard
+`notifications/progress`. Timeout/disconnect leaves the durable job running;
+cancelling the wait cancels only the wait request.

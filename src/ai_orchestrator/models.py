@@ -18,6 +18,24 @@ def identifier(value: str) -> str:
     return value
 
 
+def allowed_paths(value: list[str] | None) -> list[str] | None:
+    """Exact project-relative files. None preserves legacy/manual task behavior."""
+    if value is None:
+        return None
+    result: list[str] = []
+    for item in value:
+        parts = item.split("/")
+        if (not item or item.startswith(("/", "\\")) or "\x00" in item or
+                any(part in ("", ".", "..") for part in parts) or
+                parts[0] in (".git", ".orchestrator") or
+                any(char in item for char in "*?[]\\\")):
+            raise ValueError("allowed_paths must contain exact project-relative files without globs, traversal or control paths")
+        result.append(item)
+    if len(result) != len(set(result)):
+        raise ValueError("allowed_paths must not contain duplicates")
+    return result
+
+
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -165,7 +183,10 @@ class TaskState(Contract):
     schema_version: Literal[1, 2] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
+    allowed_paths: list[str] | None = None
     spec: TaskSpec
+
+    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
     profile_digest: str
     status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled"] = "ready"
     phase: Literal["plan", "execute", "validate", "review", "accept"] = "plan"

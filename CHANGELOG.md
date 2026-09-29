@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 — alpha
+
+- Replace the boolean checkbox with an explicit Yes/No enum confirmation.
+- Require exact allowed_paths in new Supervisor write proposals and enforce their implementation write-set.
+- Persist write_set evidence and include it in reviewer and acceptance context.
+- Add bounded wait_job with MCP progress notifications; cancelling the wait does not cancel the durable job.
+- Update the Skill to avoid shell diff/status, duplicate validators and repeated job polling.
+- Record the owner-reported live v0.4 Claude Code run: all three host gates applied, 14 tests passed, review approved and final task succeeded.
+
+
 ## 0.4.0 — alpha
 
 - Explicit `serve --single-terminal` opt-in; default v0.3 transport/manual mode stays compatible.

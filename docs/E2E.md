@@ -66,3 +66,19 @@ independent official MCP SDK client smoke test is included and enabled in CI.
 This does not certify authenticated v0.3 operation from the real Claude Code or
 Codex interactive clients. Antigravity/Grok integration is not validated. Do not
 replace this limitation with a generic claim that all MCP clients were tested.
+
+
+## Owner-reported live v0.4 single-terminal E2E (2026-09-30)
+
+The owner reported a Claude Code single-terminal run for
+`absolute_difference(a,b)`: start, execution and acceptance were confirmed in
+host forms; the automatic worker completed implementation; deterministic pytest
+reported 14 passing tests; the fresh reviewer approved without blockers; and the
+canonical task reached `succeeded`. No manual worker/start/approve/accept
+terminal was needed for the successful path.
+
+The first three start attempts were declined while the boolean form remained
+effectively false, motivating v0.4.1's explicit enum Yes/No selection. The
+frontend also ran a read-only shell diff because the reviewer lacked git access;
+v0.4.1 adds controller write_set evidence so that extra shell verification is
+unnecessary.

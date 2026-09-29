@@ -31,9 +31,12 @@ class IntakeAdapter(FakeAdapter):
         if self.mutation:
             self.mutation(request.workspace)
         if self.next_result is not None:
-            return self.next_result
+            data = self.next_result.model_dump()
+            if data.get("task") is not None and "allowed_paths" not in data["task"]:
+                data["task"]["allowed_paths"] = ["result.txt"]
+            return request.result_model.model_validate(data)
         advisory = json.loads(request.prompt)["advisory"]
-        return SupervisorResult(outcome="proposed", summary="A focused task", task=TaskDraft(goal="Produce a result", acceptance=["A result exists"], risk="T0" if advisory else "T2", validators=[] if advisory else ["check"], external_effects=False), questions=[])
+        return request.result_model(outcome="proposed", summary="A focused task", task={"goal":"Produce a result","acceptance":["A result exists"],"risk":"T0" if advisory else "T2","validators":[] if advisory else ["check"],"external_effects":False,"allowed_paths":[] if advisory else ["result.txt"]}, questions=[])
 
 
 @pytest.fixture
@@ -54,7 +57,7 @@ def test_ask_proposes_without_creating_task_or_granting_approval(supervisor):
     assert state.calls == 1
     assert len(reasoning.requests) == 1 and not engineering.requests
     assert reasoning.requests[0].phase == "supervise"
-    assert reasoning.requests[0].result_model is SupervisorResult
+    assert issubclass(reasoning.requests[0].result_model, SupervisorResult)
     assert intake.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     assert intake.store.db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
     assert before == intake.project.snapshot()

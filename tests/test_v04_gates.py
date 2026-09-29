@@ -22,7 +22,7 @@ class IntakeAdapter(FakeAdapter):
     def execute(self, request):
         if request.phase == "supervise":
             self.requests.append(request)
-            return SupervisorResult(outcome="proposed", summary="Add a result", task=TaskDraft(goal="Add a result", acceptance=["Result exists", "Checks pass"], risk="T2", validators=["check"], external_effects=False), questions=[])
+            return request.result_model(outcome="proposed", summary="Add a result", task={"goal":"Add a result","acceptance":["Result exists","Checks pass"],"risk":"T2","validators":["check"],"external_effects":False,"allowed_paths":["result.txt"]}, questions=[])
         return super().execute(request)
 
 
@@ -41,7 +41,7 @@ def gate_setup(workspace):
 
 def confirmed(broker, kind, subject, key):
     gate = broker.prepare(kind, subject, key)
-    return broker.resolve(gate, {"action": "accept", "content": {"confirm": True}})
+    return broker.resolve(gate, {"action": "accept", "content": {"decision": "yes"}})
 
 
 def run_queued(broker, providers):
@@ -74,12 +74,12 @@ def test_full_host_flow_keeps_three_separate_gates(gate_setup):
 
 @pytest.mark.parametrize("response,status", [
     ({"action": "decline"}, "declined"), ({"action": "cancel"}, "cancelled"),
-    ({"action": "accept", "content": {"confirm": False}}, "declined"),
+    ({"action": "accept", "content": {"decision": "no"}}, "declined"),
     ({"action": "accept"}, "failed"),
-    ({"action": "accept", "content": {"confirm": "yes"}}, "failed"),
-    ({"action": "accept", "content": {"confirm": 1}}, "failed"),
-    ({"action": "accept", "content": {"confirm": True, "actor": "human"}}, "failed"),
-    ({"action": "approved", "content": {"confirm": True}}, "failed"),
+    ({"action": "accept", "content": {"decision": True}}, "failed"),
+    ({"action": "accept", "content": {"decision": 1}}, "failed"),
+    ({"action": "accept", "content": {"decision": "yes", "actor": "human"}}, "failed"),
+    ({"action": "approved", "content": {"decision": "yes"}}, "failed"),
     (True, "failed"),
 ])
 def test_nonconfirmations_never_register_or_authorize(gate_setup, response, status):
@@ -96,7 +96,7 @@ def test_scope_changes_while_form_open_do_not_authorize(gate_setup, change):
     gate = broker.prepare("start", intake.id, "start-1")
     relative = {"source": "input.txt", "profile": ".orchestrator/policies/new.md", "task-control": ".orchestrator/tasks/other.json", "protected": ".env"}[change]
     (engine.project.root / relative).write_text("changed")
-    result = broker.resolve(gate, {"action": "accept", "content": {"confirm": True}})
+    result = broker.resolve(gate, {"action": "accept", "content": {"decision": "yes"}})
     assert result["gate_status"] == "stale"
     assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
 
@@ -105,7 +105,7 @@ def test_expired_confirmation_is_not_approval(gate_setup, monkeypatch):
     engine, intake, broker, _ = gate_setup
     gate = broker.prepare("start", intake.id, "start-1")
     monkeypatch.setattr(time, "time", lambda: gate.expires_at + 1)
-    result = broker.resolve(gate, {"action": "accept", "content": {"confirm": True}})
+    result = broker.resolve(gate, {"action": "accept", "content": {"decision": "yes"}})
     assert result["gate_status"] == "expired"
     assert engine.store.get_intake(intake.id).status == "proposed"
 
@@ -162,7 +162,7 @@ def test_cancellation_after_execution_prompt_blocks_authority(gate_setup):
     run_queued(broker, providers)
     gate = broker.prepare("execution", "host-task", "execution-1")
     engine.store.request_cancel("host-task")
-    result = broker.resolve(gate, {"action": "accept", "content": {"confirm": True}})
+    result = broker.resolve(gate, {"action": "accept", "content": {"decision": "yes"}})
     assert result["gate_status"] == "stale"
     assert engine.store.db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
 
@@ -175,7 +175,7 @@ def test_acceptance_rechecks_reviewed_worktree(gate_setup):
     run_queued(broker, providers)
     gate = broker.prepare("acceptance", "host-task", "accept-1")
     (engine.project.root / "result.txt").write_text("changed after review")
-    assert broker.resolve(gate, {"action": "accept", "content": {"confirm": True}})["gate_status"] == "stale"
+    assert broker.resolve(gate, {"action": "accept", "content": {"decision": "yes"}})["gate_status"] == "stale"
     assert engine.store.get("host-task").status == "awaiting_acceptance"
 
 
@@ -190,7 +190,7 @@ def test_precondition_is_inside_workspace_lock(gate_setup):
 
 
 @pytest.mark.parametrize("tool", list(GATE_TOOLS))
-@pytest.mark.parametrize("injected", ["approved", "decision", "actor", "scope", "project"])
+@pytest.mark.parametrize("injected", ["approved", "decision", "confirm", "actor", "scope", "project"])
 def test_model_cannot_supply_authority_fields(tool, injected):
     model = GATE_TOOLS[tool][0]
     data = {"request_id": "request-1", "intake_id" if tool == "request_start" else "task_id": "target", injected: True}

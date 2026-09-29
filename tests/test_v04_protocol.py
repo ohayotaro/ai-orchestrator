@@ -36,7 +36,7 @@ def tool(server, name, arguments, id=10):
 
 
 def confirm(server, prompt, action="accept", content=None):
-    return server.handle({"jsonrpc": "2.0", "id": prompt["id"], "result": {"action": action, "content": {"confirm": True} if content is None else content}})
+    return server.handle({"jsonrpc": "2.0", "id": prompt["id"], "result": {"action": action, "content": {"decision": "yes"} if content is None else content}})
 
 
 @pytest.fixture
@@ -53,14 +53,14 @@ def test_native_start_response_is_not_model_tool_permission(server_setup):
     server, manager, intake, engine, _, _ = server_setup
     prompt = tool(server, "request_start", {"intake_id": intake.id, "request_id": "native-1"}, id="caller-1")
     assert prompt["method"] == "elicitation/create"
-    assert prompt["params"]["requestedSchema"]["properties"]["confirm"]["default"] is False
+    assert prompt["params"]["requestedSchema"]["properties"]["decision"]["enum"] == ["yes","no"]
     assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     result = confirm(server, prompt)
     assert result["id"] == "caller-1"
     assert result["result"]["structuredContent"]["gate_status"] == "applied"
     assert manager.kicks == 1
     assert engine.store.get("host-task").status == "ready"
-    assert server.handle({"jsonrpc": "2.0", "id": prompt["id"], "result": {"action": "accept", "content": {"confirm": True}}}) is None
+    assert server.handle({"jsonrpc": "2.0", "id": prompt["id"], "result": {"action": "accept", "content": {"decision": "yes"}}}) is None
     assert manager.kicks == 1
 
 
@@ -107,7 +107,7 @@ def test_form_only_capability_supported(gate_setup):
         server.close()
 
 
-@pytest.mark.parametrize("action,content,expected", [("decline", {}, "declined"), ("cancel", {}, "cancelled"), ("accept", {"confirm": False}, "declined"), ("accept", {"confirm": "true"}, "failed")])
+@pytest.mark.parametrize("action,content,expected", [("decline", {}, "declined"), ("cancel", {}, "cancelled"), ("accept", {"decision": "no"}, "declined"), ("accept", {"confirm": "true"}, "failed")])
 def test_native_denial_no_side_effects(server_setup, action, content, expected):
     server, manager, intake, engine, _, _ = server_setup
     prompt = tool(server, "request_start", {"intake_id": intake.id, "request_id": "native-1"})
@@ -120,7 +120,7 @@ def test_native_denial_no_side_effects(server_setup, action, content, expected):
 def test_unrelated_response_does_not_authorize(server_setup):
     server, _, intake, engine, _, _ = server_setup
     tool(server, "request_start", {"intake_id": intake.id, "request_id": "native-1"})
-    assert server.handle({"jsonrpc": "2.0", "id": "model-chosen-id", "result": {"action": "accept", "content": {"confirm": True}}}) is None
+    assert server.handle({"jsonrpc": "2.0", "id": "model-chosen-id", "result": {"action": "accept", "content": {"decision": "yes"}}}) is None
     assert server.pending is not None
     assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
 

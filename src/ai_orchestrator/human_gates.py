@@ -180,8 +180,8 @@ class HumanGateBroker:
             if intake.workspace_snapshot != project.snapshot():
                 raise OrchestratorError("worktree changed since intake")
             task = intake.task
-            payload = {"task": task.model_dump(), "supervisor_summary": intake.result.summary, "notes": intake.notes}
-            state = intake.model_dump()
+            payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths, "supervisor_summary": intake.result.summary, "notes": intake.notes}
+            state = intake.model_dump(exclude_none=True)
         else:
             state_object = engine.store.get(subject)
             engine._check(state_object)
@@ -193,12 +193,12 @@ class HumanGateBroker:
                 if state_object.status != "awaiting_approval" or state_object.phase != "execute":
                     raise OrchestratorError("task is not awaiting execution approval")
                 kernel_scope = engine.approval_scope(state_object)
-                payload = {"task": task.model_dump(), "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"), "feedback": state_object.feedback}
+                payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths, "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"), "feedback": state_object.feedback}
             elif kind == "acceptance":
                 if state_object.status != "awaiting_acceptance" or state_object.reviewed_snapshot != project.snapshot():
                     raise OrchestratorError("task is not awaiting acceptance or worktree changed since review")
                 kernel_scope = digest(state)
-                payload = {"task": task.model_dump(), "validation": engine.store.latest(state_object, "validation"), "review": engine.store.latest(state_object, "review"), "reviewed_snapshot": state_object.reviewed_snapshot}
+                payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths, "write_set": engine.store.latest(state_object, "write_set"), "validation": engine.store.latest(state_object, "validation"), "review": engine.store.latest(state_object, "review"), "reviewed_snapshot": state_object.reviewed_snapshot}
             else:
                 raise OrchestratorError("unknown gate kind")
         if task.external_effects:
@@ -242,8 +242,8 @@ class HumanGateBroker:
                        + safe_display(gate.preview) + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.\n"
                        + f"Gate: {gate.id}; expires in a short window. {ASSURANCE}.",
             "requestedSchema": {"type": "object", "properties": {
-                "confirm": {"type": "boolean", "title": "Authorize this exact operation?", "description": "Yes = authorize; No = decline", "default": False}
-            }, "required": ["confirm"]},
+                "decision": {"type": "string", "title": "Authorize this exact operation?", "description": "Choose Yes to authorize this exact scope; choose No to decline.", "enum": ["yes", "no"], "enumNames": ["Yes — authorize", "No — decline"]}
+            }, "required": ["decision"]},
         }
 
     @staticmethod
@@ -266,9 +266,9 @@ class HumanGateBroker:
             status = "declined" if response["action"] == "decline" else "cancelled"
             return self.abort(gate, status, "Host declined/cancelled; no automatic retry or fallback approval")
         content = response.get("content")
-        if not isinstance(content, dict) or set(content) != {"confirm"} or type(content["confirm"]) is not bool:
-            return self.abort(gate, "failed", "An explicit boolean confirm field is required; nothing was authorized")
-        if content["confirm"] is not True:
+        if not isinstance(content, dict) or set(content) != {"decision"} or content["decision"] not in ("yes", "no"):
+            return self.abort(gate, "failed", "An explicit Yes/No decision is required; nothing was authorized")
+        if content["decision"] != "yes":
             return self.abort(gate, "declined", "No was selected; nothing was authorized")
         applying = False
         try:
