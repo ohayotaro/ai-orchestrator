@@ -97,7 +97,7 @@ def test_cross_provider_checks_families_not_aliases(engine):
     controller.create(spec())
     state = controller.run("task-1")
     assert state.status == "blocked"
-    assert "provider families" in state.error
+    assert "family" in state.error
     assert not reasoning.requests
 
 

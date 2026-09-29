@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 — alpha
+
+- Add a versioned semantic Capability Registry and Provider Descriptor/Resolution contracts.
+- Add Provider Adapter v2 semantic capability declarations while retaining runtime capability checks.
+- Add deterministic resolution policy: fixed provider override, ordered role candidates, then provider priority/name.
+- Enforce cross-provider review during dynamic reviewer resolution.
+- Allow profile role requirements and Supervisor task-level capability requirements; manual create supports repeated `--require ROLE=CAPABILITY`.
+- Persist effective requirements and frozen provider resolutions in new TaskState schema v3 and bind them into approval scopes/events/prompts/HumanGate previews.
+- Fail unsupported/changed capability resolution before billable model work; do not silently fallback or rank models.
+- Preserve v0.4.x profile digests when new capability fields are absent/default and retain legacy fixed Adapter v1 compatibility.
+- Add `orchestrator capabilities`, MCP inspection output, JSON schemas and capability-resolution regression tests.
+- Keep v0.5 intentionally sequential: no arbitrary DAG, writable parallelism or domain-specific kernel branching.
+
+
 ## 0.4.1 — alpha
 
 - Replace the boolean checkbox with an explicit Yes/No enum confirmation.

@@ -27,18 +27,23 @@ class RunRequest:
 
 
 class ProviderAdapter(Protocol):
+    # Adapter v1 exposed only runtime capabilities. v2 adds semantic capabilities.
+    api_version: int
     family: str
     capabilities: frozenset[str]
+    semantic_capabilities: frozenset[str]
 
     def doctor(self, config: ProviderConfig, workspace: Path) -> dict[str, str]: ...
     def execute(self, request: RunRequest) -> Contract: ...
 
 
 class CLIAdapter:
+    api_version = 2
     command = ""
     family = ""
     help_flags: tuple[str, ...] = ()
     capabilities = frozenset({"read_files", "write_files", "fresh_session", "structured_output"})
+    semantic_capabilities = frozenset({"repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"})
 
     def executable(self, config: ProviderConfig) -> str:
         name = config.executable or self.command

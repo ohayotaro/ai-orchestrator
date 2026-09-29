@@ -89,3 +89,12 @@ Protocol scope, installation, supported tool names, limits and restart behavior
 are specified in MCP.md. No domain taxonomy, provider identity or client-specific
 model role is introduced into the kernel. The stdio subset advertises only tools,
 not sampling, elicitation or experimental MCP task support.
+
+
+## v0.5 capability/provider layer
+
+The fixed sequential workflow remains unchanged, but role binding now passes
+through CapabilityResolver. Semantic capabilities are distinct from runtime
+adapter capabilities. New tasks freeze effective requirements and provider
+resolution before the first provider call; approval and audit provenance include
+that resolution. See CAPABILITIES.md.

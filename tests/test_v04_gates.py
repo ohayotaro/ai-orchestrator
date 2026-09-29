@@ -22,7 +22,7 @@ class IntakeAdapter(FakeAdapter):
     def execute(self, request):
         if request.phase == "supervise":
             self.requests.append(request)
-            return request.result_model(outcome="proposed", summary="Add a result", task={"goal":"Add a result","acceptance":["Result exists","Checks pass"],"risk":"T2","validators":["check"],"external_effects":False,"allowed_paths":["result.txt"]}, questions=[])
+            return request.result_model(outcome="proposed", summary="Add a result", task={"goal":"Add a result","acceptance":["Result exists","Checks pass"],"risk":"T2","validators":["check"],"external_effects":False,"allowed_paths":["result.txt"],"capabilities":{}}, questions=[])
         return super().execute(request)
 
 

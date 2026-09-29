@@ -5,21 +5,29 @@ providers:
   reasoning:
     adapter: claude
     model: null
+    priority: 20
+    capabilities: [repository_analysis, planning, code_edit, test_authoring, review, supervision]
   engineering:
     adapter: codex
     model: null
+    priority: 10
+    capabilities: [repository_analysis, planning, code_edit, test_authoring, review, supervision]
 roles:
   supervisor:
     provider: reasoning
+    capabilities: [supervision, repository_analysis]
     instructions: Propose bounded tasks and ask about missing requirements.
   planner:
     provider: reasoning
+    capabilities: [planning, repository_analysis]
     instructions: State assumptions and produce a bounded implementation plan.
   implementer:
     provider: engineering
+    capabilities: [code_edit]
     instructions: Prefer focused changes and preserve project invariants.
   reviewer:
     provider: reasoning
+    capabilities: [review, repository_analysis]
     instructions: Check acceptance criteria independently; cite concrete file evidence.
 policy:
   require_execution_approval: true

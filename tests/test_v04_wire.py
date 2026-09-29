@@ -38,7 +38,7 @@ else:
     assert '--ephemeral' in args
 role = schema['title']
 if role == 'SupervisorResult':
-    result = {'outcome':'proposed','summary':'Add multiplication','task':{'goal':'Add multiply(a,b) and a regression test','acceptance':['multiply(2,3)==6','Existing add test passes'],'risk':'T2','validators':['check'],'external_effects':False,'allowed_paths':['calculator.py','test_calculator.py']},'questions':[]}
+    result = {'outcome':'proposed','summary':'Add multiplication','task':{'goal':'Add multiply(a,b) and a regression test','acceptance':['multiply(2,3)==6','Existing add test passes'],'risk':'T2','validators':['check'],'external_effects':False,'allowed_paths':['calculator.py','test_calculator.py'],'capabilities':{}},'questions':[]}
 elif role == 'PlanResult':
     result = {'outcome':'completed','summary':'Focused plan','steps':['Add multiply','Add test'],'uncertainties':[],'evidence':['calculator.py']}
 elif role == 'ImplementationResult':

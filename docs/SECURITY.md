@@ -89,3 +89,14 @@ used for interoperability testing only; runtime transports do not depend on it.
 Artifacts and proposed text remain untrusted, may contain sensitive information,
 and must not be promoted to permissions or executed as instructions. Use only
 trusted clients and non-production credentials for this local alpha.
+
+
+## v0.5 capabilities are constraints, not permissions
+
+Semantic capability resolution does not grant tools, write paths, external
+effects or approval. HumanGate, protected paths, write-set enforcement,
+validators and cross-provider review remain independent controls. Dynamic
+routing is deterministic profile policy, not model scoring. A model can request
+additional task requirements but cannot mutate provider capability declarations
+or provider priority. Provider Adapter v1 compatibility is limited to existing
+fixed bindings without new semantic declarations.

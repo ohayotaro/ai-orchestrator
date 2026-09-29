@@ -74,3 +74,16 @@ Install/export client skills and MCP configuration before creating scoped work.
 Start the worker from a separate normal terminal; do not unset CLAUDECODE to nest
 workers inside a conversational agent. Keep using direct ask/start/run if MCP is
 not needed. See MCP.md for setup and the remaining explicit human gates.
+
+
+## v0.4.1 to v0.5
+
+Stop active workers and back up runtime state before upgrading. Reinstall the
+package and run the test suite. Existing profile digests remain stable when the
+new provider/role capability fields are absent or default/empty; no re-trust is
+needed solely for the package update. Adding capabilities, candidates or provider
+priority is an intentional profile change and requires inspection/re-trust.
+
+Persisted TaskState v1/v2 remains readable. New tasks use state schema v3 to
+freeze capability requirements and provider-resolution provenance. Existing tasks
+are not silently rerouted. See CAPABILITIES.md.

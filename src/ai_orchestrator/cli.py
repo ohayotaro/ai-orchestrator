@@ -15,6 +15,7 @@ from pydantic import ValidationError
 import yaml
 
 from . import __version__, knowledge
+from .capabilities import CapabilityRegistryDescriptor, ProviderDescriptor, ProviderResolution
 from .engine import Engine
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
 from .supervisor import Supervisor
@@ -48,6 +49,7 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
+    commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
     ask = commands.add_parser("ask", help="Propose a TaskSpec from natural language; never auto-approve execution")
     ask.add_argument("prompt")
     ask.add_argument("--task-id")
@@ -77,6 +79,8 @@ def parser() -> argparse.ArgumentParser:
     trust.add_argument("--ack-local-execution", action="store_true", required=True)
     create = commands.add_parser("create")
     create.add_argument("--task-file", type=Path, required=True, help="TaskSpec YAML or JSON")
+    create.add_argument("--require", action="append", default=[], metavar="ROLE=CAPABILITY",
+                        help="Add a semantic capability requirement to this task; repeat as needed")
     for command in ("run", "status", "cancel", "recover"):
         sub = commands.add_parser(command)
         sub.add_argument("task_id")
@@ -92,7 +96,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("task_id")
     accept.add_argument("--by", required=True)
     schema = commands.add_parser("schema")
-    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal"])
+    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "capability-registry", "provider-descriptor", "provider-resolution"])
     schema.add_argument("--output", type=Path)
     proposal = commands.add_parser("propose")
     proposal.add_argument("--kind", choices=["knowledge", "policy", "skill"], required=True)
@@ -145,7 +149,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
     if args.command == "schema":
-        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState}[args.kind]
+        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution}[args.kind]
         schema = model.model_json_schema()
         if args.output:
             atomic_write(args.output, json.dumps(schema, indent=2) + "\n")
@@ -178,6 +182,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         if args.command == "doctor":
             report = engine.doctor(validators_only=args.validators_only)
             return report, 0 if all(item["ok"] for item in report.values()) else 1
+        if args.command == "capabilities":
+            return engine.capability_report(), 0
         if args.command == "ask":
             supervisor = Supervisor(engine)
             intake = supervisor.ask(args.prompt, task_id=args.task_id, advisory=args.advisory, reply_to=args.reply_to)
@@ -192,7 +198,15 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             if not args.no_run:
                 state = engine.run(state.spec.id)
         elif args.command == "create":
-            state = engine.create(TaskSpec.model_validate(load_yaml(args.task_file)))
+            requirements: dict[str, list[str]] = {}
+            for item in args.require:
+                if "=" not in item:
+                    raise OrchestratorError("--require must use ROLE=CAPABILITY")
+                role, capability = item.split("=", 1)
+                if not role or not capability:
+                    raise OrchestratorError("--require must use nonempty ROLE=CAPABILITY")
+                requirements.setdefault(role, []).append(capability)
+            state = engine.create(TaskSpec.model_validate(load_yaml(args.task_file)), capability_requirements=requirements or None)
         elif args.command == "run":
             state = engine.run(args.task_id)
         elif args.command == "status":

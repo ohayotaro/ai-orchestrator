@@ -1,6 +1,6 @@
 # AI Orchestrator Roadmap
 
-This document describes the intended path from the current v0.4.1 control-plane
+This document describes the intended path from the current v0.5 capability-based control-plane
 foundation toward stable v1.0 contracts. Version numbers describe sequencing and
 design boundaries, not promised release dates. Live E2E evidence, security
 findings and implementation experience may change the details or order.
@@ -55,7 +55,7 @@ These principles should survive future feature work.
 9. **Evidence precedes adaptation.** Routing and workflow improvements should be
    informed by provenance and measured runs, not opaque self-ranking.
 
-## Current baseline — v0.4.1
+## Previous baseline — v0.4.1
 
 The current baseline has live owner-reported E2E evidence from both Claude Code
 and Codex frontends.
@@ -76,10 +76,9 @@ Implemented foundations include:
 See `docs/E2E.md` for the observed Claude Code and Codex live runs and their
 limitations.
 
-## v0.5 — Capability Registry and Provider Adapter v2
+## v0.5 — Capability Registry and Provider Adapter v2 — implemented
 
-The next milestone generalizes **who can do a unit of work**, without yet
-generalizing the workflow into an arbitrary DAG.
+v0.5 generalizes **who can do a unit of work**, without generalizing the workflow into an arbitrary DAG.
 
 Goals:
 
@@ -102,8 +101,9 @@ Non-goals for v0.5:
 - parallel edits to one worktree;
 - new domain-specific kernel branches.
 
-The important output of v0.5 is a stable capability abstraction on which later
-workflow topology can depend.
+Implemented output: a versioned semantic registry, Adapter v2 descriptors, deterministic fixed/candidate/priority resolution, task/profile capability requirements and frozen provenance. See `docs/CAPABILITIES.md`.
+
+The next implementation milestone is v0.6 workflow/DAG schema.
 
 ## v0.6 — Workflow Schema and DAG
 

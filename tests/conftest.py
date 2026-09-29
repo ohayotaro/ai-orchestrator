@@ -27,7 +27,9 @@ def reply(request, *, outcome, summary, findings, evidence):
 
 
 class FakeAdapter:
+    api_version = 2
     capabilities = frozenset({"read_files", "write_files", "fresh_session", "structured_output", "shell"})
+    semantic_capabilities = frozenset({"repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"})
 
     def __init__(self, family: str):
         self.family = family

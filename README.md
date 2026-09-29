@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.4.1 alpha** refines optional single-terminal host confirmations and automatic
+**v0.5.0 alpha** refines optional single-terminal host confirmations and automatic
 separate workers. This remains a trusted-local application, not authenticated
 human identity or an OS-isolated control plane.
 
@@ -42,6 +42,28 @@ Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-appr
 
 Legacy/manual tasks without an allowed-path contract retain prior behavior.
 
+## v0.5 capability-based provider resolution
+
+v0.5 generalizes provider selection without introducing DAG execution. Roles and
+Supervisor-generated tasks can declare semantic requirements independently of
+provider names. Fixed provider bindings still win; otherwise ordered candidates
+or explicit provider priorities resolve the first eligible Provider Adapter v2.
+
+Resolution is deterministic, frozen into new task state before billable calls,
+included in HumanGate/approval provenance and revalidated on later runs. There is
+no automatic "best model" ranking.
+
+```bash
+orchestrator capabilities
+```
+
+shows the registry, effective provider descriptors and baseline role resolution.
+See **[Capability Registry and Provider Adapter v2](docs/CAPABILITIES.md)**.
+
+Existing profiles with no new capability fields keep their previous digest and
+do not need re-trust merely because the package was upgraded. Explicit capability,
+candidate or priority changes are normal profile changes and do require re-trust.
+
 ## Important approval distinction
 
 v0.4 uses MCP `elicitation/create`, not ordinary tool permission prompts,
@@ -68,7 +90,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.4.1
+.venv/bin/orchestrator --version  # 0.5.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -155,14 +177,13 @@ replayed.
 
 ## Roadmap
 
-The current v0.4.1 baseline establishes the control-plane foundation: live
+The current v0.5.0 baseline adds deterministic capability/provider resolution on top of the control-plane foundation: live
 Claude Code and Codex frontends, explicit HumanGates, managed workers,
 allowed-path/write-set enforcement, deterministic validation and independent
-review. The next development phase generalizes provider capabilities before
-generalizing workflow topology.
+review. The next development phase can generalize workflow topology because provider/capability resolution is now explicit.
 
-See **[ROADMAP.md](ROADMAP.md)** for the planned path from v0.5 capability-based
-provider resolution through workflow DAGs, isolated parallel execution,
+See **[ROADMAP.md](ROADMAP.md)** for the planned path from the completed v0.5 capability-based
+provider resolution through v0.6 workflow DAGs, isolated parallel execution,
 adaptive/user-defined orchestration, observability and stable v1.0 contracts.
 The roadmap is directional rather than a release-date commitment and may be
 revised from measured E2E evidence.

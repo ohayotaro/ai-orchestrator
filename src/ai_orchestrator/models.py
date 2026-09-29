@@ -52,17 +52,44 @@ class ProviderConfig(Contract):
     executable: str | None = None
     model: str | None = None
     effort: str | None = None
+    capabilities: list[str] = Field(default_factory=list)
+    priority: int = Field(default=100, ge=0, le=10000, strict=True)
 
     @field_validator("adapter")
     @classmethod
     def valid_adapter(cls, value: str) -> str:
         return identifier(value)
 
+    @field_validator("capabilities")
+    @classmethod
+    def valid_capabilities(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("provider capabilities must not contain duplicates")
+        return normalized
+
 
 class RoleConfig(Contract):
-    provider: str
+    provider: str | None = None
     instructions: str = ""
+    # Legacy/runtime adapter requirements. New semantic requirements use capabilities.
     requires: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    candidates: list[str] = Field(default_factory=list)
+
+    @field_validator("requires", "capabilities", "candidates")
+    @classmethod
+    def valid_identifiers(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("role requirements/candidates must not contain duplicates")
+        return normalized
+
+    @model_validator(mode="after")
+    def unambiguous_binding(self) -> RoleConfig:
+        if self.provider is not None and self.candidates:
+            raise ValueError("role.provider is a fixed override; do not also set candidates")
+        return self
 
 
 class ValidatorConfig(Contract):
@@ -136,8 +163,13 @@ class Profile(Contract):
             if role not in self.roles:
                 raise ValueError(f"missing role: {role}")
         for role in self.roles.values():
-            if role.provider not in self.providers:
+            if role.provider is not None and role.provider not in self.providers:
                 raise ValueError(f"unknown provider binding: {role.provider}")
+            for candidate in role.candidates:
+                if candidate not in self.providers:
+                    raise ValueError(f"unknown provider candidate: {candidate}")
+            if role.provider is None and not role.candidates and not self.providers:
+                raise ValueError("dynamic role resolution requires at least one provider")
         return self
 
 
@@ -179,11 +211,13 @@ class Artifact(Contract):
 
 
 class TaskState(Contract):
-    # Existing rows remain v1. New tasks explicitly opt into v2 role outputs.
-    schema_version: Literal[1, 2] = 1
+    # Existing rows remain readable; v3 snapshots capability requirements/resolution.
+    schema_version: Literal[1, 2, 3] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
+    capability_requirements: dict[str, list[str]] | None = None
+    provider_resolutions: dict[str, dict[str, object]] | None = None
     spec: TaskSpec
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)

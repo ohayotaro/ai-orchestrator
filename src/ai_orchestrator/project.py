@@ -119,6 +119,17 @@ class Project:
             for key in ("env", "generated_paths"):
                 if not validator[key]:
                     del validator[key]
+        # v0.5 capability fields are backward-compatible defaults. An unchanged
+        # v0.4.x profile keeps the same digest and does not require re-trust.
+        for provider in effective["providers"].values():
+            if not provider["capabilities"]:
+                del provider["capabilities"]
+            if provider["priority"] == 100:
+                del provider["priority"]
+        for role in effective["roles"].values():
+            for key in ("capabilities", "candidates"):
+                if not role[key]:
+                    del role[key]
         return profile, digest({"profile": effective, "context": context}), context
 
     @contextlib.contextmanager
@@ -232,12 +243,15 @@ def initialize(root: Path, name: str) -> None:
         raise OrchestratorError(".orchestrator already exists; init never overwrites project configuration")
     profile = Profile.model_validate({
         "name": name,
-        "providers": {"reasoning": {"adapter": "claude"}, "engineering": {"adapter": "codex"}},
+        "providers": {
+            "reasoning": {"adapter": "claude", "capabilities": ["repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"]},
+            "engineering": {"adapter": "codex", "capabilities": ["repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"]},
+        },
         "roles": {
-            "supervisor": {"provider": "reasoning"},
-            "planner": {"provider": "reasoning"},
-            "implementer": {"provider": "engineering"},
-            "reviewer": {"provider": "reasoning"},
+            "supervisor": {"provider": "reasoning", "capabilities": ["supervision", "repository_analysis"]},
+            "planner": {"provider": "reasoning", "capabilities": ["planning", "repository_analysis"]},
+            "implementer": {"provider": "engineering", "capabilities": ["code_edit"]},
+            "reviewer": {"provider": "reasoning", "capabilities": ["review", "repository_analysis"]},
         },
     })
     for directory in ("policies", "skills", "knowledge/accepted", "knowledge/candidates", "tasks", "runtime"):

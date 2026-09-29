@@ -54,7 +54,22 @@ class TaskDraftScoped(TaskDraft):
     """Current model-facing task draft; legacy persisted TaskDraft stays readable."""
 
     allowed_paths: list[str] = Field(description="Exact project-relative files this task may create or modify. Empty only for advisory work.")
+    capabilities: dict[str, list[str]] = Field(description="Additional semantic capabilities required per planner/implementer/reviewer role. Use only names advertised by the controller.")
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
+
+    @field_validator("capabilities")
+    @classmethod
+    def valid_capability_shape(cls, values: dict[str, list[str]]) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        for role, capabilities in values.items():
+            identifier(role)
+            if role not in ("planner", "implementer", "reviewer"):
+                raise ValueError(f"unsupported task capability role: {role}")
+            normalized = [identifier(value) for value in capabilities]
+            if len(normalized) != len(set(normalized)):
+                raise ValueError(f"duplicate task capability for {role}")
+            result[role] = normalized
+        return result
 
 
 class SupervisorResultScoped(Contract):
@@ -107,6 +122,7 @@ class IntakeState(Contract):
     result: SupervisorResult | None = None
     task: TaskSpec | None = None
     allowed_paths: list[str] | None = None
+    capability_requirements: dict[str, list[str]] | None = None
     artifact: Artifact | None = None
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
