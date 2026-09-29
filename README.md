@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.4.1 alpha** adds optional single-terminal host confirmations and automatic
+**v0.4.1 alpha** refines optional single-terminal host confirmations and automatic
 separate workers. This remains a trusted-local application, not authenticated
 human identity or an OS-isolated control plane.
 
