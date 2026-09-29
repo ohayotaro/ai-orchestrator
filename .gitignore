@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+.coverage
+.orchestrator/runtime/
+.env
+.env.*
+!.env.example

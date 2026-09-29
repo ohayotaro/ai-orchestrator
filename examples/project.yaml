@@ -1,0 +1,32 @@
+schema_version: 1
+name: user-owned-project
+workflow: build-review
+providers:
+  reasoning:
+    adapter: claude
+    model: null
+  engineering:
+    adapter: codex
+    model: null
+roles:
+  planner:
+    provider: reasoning
+    instructions: State assumptions and produce a bounded implementation plan.
+  implementer:
+    provider: engineering
+    instructions: Prefer focused changes and preserve project invariants.
+  reviewer:
+    provider: reasoning
+    instructions: Check acceptance criteria independently; cite concrete file evidence.
+policy:
+  require_execution_approval: true
+  cross_provider_review: true
+  protected_paths: [.env]
+  max_attempts: 3
+  max_agent_calls: 12
+  call_timeout_seconds: 600
+  task_timeout_seconds: 3600
+validators:
+  tests:
+    argv: [python, -m, pytest, -q]
+    timeout_seconds: 120

@@ -1,0 +1,9 @@
+schema_version: 1
+id: example-change
+goal: Implement the project-specific change described by the operator.
+acceptance:
+  - The requested change is implemented without unrelated modifications.
+  - The registered test suite passes.
+risk: T2
+validators: [tests]
+external_effects: false

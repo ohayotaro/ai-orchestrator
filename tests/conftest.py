@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+from ai_orchestrator.engine import Engine
+from ai_orchestrator.models import AgentResult, TaskSpec
+from ai_orchestrator.project import initialize
+
+
+class FakeAdapter:
+    capabilities = frozenset({"read_files", "write_files", "fresh_session", "structured_output", "shell"})
+
+    def __init__(self, family: str):
+        self.family = family
+        self.requests = []
+        self.reject_reviews = 0
+        self.mutate_review = False
+        self.mutate_protected = False
+        self.explode = False
+
+    def doctor(self, config, workspace):
+        return {"version": "offline-fixture", "family": self.family}
+
+    def execute(self, request):
+        self.requests.append(request)
+        if self.explode:
+            raise RuntimeError("synthetic provider failure")
+        if request.phase == "execute":
+            (request.workspace / "result.txt").write_text("implemented\n")
+            if self.mutate_protected:
+                (request.workspace / ".env").write_text("changed")
+            return AgentResult(outcome="completed", summary="IMPLEMENTER_TRANSCRIPT_MARKER", findings=[], evidence=["result.txt"])
+        if request.phase == "review":
+            if self.mutate_review:
+                (request.workspace / "unexpected.txt").write_text("violation")
+            if self.reject_reviews:
+                self.reject_reviews -= 1
+                return AgentResult(outcome="changes_required", summary="Repair the issue", findings=["synthetic defect"], evidence=[])
+            return AgentResult(outcome="approved", summary="Acceptance criteria satisfied", findings=[], evidence=["result.txt"])
+        return AgentResult(outcome="completed", summary="Inspect, implement and test the requested change", findings=[], evidence=[])
+
+
+@pytest.fixture
+def workspace(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "input.txt").write_text("input\n")
+    initialize(tmp_path, "fixture")
+    config = tmp_path / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config.read_text())
+    profile["validators"] = {"check": {"argv": [sys.executable, "-c", "print('validated')"], "timeout_seconds": 5}}
+    config.write_text(yaml.safe_dump(profile))
+    return tmp_path
+
+
+@pytest.fixture
+def engine(workspace):
+    reasoning, engineering = FakeAdapter("anthropic"), FakeAdapter("openai")
+    instance = Engine(workspace, {"claude": reasoning, "codex": engineering})
+    instance.trust("test-operator")
+    yield instance, reasoning, engineering
+    instance.close()
+
+
+def spec(task_id="task-1", risk="T2", **kwargs):
+    return TaskSpec(id=task_id, goal="Implement the requested result", acceptance=["A result is produced and checks pass"], risk=risk, validators=[] if risk == "T0" else ["check"], **kwargs)
+
+
+def approve_and_run(engine, task_id="task-1"):
+    state = engine.run(task_id)
+    assert state.status == "awaiting_approval", state.model_dump()
+    engine.approve(task_id, engine.approval_scope(state), "test-operator")
+    return engine.run(task_id)

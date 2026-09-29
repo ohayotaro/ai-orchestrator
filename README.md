@@ -1,277 +1,198 @@
 # AI Orchestrator
 
-A provider-neutral orchestration kernel for coordinating AI agents, CLI runtimes, project policies, workflows, and evolving project knowledge.
+A project-driven, provider-neutral orchestration kernel for CLI agents, explicit approval, verified artifacts, and evolving project knowledge.
 
-> **Status:** Early development. The architecture is being extracted from practical orchestration patterns developed in `claude-finance`, `claude-research`, and `claude-fullstack`. APIs and schemas are not stable yet.
+**Status: v0.1.0 alpha.** The sequential execution kernel, Claude/Codex adapters, project profiles, and proposal/promotion CLI are implemented. There is no hosted service, autonomous policy learning, arbitrary DAG scheduler, or production-grade security boundary. See [Security and limitations](docs/SECURITY.md) before enabling execution.
 
-## Why
+## What is implemented
 
-Most agent systems bind three concerns too early:
-
-- a specific model or provider,
-- a fixed agent role,
-- and a predefined application domain.
-
-AI Orchestrator takes a different approach. The kernel should not need to know that Claude is the manager, Codex is the implementer, or that a project belongs to "finance", "research", or "fullstack".
-
-Instead, orchestration is built from orthogonal primitives:
+The controller owns this bounded workflow:
 
 ```text
-Project
-  |
-  +-- Constitution / Policies
-  +-- Knowledge
-  +-- Workflows
-  +-- Roles
-  +-- Validators
-  |
-  v
-Orchestration Kernel
-  |
-  +-- Task / DAG / State
-  +-- Artifact Protocol
-  +-- Policy / Approval Gates
-  +-- Capability Routing
-  +-- Events / Audit Trail
-  |
-  v
-Provider Adapters
-  |
-  +-- Anthropic / Claude
-  +-- OpenAI / Codex
-  +-- Google / Gemini
-  +-- Local or future runtimes
+create -> plan -> execution approval -> execute -> validate -> fresh review
+                       ^                            |             |
+                       +------ bounded rework ------+-------------+
+                                                                  |
+                                                         human acceptance
 ```
 
-The goal is to make providers replaceable, project behavior explicit, and useful project-specific knowledge able to evolve over time.
+T0 is advisory: plan/answer followed by human acceptance, without implementation or validator execution. T1-T3 use the full workflow in v0.1. Execution approval is on by default for every write task and mandatory for T3 even when the project relaxes that default. External-effect tasks are blocked in v0.1, including after approval; this is not a deployment or trading engine.
 
-## Design Principles
+The kernel includes versioned Pydantic contracts and generated JSON Schemas, explicit role bindings, capability checks, SQLite lifecycle state and audit events, SHA-256 artifact integrity, profile/worktree-bound approvals, named subprocess validators, fresh reviewer invocations, bounded repair loops, time/call limits, cancellation, and conservative interrupted-run recovery.
 
-### Provider-neutral kernel
+Projects own their policies, skills, acceptance criteria, validators, and approved knowledge. No finance/research/fullstack domain taxonomy is built into the kernel. Observations enter as evidence-linked candidates and become active context only through explicit operator promotion. Promoting prose does **not** create executable validation or grant permissions.
 
-The core orchestration layer operates on capabilities, roles, tasks, policies, artifacts, and state transitions rather than provider names.
+## Install
 
-Provider-specific behavior belongs behind adapters.
+Python 3.11+ and Git are required. Execution currently targets Linux/macOS; Windows is not supported by the POSIX process-group/lock implementation.
+
+From a checkout of this repository:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+orchestrator --version
+python -m pytest -q
+```
+
+Install and authenticate Claude Code and Codex CLI separately. This project neither installs them nor copies their credentials. No specific model name is hard-coded: `model: null` uses the CLI's configured default. Required CLI flags are checked by `doctor`; unsupported versions fail rather than silently downgrading.
+
+## First project
+
+Run the controller from a normal terminal, not inside an existing Claude Code session. Use a disposable local Git worktree initially, without production credentials or confidential data.
+
+```bash
+cd /path/to/your-project
+# For a new project only; an existing Git project does not need reinitialization.
+git init
+orchestrator init --name my-project
+```
+
+`init` never overwrites an existing `.orchestrator/` directory. It creates an **untrusted** minimal profile. Review `.orchestrator/config.yaml` and `.orchestrator/policies/baseline.md`. Register your actual test command before creating a write task, for example:
+
+```yaml
+# .orchestrator/config.yaml: replace the initially empty validators mapping.
+validators:
+  tests:
+    argv: [python, -m, pytest, -q]
+    timeout_seconds: 120
+```
+
+A validator is a complete, operator-defined argument vector, not a shell string generated by an agent. A Python test suite can execute arbitrary Python; registering it is an explicit trust decision, not proof that it is safe.
+
+After inspecting the profile, validator code, and local CLI configuration:
+
+```bash
+orchestrator trust --by "$USER" --ack-local-execution
+orchestrator doctor
+```
+
+Create a task file such as `task.yaml`:
+
+```yaml
+schema_version: 1
+id: example-change
+goal: Add the requested behavior and its regression test.
+acceptance:
+  - The requested behavior is implemented without unrelated changes.
+  - The registered test suite passes.
+risk: T2
+validators: [tests]
+external_effects: false
+```
+
+Then run:
+
+```bash
+orchestrator create --task-file task.yaml
+orchestrator run example-change
+orchestrator status example-change
+```
+
+The first run plans and stops at `awaiting_approval`. Inspect the task, plan artifact, active profile, and worktree. Copy the **current** `approval_scope` from `status`:
+
+```bash
+orchestrator approve example-change --scope '<approval_scope>' --by "$USER"
+orchestrator run example-change
+```
+
+The next run implements, executes validators, and asks a fresh reviewer to inspect the result. A repair round needs a new scoped approval under the default policy. After `awaiting_acceptance`, inspect the actual files, validation evidence, and review before accepting:
+
+```bash
+orchestrator accept example-change --by "$USER"
+orchestrator events --task-id example-change
+```
+
+A changed worktree invalidates execution approval or final acceptance. A changed active profile invalidates trust and existing tasks: inspect/retrust it and create a new task. No automatic commit, push, deployment, or publication is performed by the controller.
+
+All commands emit JSON. For a different worktree, put the global option before the subcommand: `orchestrator --project /path/to/project status example-change`.
+
+## Roles and providers
+
+Default bindings are Claude for planning/review and Codex for implementation. They are configuration choices, not kernel assumptions:
+
+```yaml
+providers:
+  reasoning:
+    adapter: claude
+    model: null
+  engineering:
+    adapter: codex
+    model: null
+roles:
+  planner:
+    provider: reasoning
+  implementer:
+    provider: engineering
+  reviewer:
+    provider: reasoning
+```
+
+Provider implementations satisfy `ProviderAdapter` and declare capabilities. An unsupported adapter or capability blocks execution; there is no implicit fallback. Claude implementation uses file-edit tools, not a shell. Codex exposes its native sandbox; Claude's tool allowlist is **not** an equivalent OS sandbox. Cross-provider checks compare adapter-declared families, not attested model identity or statistically independent reasoning.
+
+Gemini/API/local-model adapters can be registered through the Python interface later without changing task/state contracts. They are **not implemented** in this release. See [Architecture](docs/ARCHITECTURE.md) and [migration recipes](docs/MIGRATION.md).
+
+## Knowledge that evolves with the project
+
+```bash
+orchestrator propose --kind policy \
+  --statement 'Update schema snapshots when migrations change the schema.' \
+  --evidence 'task:T-42' --evidence 'tests/schema/'
+orchestrator proposal <proposal-id>
+```
+
+Candidates are never injected into agent prompts. Check the evidence and proposed scope yourself; evidence references are recorded, not automatically verified. Promotion requires the exact proposal digest returned as `scope`:
+
+```bash
+orchestrator promote <proposal-id> --scope '<scope>' --by "$USER"
+# Promotion changes active context. Inspect the result before retrusting.
+orchestrator trust --by "$USER" --ack-local-execution
+```
+
+`knowledge`, `policy`, and `skill` promotions produce Markdown in separate project directories. They cannot add shell commands, change machine policy, or disable approval gates. This is human-governed project memory, not model-weight training or autonomous self-modification.
+
+## State, schemas, and recovery
 
 ```text
-Role + Requirements
-        |
-        v
-Capability Router
-        |
-   +----+----+
-   |    |    |
-Claude Codex Gemini ...
+.orchestrator/
+  config.yaml              # tracked, operator-owned profile
+  policies/                # tracked, approved policy prose
+  skills/                  # tracked, approved procedural knowledge
+  knowledge/candidates/    # tracked, inactive proposals
+  knowledge/accepted/      # tracked, approved project knowledge
+  tasks/                   # tracked, frozen task specifications
+  runtime/                 # gitignored: SQLite, workspace lock, hashed artifacts
 ```
 
-A reviewer may therefore be expressed as a constraint such as "fresh session, read-only, independent from the implementer" rather than "run Codex".
+SQLite is the canonical lifecycle store; task state and its event are committed together. Artifacts are written before they are referenced, so a crash can leave an unreferenced artifact, never a silently accepted partial result. Runtime state is local and must be backed up separately from Git.
 
-### Project-driven, not domain-driven
-
-The project does not assume that domains such as finance, scientific research, or fullstack engineering can be completely specified in advance.
-
-A project begins with a small profile and evolves through use:
-
-```text
-Project usage
-    |
-    v
-Observations
-    |
-    v
-Candidate knowledge
-    |
-    +--> Project knowledge
-    +--> Skill / workflow
-    +--> Proposed policy
-             |
-             v
-        User approval
+```bash
+orchestrator schema profile --output profile.schema.json
+orchestrator schema task --output task.schema.json
+orchestrator schema result
+orchestrator cancel example-change
+orchestrator recover example-change
 ```
 
-Reusable profiles may emerge later from mature projects, but they are outputs of experience rather than mandatory top-level abstractions.
+`cancel` requests process-group termination when a run is active; at a paused gate it prevents further execution/acceptance. `recover` only handles a stale `running` state after the workspace lock has been released. It marks the task failed, does not roll back files, and never automatically replays a potentially side-effecting phase. Failed/blocked/cancelled tasks require inspection and a new task ID.
 
-### Deterministic control plane
+## Development and verification
 
-LLMs should perform semantic work: planning, decomposition, implementation, research, critique, and synthesis.
-
-The orchestration kernel should retain deterministic ownership of:
-
-- allowed state transitions,
-- permissions and sandboxes,
-- approval gates,
-- timeouts and retries,
-- execution budgets,
-- artifact integrity,
-- provider constraints,
-- fresh-session guarantees,
-- validation execution,
-- audit events.
-
-Agents should not be able to silently rewrite the control plane that governs them.
-
-### Explicit knowledge promotion
-
-Not every observation should immediately become a rule.
-
-The intended lifecycle is:
-
-```text
-Observation
-  -> Candidate
-  -> Verified / repeated
-  -> Project knowledge
-  -> Skill or proposed policy
-  -> Deterministic validator where appropriate
+```bash
+python -m pytest -q
+python -m compileall -q src tests
+python -m pip wheel . --no-deps --no-build-isolation -w dist
 ```
 
-Safety-critical and project-level policies remain human-controlled. Agents may propose changes without silently promoting them.
+The test suite exercises real local subprocesses and Git fixtures plus deterministic adapter doubles. Claude/Codex subprocess argument construction and result decoding are tested without billable requests. **Live authenticated provider execution has not been verified in the initial implementation environment.** CI runs the offline suite; it does not certify model quality, CLI sandbox security, or production readiness.
 
-### Artifacts over transcript coupling
+## Next steps, deliberately outside v0.1
 
-Agents exchange structured task state and durable artifacts instead of depending on another model's full conversation transcript.
+Arbitrary workflow graphs, parallel workspaces, native subagents, Gemini/API adapters, automatic capability routing, dollar/token budgets, profile import/export, automated evidence verification, and a separately authenticated/isolated control plane remain future work. The built-in `build-review` workflow is intentionally the only executable graph in this release.
 
-This enables independent review, reproducibility, provider replacement, and bounded context.
+## Provenance and license
 
-## Core Concepts
+The design draws on the ownership/handoff patterns discussed for `claude-finance`, `claude-research`, and `claude-fullstack`. These are migration cases and sources of experience, not mandatory domain packs. Existing repositories are not modified or automatically imported.
 
-The initial kernel is expected to converge around a small set of primitives:
-
-| Primitive | Responsibility |
-|---|---|
-| Task | Unit of work with requirements and acceptance criteria |
-| Role | Logical responsibility independent of model/provider |
-| Capability | Runtime features required to perform a role |
-| Provider | Adapter to a CLI, API, or provider-native agent runtime |
-| Workflow | Allowed phases and transitions |
-| Policy | Constraints, permissions, and approval requirements |
-| Artifact | Durable output exchanged between phases |
-| Validator | Deterministic verification |
-| State | Current lifecycle and execution metadata |
-| Event | Append-only audit information |
-| Knowledge | Project-specific information accumulated through use |
-
-## Planned Architecture
-
-```text
-ai-orchestrator/
-├── core/                 # task, state, workflow, policy, artifacts, events
-├── providers/            # Claude, Codex, Gemini, future adapters
-├── workflows/            # reusable workflow definitions
-├── profiles/             # optional reusable project profiles
-├── schemas/              # task/artifact/config contracts
-└── cli/                  # user-facing orchestration commands
-
-project/
-└── .orchestrator/
-    ├── config.yaml
-    ├── policies/
-    ├── workflows/
-    ├── roles/
-    ├── validators/
-    ├── skills/
-    └── knowledge/
-```
-
-This layout is provisional and will be validated against real migrations before becoming stable.
-
-## Provider Model
-
-Providers expose common capabilities without forcing every runtime into the lowest common denominator.
-
-```text
-Common Provider Contract
-        +
-Provider-specific extensions
-```
-
-Examples of capabilities include:
-
-- filesystem read/write,
-- shell execution,
-- network access,
-- fresh or persistent sessions,
-- structured output,
-- native subagents,
-- tool/MCP support,
-- sandbox or permission controls.
-
-The kernel can then route by capability and policy rather than hard-coded vendor identity.
-
-## Project Evolution
-
-A new project should require only minimal configuration. Policies, workflows, skills, validators, and knowledge can become more specific as the orchestrator is used.
-
-Conceptually:
-
-```text
-Day 1
-  minimal profile
-      |
-      v
-real tasks + evidence
-      |
-      v
-project-specific knowledge
-      |
-      v
-mature policies / workflows / validators
-      |
-      v
-optional reusable profile
-```
-
-Existing projects such as `claude-finance`, `claude-research`, and `claude-fullstack` are intended to serve as source material and integration cases, not as fixed domain specifications.
-
-## Roadmap
-
-### v0.1 — Kernel extraction
-
-- Task and artifact schemas
-- Lifecycle/state engine
-- Provider adapter interface
-- Claude and Codex CLI adapters
-- Role binding
-- Deterministic validation
-- Approval and policy gates
-- Fresh-session independent review
-- Project Profile schema
-- Knowledge/policy promotion model
-- Migration experiments against the existing orchestrators
-
-### Later
-
-- Gemini and additional provider adapters
-- Capability-based dynamic routing
-- Parallel workers and task DAGs
-- Provider-native subagents
-- Cost and latency budgets
-- Nested orchestration
-- Reusable profile import/export
-- Cross-provider independence constraints
-
-## Non-goals
-
-At this stage, AI Orchestrator is not intended to:
-
-- define a universal taxonomy of application domains,
-- hide all provider-specific capabilities behind an identical API,
-- let agents autonomously modify safety-critical orchestration policy,
-- maximize the number of agents involved in every task,
-- replace deterministic tests and validation with model consensus.
-
-The objective is controlled composition, not agent proliferation.
-
-## Provenance
-
-This project generalizes orchestration patterns developed through:
-
-- `claude-finance`
-- `claude-research`
-- `claude-fullstack`
-
-Those projects explore different ownership models between Claude and Codex, independent review, risk-tiered approval, artifact-based handoffs, deterministic hooks, and project-specific knowledge. AI Orchestrator extracts the reusable control-plane concepts while keeping provider and project specialization replaceable.
-
-## License
-
-License to be determined.
+License to be determined. No open-source license grant is implied by public repository visibility.
