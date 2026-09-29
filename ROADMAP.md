@@ -105,6 +105,35 @@ Implemented output: a versioned semantic registry, Adapter v2 descriptors, deter
 
 The next implementation milestone is v0.6 workflow/DAG schema.
 
+## v0.5.x design boundary — Provider vs Model Variant Resolution
+
+Before v0.6 generalizes workflow topology, the resolver boundary is fixed as a
+design contract. v0.5.x does not need to implement automatic variant routing.
+
+- **Provider Resolution answers who can do the work.** Inputs are semantic
+  capabilities, explicit fixed bindings/candidates/priority and provider-family
+  policy. Output is provider identity, adapter and family.
+- **Model Variant Resolution answers how the selected provider should run.**
+  Inputs are the selected provider plus explicit execution-class/policy and later
+  budget constraints. Output is a provider-local variant, concrete model, effort
+  and execution options.
+- Semantic capabilities such as `code_edit` or `review` must not be mixed with
+  execution characteristics such as fast/balanced/deep or reasoning effort.
+- Model variants belong under a provider/adapter contract. Workflow/DAG nodes
+  should normally request capabilities and an abstract execution class/policy,
+  not vendor model names.
+- Variant policy remains operator-controlled. Difficulty-based or learned
+  automatic routing is a later adaptive feature, not part of the v0.5 resolver.
+- Variant fallback must be explicit. Policies can allow an ordered fallback or
+  require fail-closed behavior.
+- Provider resolution and variant resolution must be separately frozen and
+  recorded as provenance. Both are bound into the execution approval scope; a
+  material post-approval change invalidates that scope.
+- Budgets are a third concern: capabilities describe **what**, provider
+  resolution **who**, variant resolution **how**, and budget policy **how much**.
+
+See `docs/MODEL_VARIANTS.md` for the full design decision.
+
 ## v0.6 — Workflow Schema and DAG
 
 After capability resolution is stable, generalize the current fixed
