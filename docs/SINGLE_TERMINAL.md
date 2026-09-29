@@ -58,7 +58,7 @@ git pull --ff-only
 .venv/bin/orchestrator --version
 ```
 
-The version is 0.4.0. Existing task/profile/database contracts remain. A new
+The version is 0.4.1. Existing task/profile/database contracts remain. A new
 `runtime/gates.sqlite3` stores host-mediated gate metadata separately. Unchanged
 profiles retain their trust digests. `skill --replace` is explicit, refuses
 symlinks, and preserves the old regular file in an adjacent `.bak-<random-id>`
