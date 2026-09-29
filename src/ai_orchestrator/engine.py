@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .contracts import ReviewResult, result_contract
 from .models import AgentResult, Contract, OrchestratorError, TaskSpec, TaskState
@@ -16,11 +16,11 @@ from .validators import ValidationFailure, changed_paths, inspect_validator, run
 
 
 class Engine:
-    def __init__(self, root: Path, registry: dict[str, ProviderAdapter] | None = None):
+    def __init__(self, root: Path, registry: dict[str, ProviderAdapter] | None = None, *, cancel_check: Callable[[], bool] = lambda: False):
         self.project = Project(root)
         self.profile, self.profile_digest, self.context = self.project.load()
         self.registry = registry if registry is not None else default_registry()
-        self.store = Store(self.project)
+        self.store = Store(self.project, cancel_check)
 
     def close(self) -> None:
         self.store.close()
@@ -248,8 +248,10 @@ class Engine:
         state.feedback = redact(feedback[:12000])
         self.store.save(state, "rework.requested")
 
-    def run(self, task_id: str) -> TaskState:
+    def run(self, task_id: str, *, expected_workspace: str | None = None) -> TaskState:
         with self.project.lock():
+            if expected_workspace is not None and self.project.snapshot() != expected_workspace:
+                raise OrchestratorError("worktree changed since job was queued; inspect and submit a new job")
             state = self.store.get(task_id)
             if state.status == "running":
                 raise OrchestratorError("interrupted run detected; use recover after inspecting the worktree")

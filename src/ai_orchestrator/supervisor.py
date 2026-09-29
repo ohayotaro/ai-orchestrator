@@ -87,12 +87,14 @@ class Supervisor:
             inspect_validator(self.project, self.engine.profile, name)
         return TaskSpec(id=intake.task_id, **{**draft.model_dump(), "risk": risk})
 
-    def ask(self, request: str, *, task_id: str | None = None, advisory: bool = False, reply_to: str | None = None) -> IntakeState:
+    def ask(self, request: str, *, task_id: str | None = None, advisory: bool = False, reply_to: str | None = None, expected_workspace: str | None = None) -> IntakeState:
         if not request.strip() or len(request) > 20000:
             raise OrchestratorError("ask requires a nonblank request of at most 20,000 characters")
         with self.project.lock():
             self._check_profile(self.engine.profile_digest)
             snapshot = self.project.snapshot()
+            if expected_workspace is not None and snapshot != expected_workspace:
+                raise OrchestratorError("worktree changed since job was queued; inspect and ask again")
             history = []
             round_number, previous_calls, previous_elapsed = 1, 0, 0.0
             if reply_to:
@@ -155,7 +157,9 @@ class Supervisor:
                 intake.calls += 1
                 self.store.save_intake(intake, "supervisor.started")
                 start = time.monotonic()
-                raw = adapter.execute(RunRequest("supervise", prompt, self.project.root, config, min(remaining, policy.call_timeout_seconds), lambda: False, result_model=SupervisorResult))
+                raw = adapter.execute(RunRequest("supervise", prompt, self.project.root, config, min(remaining, policy.call_timeout_seconds), lambda: self.store.cancelled(intake.id), result_model=SupervisorResult))
+                if self.store.cancelled(intake.id):
+                    raise OrchestratorError("Supervisor cancelled; no task was created")
                 self._check_profile(intake.profile_digest)
                 if self.project.control_snapshot() != controls or self.project.protected_snapshot(self.engine.profile) != protected:
                     raise OrchestratorError("Supervisor modified control/protected files; inspect manually")
@@ -170,7 +174,7 @@ class Supervisor:
             except KeyboardInterrupt:
                 intake.status, intake.error = "cancelled", "Supervisor interrupted; no task was created"
             except Exception as exc:
-                intake.status, intake.error = "failed", str(exc)[:4000]
+                intake.status, intake.error = ("cancelled" if self.store.cancelled(intake.id) else "failed"), str(exc)[:4000]
             finally:
                 if start is not None:
                     intake.elapsed_seconds += time.monotonic() - start

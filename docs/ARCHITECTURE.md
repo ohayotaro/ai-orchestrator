@@ -68,3 +68,24 @@ The v0.1 CLI invocation controls that the owner tested live are retained. v0.2 s
 - https://code.claude.com/docs/en/cli-reference
 
 These primary-source interfaces were reviewed during v0.2 implementation. Version/help probes check expected flags, not authenticated end-to-end compatibility. The new schemas and Supervisor require a live v0.2 smoke test after the offline suite.
+
+
+## v0.3 agent-facing dispatch
+
+`ApplicationService` exposes only the fixed-project agent operations in `TOOLS`.
+`StdioServer` maps the advertised MCP schemas to that service. `JobQueue` stores
+requests/results in runtime/jobs.sqlite3 separately from the existing kernel DB.
+A unique request ID binds action/arguments; atomic claims and an exclusive worker
+lock prevent duplicate cooperative execution. A completed dispatch job is not a
+completed task. Job state and task state are distinct and intentionally visible.
+
+The MCP process never calls provider.execute. A manually started worker dispatches
+Supervisor.ask or Engine.run with the queued profile/worktree binding, fresh engine
+state and a cancellation callback. Existing kernel gates remain authoritative.
+Agent-facing run rejects ungated write policies rather than treating a host-client
+approval prompt as an execution grant. Direct operator CLI interfaces are retained.
+
+Protocol scope, installation, supported tool names, limits and restart behavior
+are specified in MCP.md. No domain taxonomy, provider identity or client-specific
+model role is introduced into the kernel. The stdio subset advertises only tools,
+not sampling, elicitation or experimental MCP task support.

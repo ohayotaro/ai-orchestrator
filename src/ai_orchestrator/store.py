@@ -8,7 +8,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .contracts import IntakeState
 from .models import Artifact, OrchestratorError, TaskState, identifier
@@ -20,7 +20,8 @@ def now() -> str:
 
 
 class Store:
-    def __init__(self, project: Project):
+    def __init__(self, project: Project, cancel_check: Callable[[], bool] = lambda: False):
+        self.cancel_check = cancel_check
         self.project = project
         project.runtime.mkdir(parents=True, exist_ok=True)
         path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
@@ -91,6 +92,8 @@ class Store:
         return self.db.execute("SELECT 1 FROM approvals WHERE task_id=? AND scope=?", (task_id, scope)).fetchone() is not None
 
     def cancelled(self, task_id: str) -> bool:
+        if self.cancel_check():
+            return True
         row = self.db.execute("SELECT cancel_requested FROM tasks WHERE id=?", (task_id,)).fetchone()
         return bool(row and row[0])
 

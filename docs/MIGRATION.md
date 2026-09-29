@@ -60,3 +60,17 @@ A finance-inspired project can bind planning/implementation to Claude and review
 Migrate one small low-risk task in a disposable worktree. Audit every existing hook, permission restriction and approval requirement. A Markdown policy is not a replacement for a deterministic hook or OS control. Keep controls external or block migration when the alpha cannot enforce them. Extract reusable profile content only after repeated project experience; do not lower safeguards to make an example pass.
 
 Automated imports, old runner-state migration, arbitrary research/deployment workflows and additional provider-native subagents are not included.
+
+
+## v0.2 to v0.3
+
+Stop all active controllers and back up the full runtime directory first. Pull
+main and reinstall to refresh the 0.3.0 package metadata. Existing TaskSpec,
+profile digests, completed task rows and approval scopes are not migrated or
+rewritten. A separate jobs.sqlite3 appears when the MCP/job interfaces are used.
+No queued work is automatically resumed during installation.
+
+Install/export client skills and MCP configuration before creating scoped work.
+Start the worker from a separate normal terminal; do not unset CLAUDECODE to nest
+workers inside a conversational agent. Keep using direct ask/start/run if MCP is
+not needed. See MCP.md for setup and the remaining explicit human gates.

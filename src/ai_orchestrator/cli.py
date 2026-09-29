@@ -22,10 +22,20 @@ from .project import atomic_write, digest, initialize, load_yaml
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.2 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.3 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
+    commands.add_parser("serve", help="Run the fixed-project MCP stdio frontend; never spawn models here")
+    worker = commands.add_parser("worker", help="Run queued jobs from a separate operator terminal")
+    worker.add_argument("--once", action="store_true", help="Process at most one job and exit")
+    worker.add_argument("--poll-interval", type=float, default=1.0)
+    job = commands.add_parser("job", help="Inspect a durable queued operation")
+    job.add_argument("job_id")
+    cancel_job = commands.add_parser("cancel-job", help="Request queued/running operation cancellation")
+    cancel_job.add_argument("job_id")
+    skill = commands.add_parser("skill", help="Export the portable Agent Skill; never modify client config implicitly")
+    skill.add_argument("--output", type=Path, required=True)
     init = commands.add_parser("init")
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
@@ -91,6 +101,21 @@ def parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     root = args.project.resolve()
+    if args.command == "worker":
+        from .worker import run_worker
+        result = run_worker(root, once=args.once, poll_interval=args.poll_interval)
+        job = result.get("job") or {}
+        return result, 1 if job.get("status") in ("failed", "cancelled", "interrupted") else 0
+    if args.command in ("job", "cancel-job"):
+        from .service import ApplicationService
+        method = "get_job" if args.command == "job" else "cancel_job"
+        return ApplicationService(root).invoke(method, {"job_id": args.job_id}), 0
+    if args.command == "skill":
+        from importlib.resources import files
+        if args.output.exists() or args.output.is_symlink():
+            raise OrchestratorError("skill output already exists; no file was overwritten")
+        atomic_write(args.output, files("ai_orchestrator").joinpath("assets/SKILL.md").read_text(encoding="utf-8"))
+        return {"path": str(args.output), "installed_into_client": False}, 0
     if args.command == "init":
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
@@ -190,6 +215,10 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        if args.command == "serve":
+            from .mcp_server import serve
+            serve(args.project.resolve())
+            return 0
         result, code = dispatch(args)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return code

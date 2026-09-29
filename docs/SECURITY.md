@@ -59,3 +59,33 @@ An interrupted Supervisor produces no runnable task. If interrupted after start 
 Knowledge candidates are untrusted and inactive until an operator approves their exact digest. Approved Markdown influences model behavior; evidence is not fetched or automatically proven, and promotion never installs commands or grants permissions. Wrong generalizations and prompt injection remain risks.
 
 The owner reported a successful live v0.1 calculator E2E. v0.2's new Supervisor/result schemas are tested offline, including real local CLI shim processes, Git and pytest. Those tests are not live-provider certification, a penetration test or an independent audit. See E2E.md for the evidence boundary and next smoke test.
+
+
+## v0.3 MCP and worker boundary
+
+The stdio frontend is fixed to one project and exposes no operator authorization,
+arbitrary file-read, shell, configuration mutation or policy promotion tools.
+Tool input schemas reject extra fields such as `approved`, `actor`, `argv` and
+`project`. A returned scope hashes content; it is public information, not a token.
+The portable skill forbids using the host agent's shell to impersonate the human.
+These restrictions apply to this MCP surface, not every capability of the host.
+
+The worker must be started in a normal operator terminal. Existing CLAUDECODE
+nesting protection is not removed. A worker marker rejects accidental recursive
+MCP startup from worker descendants. Do not treat environment markers as an
+adversarial security boundary: a same-user shell can remove them, rewrite runtime
+SQLite files, invoke the operator CLI, or alter installed code. Isolated workers
+and an independently authenticated approval authority remain future work.
+
+Job requests are idempotent by required caller key. Queue size/expiry bounds
+reduce accidental duplication or delayed dispatch; they are not spend limits.
+Only the exclusive worker owner may mark abandoned jobs interrupted. Interrupted
+jobs are never automatically replayed. A client disconnect does not cancel a job;
+use explicit cancellation. Cancellation does not roll back existing file effects.
+
+No network listener or OAuth implementation is introduced. MCP stdout contains
+only bounded newline-delimited JSON-RPC responses. The optional official SDK is
+used for interoperability testing only; runtime transports do not depend on it.
+Artifacts and proposed text remain untrusted, may contain sensitive information,
+and must not be promoted to permissions or executed as instructions. Use only
+trusted clients and non-production credentials for this local alpha.

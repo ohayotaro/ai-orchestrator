@@ -2,9 +2,38 @@
 
 A project-driven, provider-neutral orchestration kernel with natural-language task intake, explicit human gates, deterministic validators, and evolving project knowledge.
 
-**v0.2.0 alpha — trusted local execution, not a production security boundary.** Claude Code and Codex CLI adapters are included. Gemini, distributed workers, arbitrary DAGs and native subagents are not implemented. Read [Security](docs/SECURITY.md) before connecting credentials or executing repository code.
+**v0.3.0 alpha — trusted local execution, not a production security boundary.** Claude Code and Codex CLI adapters are included. Gemini, distributed workers, arbitrary DAGs and native subagents are not implemented. Read [Security](docs/SECURITY.md) before connecting credentials or executing repository code.
 
-## What v0.2 changes
+## v0.3: use your existing conversational agent
+
+Claude Code, Codex and other compatible stdio MCP clients can now delegate through
+`orchestrator serve`. A separate operator-started `orchestrator worker` processes
+queued requests using the same Supervisor, state machine and provider adapters.
+The frontend never recursively launches a model inside the conversational client.
+
+```text
+User <-> Agent + portable Skill -> MCP frontend -> durable job queue
+                                                     |
+                                      separate operator-started worker
+                                                     |
+                              Supervisor -> Planner -> Implementer -> Reviewer
+```
+
+Human intake confirmation, execution approval and final acceptance remain in the
+operator terminal. There is **no MCP trust/start/approve/accept tool**; chat text
+or model-supplied actor labels do not grant authority. The separate process is an
+operational boundary, not protection from a hostile process with the same OS user.
+
+See **[MCP and Skill setup](docs/MCP.md)** for complete Claude Code/Codex commands,
+worker startup, queue semantics and the conversation-to-acceptance walkthrough.
+The `ask`/`start` direct CLI below is retained unchanged. `skill --output` exports
+the packaged portable skill without overwriting existing files or client settings.
+
+v0.3 adds protocol-wire tests, both provider-role permutations through separate
+worker processes, and an optional independent MCP SDK interop test. These use
+model shims, not authenticated live models; v0.3 real-client E2E remains to be run.
+
+## Direct CLI workflow (introduced in v0.2)
 
 Users no longer need to write a TaskSpec YAML file for ordinary work:
 
@@ -42,20 +71,20 @@ python3.13 -m venv .venv             # a NEW environment, not an old Python 3.9 
 
 Install/authenticate Claude Code and Codex CLI separately. Models are not hard-coded; `model: null` uses the CLI's configured default. Linux and macOS are supported; the process/lock implementation requires POSIX.
 
-For an existing checkout, stop active runs and back up each project's entire `.orchestrator/runtime/` directory before first opening it with v0.2. Then:
+For an existing checkout, stop active runs and back up each project's entire `.orchestrator/runtime/` directory before upgrading. Then:
 
 ```bash
 git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev]'
-.venv/bin/orchestrator --version      # 0.2.0
+.venv/bin/orchestrator --version      # 0.3.0
 ```
 
 Reinstall after a version bump to refresh package metadata even with editable installation. Use the orchestrator checkout's `.venv/bin/...`, not an unrelated environment that remains activated in your shell. Database upgrade is additive, but downgrading a v0.2 runtime database to the v0.1 executable is not supported. See [Migration](docs/MIGRATION.md).
 
 ## Prepare a project once
 
-Start in a disposable Git project without production credentials. Run the controller from a normal terminal rather than nesting it inside Claude Code.
+Start in a disposable Git project without production credentials. Run direct model-executing commands from a normal terminal. For conversational clients, use the v0.3 MCP frontend with a separately started worker.
 
 ```bash
 cd /path/to/your-project
@@ -219,7 +248,7 @@ Candidates are inactive. Operator promotion adds approved Markdown, not executab
 
 SQLite is canonical and events commit with state updates. Artifacts are durable, SHA-256 checked and stored under gitignored `.orchestrator/runtime/`. The kernel serializes cooperating controllers with a workspace lock. Failure, cancellation and interrupted execution do not silently replay side effects; inspect the workspace and create a new task where necessary. `recover` only marks a stale running task failed.
 
-v0.1 completed one live Claude Code 2.1.284 / Codex CLI 0.154.0 calculator E2E reported by the repository owner on 2026-09-29. **v0.2's new Supervisor and role schemas have not yet been verified against authenticated live CLIs.** Offline tests include full subprocess-based CLI shims in both provider-role configurations and real pytest execution. See [E2E record and next smoke test](docs/E2E.md).
+The owner reported a completed live v0.1 calculator E2E and a live v0.2 Supervisor-to-review path reaching `awaiting_acceptance` on 2026-09-29. The latter output alone does not prove final acceptance. **v0.3's MCP/client/worker integration still requires authenticated real-client E2E.** Offline tests cover stdio, separate workers, both provider-role configurations and real pytest with model shims. See [E2E evidence and smoke testing](docs/E2E.md).
 
 ```bash
 python -m pytest -q

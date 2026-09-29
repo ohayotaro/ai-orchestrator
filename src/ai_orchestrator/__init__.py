@@ -1,3 +1,3 @@
-"""Project-driven orchestration. v0.2 remains a trusted-local alpha."""
+"""Project-driven orchestration. Trusted-local alpha."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

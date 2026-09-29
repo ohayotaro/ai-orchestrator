@@ -43,3 +43,26 @@ orchestrator ask "Add multiply(a,b) and regression tests; preserve add" --task-i
 Inspect the proposed task. Confirm its exact intake scope, inspect the plan and approve execution. Continue to review/acceptance only if the runner and concrete diff support it. A straight-through ask path normally records four model calls (Supervisor plus three execution roles) and six artifact kinds (Supervisor, plan, execute, validation, review, acceptance). A valid repair/clarification may use more within budget; call count alone is not a pass/fail oracle.
 
 Record CLI versions, commit, effective profile digest, final status, runner evidence, review blockers/observations and acceptance snapshot. Never publish credential values or raw confidential prompts. Keep explicit negative-path tests separate from the live happy-path claim; do not deliberately trigger destructive external actions to test a local guard.
+
+
+## Owner-reported v0.2 live path
+
+The conversation on 2026-09-29 supplied output for `subtract-v02-e2e` showing
+schema_version 2, intake `I-56d553a7527e`, four agent calls, one attempt,
+`awaiting_acceptance`, no error, Supervisor/plan/execute/validation/review artifacts,
+and a separate manual pytest run reporting three passed. This verifies the shown
+live path through review; that output alone does not prove final acceptance.
+
+## v0.3 verification scope
+
+New offline tests launch the actual MCP stdio frontend and a separate worker as
+processes, with deterministic CLI-shaped provider shims and real pytest. Both
+Claude-implementation/Codex-review and the reverse bindings are exercised. Human
+gates are simulated by explicit operator CLI invocations, not exposed as MCP tools.
+Protocol-wire and queue tests cover invalid inputs, authority rejection, scoped
+state changes, idempotency, cancellation, limits and interruption. An optional
+independent official MCP SDK client smoke test is included and enabled in CI.
+
+This does not certify authenticated v0.3 operation from the real Claude Code or
+Codex interactive clients. Antigravity/Grok integration is not validated. Do not
+replace this limitation with a generic claim that all MCP clients were tested.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — alpha
+
+- Fixed-project stdio MCP tools with a bounded JSON-RPC transport and no HTTP listener.
+- Durable local ask/run job queue, required idempotency keys, 32 pending-job limit and one-hour start expiry.
+- Separate operator-started worker: retained Claude session guards, recursion marker, single-worker locking and no automatic replay after interruption.
+- Agent-facing inspection, proposal, artifact retrieval, gated execution and cooperative job cancellation; no trust/start/approve/accept or arbitrary shell/path tools.
+- Portable packaged Agent Skill with no-overwrite export, plus Claude Code/Codex connection documentation.
+- Queued profile/worktree binding checked before dispatch; cancellation propagated into Supervisor/provider/validator process checks.
+- Existing v0.2 profile fingerprints/task schemas remain unchanged; separate job database requires no task-state rewrite.
+- Actual stdio/subprocess wire E2E with both provider-role configurations, protocol/error tests and optional official MCP SDK client interoperability test.
+- No authenticated interactive-client v0.3 E2E, multi-user identity boundary, automatic human approval, new provider, arbitrary DAG or parallel workspace execution is claimed.
+
 ## 0.2.0 — alpha
 
 ### Added
