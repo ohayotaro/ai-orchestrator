@@ -153,6 +153,20 @@ work; it cancels an unanswered confirmation, while the separate worker completes
 accepted queue work and idle-exits. Interrupted effects are never automatically
 replayed.
 
+## Roadmap
+
+The current v0.4.1 baseline establishes the control-plane foundation: live
+Claude Code and Codex frontends, explicit HumanGates, managed workers,
+allowed-path/write-set enforcement, deterministic validation and independent
+review. The next development phase generalizes provider capabilities before
+generalizing workflow topology.
+
+See **[ROADMAP.md](ROADMAP.md)** for the planned path from v0.5 capability-based
+provider resolution through workflow DAGs, isolated parallel execution,
+adaptive/user-defined orchestration, observability and stable v1.0 contracts.
+The roadmap is directional rather than a release-date commitment and may be
+revised from measured E2E evidence.
+
 ## Verification / limitations
 
 Tests cover malformed/negative confirmations, correlation and replay, stale state,
