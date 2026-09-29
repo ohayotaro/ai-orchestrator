@@ -182,7 +182,7 @@ orchestrator recover example-change
 ```bash
 python -m pytest -q
 python -m compileall -q src tests
-python -m pip wheel . --no-deps --no-build-isolation -w dist
+python -m pip wheel . --no-deps -w dist
 ```
 
 The test suite exercises real local subprocesses and Git fixtures plus deterministic adapter doubles. Claude/Codex subprocess argument construction and result decoding are tested without billable requests. **Live authenticated provider execution has not been verified in the initial implementation environment.** CI runs the offline suite; it does not certify model quality, CLI sandbox security, or production readiness.
