@@ -297,3 +297,30 @@ def test_pending_cancellation_prevents_accept(engine):
     controller.store.request_cancel("task-1")
     with pytest.raises(OrchestratorError, match="cancellation"):
         controller.accept("task-1", "operator")
+
+
+def test_approved_review_may_include_nonblocking_findings(engine):
+    controller, reasoning, _ = engine
+    original_execute = reasoning.execute
+
+    def execute(request):
+        result = original_execute(request)
+        if request.phase == "review":
+            return type(result)(
+                outcome="approved",
+                summary="Acceptance criteria satisfied; one informational note remains.",
+                findings=["Non-blocking observation about validator configuration."],
+                evidence=["result.txt"],
+            )
+        return result
+
+    reasoning.execute = execute
+    controller.create(spec())
+    state = approve_and_run(controller)
+    assert state.status == "awaiting_acceptance", state.model_dump()
+    assert state.phase == "accept"
+    assert state.attempt == 1
+    assert state.calls == 3
+    review = controller.store.latest(state, "review")
+    assert review["outcome"] == "approved"
+    assert review["findings"] == ["Non-blocking observation about validator configuration."]

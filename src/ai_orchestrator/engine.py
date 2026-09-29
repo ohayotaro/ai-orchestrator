@@ -253,7 +253,12 @@ class Engine:
                         self.store.save(state, "review.ready")
                     elif state.phase == "review":
                         result = self._agent(state, "reviewer")
-                        if result.outcome == "changes_required" or (result.outcome == "approved" and result.findings):
+                        # `findings` may contain non-blocking observations/evidence. The
+                        # structured outcome is the review control signal in v0.1; treating
+                        # any finding as rejection caused real reviewers to loop after an
+                        # explicit approval. v0.2 will split review output into blocking
+                        # findings and observations with a role-specific contract.
+                        if result.outcome == "changes_required":
                             self._rework(state, result.model_dump_json())
                             continue
                         if result.outcome != "approved":
