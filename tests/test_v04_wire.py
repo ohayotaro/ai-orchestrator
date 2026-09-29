@@ -103,7 +103,7 @@ class Client:
         assert 'scope' in form['params']['message']
         ping = self.request('ping')
         assert self.read()['id'] == ping  # host stays responsive while dialog open
-        self.send({'jsonrpc':'2.0','id':form['id'],'result':{'action':'accept','content':{'confirm':confirm}}})
+        self.send({'jsonrpc':'2.0','id':form['id'],'result':{'action':'accept','content':{'decision':'yes' if confirm else 'no'}}})
         result = self.read()
         assert result['id']==rid and not result['result']['isError'], result
         return result['result']['structuredContent']
