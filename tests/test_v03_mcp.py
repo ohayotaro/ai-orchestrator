@@ -39,7 +39,7 @@ def test_initialize_and_list_advertises_only_implemented_tools(server):
     assert result["result"]["protocolVersion"] == "2025-06-18"
     assert result["result"]["capabilities"] == {"tools": {"listChanged": False}}
     listed = server.handle(message("tools/list"))["result"]["tools"]
-    assert {t["name"] for t in listed} == set(TOOLS)
+    assert {t["name"] for t in listed} == set(TOOLS) - {"wait_job"}
     assert not {"trust", "start_task", "approve_execution", "accept_task"} & set(TOOLS)
     assert all(t["inputSchema"]["additionalProperties"] is False for t in listed)
     assert "user said yes" not in json.dumps([t["inputSchema"] for t in listed])

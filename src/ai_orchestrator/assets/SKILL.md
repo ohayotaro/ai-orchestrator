@@ -43,11 +43,12 @@ or completion. Use `get_job` to retrieve the result and `get_intake` to inspect 
 If clarification is needed, relay the questions and send the user's answer through
 `propose_task` with `reply_to` and a new request ID.
 
-For queued/running work, call `wait_job` once (normally with its default bounded
-timeout) instead of repeatedly calling get_job. The host may display MCP progress
-notifications while it waits. If wait_job times out, report the durable job ID and
-state; do not build a shell polling loop or promise unlimited background monitoring.
-Use get_job only for an immediate snapshot or after a later user turn.
+In single-terminal mode, call `wait_job` once for queued/running work (normally
+with its default bounded timeout) instead of repeatedly calling get_job. The host
+may display MCP progress notifications while it waits. If wait_job times out,
+report the durable job ID/state; do not build a shell polling loop. In legacy mode,
+where wait_job is not advertised, use get_job at most 10 times per response and
+respect poll_after_seconds. Never create a new job merely to check progress.
 
 ## Native confirmation flow
 
