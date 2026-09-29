@@ -97,6 +97,12 @@ def test_empty_v2_validator_defaults_preserve_v1_profile_digest(workspace):
     for validator in old["validators"].values():
         validator.pop("env")
         validator.pop("generated_paths")
+    for provider in old["providers"].values():
+        provider.pop("capabilities", None)
+        provider.pop("priority", None)
+    for role in old["roles"].values():
+        role.pop("capabilities", None)
+        role.pop("candidates", None)
     assert digest({"profile": old, "context": context}) == actual
 
 

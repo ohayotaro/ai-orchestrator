@@ -70,13 +70,14 @@ class Engine:
     def _task_roles(self, state: TaskState) -> list[str]:
         return ["planner"] if state.spec.risk == "T0" else ["planner", "implementer", "reviewer"]
 
-    def _resolve_task_capabilities(self, state: TaskState) -> None:
+    def _resolve_task_capabilities(self, state: TaskState) -> dict[str, ProviderResolution]:
         """Resolve once before billable calls; later runs validate the frozen provider."""
         requested = validate_requirements(state.capability_requirements)
         roles = self._task_roles(state)
         existing = state.provider_resolutions or {}
         effective: dict[str, list[str]] = {}
         resolutions: dict[str, dict[str, Any]] = dict(existing)
+        resolved: dict[str, ProviderResolution] = {}
         implementer_family: str | None = None
         changed = False
         for role in roles:
@@ -96,6 +97,7 @@ class Engine:
                 resolution = self.capability_resolver.resolve(role, required=extra, exclude_families=exclude)
                 resolutions[role] = resolution.model_dump()
                 changed = True
+            resolved[role] = resolution
             effective[role] = resolution.required_capabilities
             if role == "implementer":
                 implementer_family = resolution.family
@@ -104,6 +106,7 @@ class Engine:
             state.provider_resolutions = resolutions
             if changed:
                 self.store.save(state, "capabilities.resolved", {"requirements": effective, "resolutions": resolutions})
+        return resolved
 
     def _binding(self, role: str, state: TaskState | None = None) -> tuple[ProviderAdapter, Any, ProviderResolution]:
         if state is not None and state.provider_resolutions and role in state.provider_resolutions:
@@ -173,18 +176,20 @@ class Engine:
                 for protected in self.profile.policy.protected_paths:
                     if path == protected or path.startswith(protected + "/") or protected.startswith(path + "/"):
                         raise OrchestratorError(f"allowed path overlaps protected path: {path}")
-        self._resolve_task_capabilities(state)
+        resolved = self._resolve_task_capabilities(state)
         roles = self._task_roles(state)
         for role in roles:
-            adapter, config, resolution = self._binding(role, state)
+            resolution = resolved[role]
+            config = self.profile.providers[resolution.provider]
+            adapter = self.registry.get(config.adapter)
+            if adapter is None:
+                raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
             report = adapter.doctor(config, self.project.root)
             self.store.save(state, "provider.probed", {"role": role, "provider": resolution.provider,
                                                       "required_capabilities": resolution.required_capabilities,
                                                       "adapter_api_version": resolution.adapter_api_version, **report})
         if state.spec.risk != "T0" and self.profile.policy.cross_provider_review:
-            implementer = state.provider_resolutions["implementer"]
-            reviewer = state.provider_resolutions["reviewer"]
-            if implementer["family"] == reviewer["family"]:
+            if resolved["implementer"].family == resolved["reviewer"].family:
                 raise OrchestratorError("cross-provider review requires distinct provider families, not aliases")
 
     def approval_scope(self, state: TaskState) -> str:

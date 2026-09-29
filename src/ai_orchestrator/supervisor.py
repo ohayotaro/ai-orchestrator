@@ -28,14 +28,19 @@ class Supervisor:
         if not self.store.trusted(current):
             raise OrchestratorError("profile not trusted; inspect it then run trust --ack-local-execution")
 
+    @staticmethod
+    def _artifact_value(intake: IntakeState) -> dict[str, Any]:
+        if intake.result is None:
+            raise OrchestratorError("intake has no completed Supervisor result")
+        return {**intake.result.model_dump(),
+                **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
+                **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {})}
+
     def _verify_artifact(self, intake: IntakeState) -> None:
         if intake.artifact is None or intake.result is None:
             raise OrchestratorError("intake has no completed Supervisor artifact")
         stored = self.store.read_artifact(intake.artifact)
-        expected = {**intake.result.model_dump(),
-                    **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
-                    **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {})}
-        if stored != expected:
+        if stored != self._artifact_value(intake):
             raise OrchestratorError("intake result disagrees with its immutable artifact")
 
     def scope(self, intake: IntakeState) -> str:
@@ -104,7 +109,6 @@ class Supervisor:
             implementer = self.engine.capability_resolver.resolve("implementer", required=capabilities.get("implementer", []))
             excluded = {implementer.family} if self.engine.profile.policy.cross_provider_review else None
             self.engine.capability_resolver.resolve("reviewer", required=capabilities.get("reviewer", []), exclude_families=excluded)
-        intake.capability_requirements = capabilities or None
         return TaskSpec(id=intake.task_id, **{**draft.model_dump(), "risk": risk})
 
     def ask(self, request: str, *, task_id: str | None = None, advisory: bool = False, reply_to: str | None = None, expected_workspace: str | None = None) -> IntakeState:
@@ -193,12 +197,10 @@ class Supervisor:
                 scoped = SupervisorResultScoped.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
                 raw_result = scoped.model_dump()
                 intake.allowed_paths = raw_result["task"].pop("allowed_paths") if raw_result.get("task") is not None else None
-                intake.capability_requirements = raw_result["task"].pop("capabilities") if raw_result.get("task") is not None else None
+                raw_requirements = raw_result["task"].pop("capabilities") if raw_result.get("task") is not None else None
+                intake.capability_requirements = validate_requirements(raw_requirements) or None
                 intake.result = SupervisorResult.model_validate(raw_result)
-                artifact_value = {**intake.result.model_dump(),
-                                  **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
-                                  **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {})}
-                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", artifact_value)
+                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
                 if intake.status == "proposed":
                     intake.task = self._normalize(intake)
