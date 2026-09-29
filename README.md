@@ -68,7 +68,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.4.0
+.venv/bin/orchestrator --version  # 0.4.1
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
