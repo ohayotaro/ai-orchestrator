@@ -191,7 +191,9 @@ class StdioServer:
             return None
         if not isinstance(params, dict):
             return error(request_id, -32602, "params must be an object")
-        tools = {name: definition for name, definition in TOOLS.items() if self.single_terminal or name != "wait_job"}\n        if self.single_terminal:\n            tools.update(GATE_TOOLS)
+        tools = {name: definition for name, definition in TOOLS.items() if self.single_terminal or name != "wait_job"}
+        if self.single_terminal:
+            tools.update(GATE_TOOLS)
         if method == "ping":
             result = {}
         elif method == "initialize":
