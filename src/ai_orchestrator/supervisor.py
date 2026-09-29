@@ -176,7 +176,8 @@ class Supervisor:
                 raw_result = scoped.model_dump()
                 intake.allowed_paths = raw_result["task"].pop("allowed_paths") if raw_result.get("task") is not None else None
                 intake.result = SupervisorResult.model_validate(raw_result)
-                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", {**intake.result.model_dump(), "allowed_paths": intake.allowed_paths})
+                artifact_value = {**intake.result.model_dump(), **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {})}
+                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", artifact_value)
                 intake.status = intake.result.outcome
                 if intake.status == "proposed":
                     intake.task = self._normalize(intake)

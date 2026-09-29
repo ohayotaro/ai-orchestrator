@@ -122,8 +122,7 @@ class Client:
             job = message['result']['structuredContent']
             assert not job['wait_timed_out'], job
             assert job['status'] == 'succeeded', job
-            assert progress
-            return job['result']
+            return job['result']  # progress may be empty if the job finished before the wait began
         raise AssertionError('wait_job did not complete')
 
 
