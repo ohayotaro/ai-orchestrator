@@ -82,3 +82,58 @@ effectively false, motivating v0.4.1's explicit enum Yes/No selection. The
 frontend also ran a read-only shell diff because the reviewer lacked git access;
 v0.4.1 adds controller write_set evidence so that extra shell verification is
 unnecessary.
+
+
+## Owner-reported live v0.4.1 frontend E2E — Claude Code and Codex (2026-09-30)
+
+The owner subsequently ran the v0.4.1 single-terminal path from both supported
+frontends against the same calculator fixture, sequentially rather than in
+parallel. These are owner-reported live-client observations; the repository did
+not independently capture the host sessions or authenticate who selected the
+forms.
+
+### Claude Code
+
+Claude Code delegated a `clamp(value, minimum, maximum)` change through the
+portable Skill and MCP server. The start, execution and acceptance gates rendered
+the new explicit Yes/No choice and were accepted in the host. The managed worker
+completed implementation, the registered pytest validator reported **22 passed**,
+the fresh reviewer reported no blocking findings, the write-set was limited to
+`calculator.py` and `tests/test_calculator.py`, and canonical task status
+reached `succeeded`.
+
+The run no longer required a manual worker, operator-terminal start/approve/accept,
+or a user `continue` turn after bounded waiting. Claude Code did, however, run
+one redundant read-only shell inspection using `sed` against the two target
+files after Orchestrator evidence was already available. It did not rerun pytest
+or perform a git diff/status audit.
+
+### Codex
+
+Codex delegated a `sign(value)` change through the same single-terminal flow.
+It used `wait_job` for proposal/planning/execution waits, all three host gates
+were accepted, the managed worker completed the change, pytest reported
+**25 passed**, the independent reviewer reported no blockers, and the final task
+status reached `succeeded`.
+
+The acceptance form visibly included the task/acceptance criteria, registered
+pytest validator, exact `allowed_paths`, and the controller-generated
+`write_set`. The reported write-set matched exactly:
+`calculator.py` and `tests/test_calculator.py`. Codex nevertheless ran one
+redundant read-only `git status --short && git diff -- calculator.py
+tests/test_calculator.py` after the acceptance request.
+
+### Result and follow-up
+
+Together these runs provide live evidence that v0.4.1's explicit Yes/No gates,
+automatic separate worker, bounded `wait_job`, exact allowed-path contract,
+write-set evidence, deterministic validation, fresh review and final acceptance
+work from both Claude Code and Codex frontends. They do not establish a
+cryptographic human identity boundary, certify other MCP hosts, or prove that
+frontends will never use unrelated shell capabilities.
+
+The redundant Claude `sed` and Codex `git status/diff` checks showed that the
+earlier Skill wording was too narrow. The packaged Skill now explicitly treats
+write_set + validation + review as canonical Orchestrator evidence and forbids
+Read/sed/grep/git/shell/test re-inspection solely to double-check that evidence,
+unless the user explicitly asks for independent verification.

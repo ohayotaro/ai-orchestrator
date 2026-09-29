@@ -64,10 +64,15 @@ respect poll_after_seconds. Never create a new job merely to check progress.
    run_task for the same automatically queued operation.
 3. Read `get_task` and hash-verified `get_artifact` write_set, validation and
    review output. The controller's write_set records exactly which paths changed
-   during implementation and enforces Supervisor-declared allowed_paths. Use that
-   evidence instead of running git diff/status through the host shell. Distinguish
-   blockers from observations and runner evidence from model claims. Do not rerun
-   pytest or other validators merely to double-check.
+   during implementation and enforces Supervisor-declared allowed_paths. When
+   write_set, validation and review evidence are present, treat them as the
+   canonical Orchestrator evidence for reporting the result. Do NOT re-inspect the
+   workspace merely to double-check that evidence: do not use shell commands,
+   Read, grep/rg, sed/cat, git status/diff, or rerun pytest/other validators for
+   redundant verification. This applies before and after acceptance. Only perform
+   an independent workspace verification when the user explicitly requests one;
+   explain that it is a separate action and may invalidate a pending scope.
+   Distinguish blockers from observations and runner evidence from model claims.
 4. At `awaiting_acceptance`, summarize actual changes, validation, review and
    limits. Call `request_acceptance` with task ID/new request ID. After the HOST's
    confirmation, only canonical `status=succeeded` means final acceptance.
