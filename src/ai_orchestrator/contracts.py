@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
-from .models import AgentResult, Artifact, Contract, TaskSpec, allowed_paths, identifier
+from .models import AgentResult, Artifact, Contract, TaskSpec, validate_allowed_paths, identifier
 
 
 class PlanResult(Contract):
@@ -54,7 +54,7 @@ class TaskDraftScoped(TaskDraft):
     """Current model-facing task draft; legacy persisted TaskDraft stays readable."""
 
     allowed_paths: list[str] = Field(description="Exact project-relative files this task may create or modify. Empty only for advisory work.")
-    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
+    _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
 
 
 class SupervisorResultScoped(Contract):
@@ -109,7 +109,7 @@ class IntakeState(Contract):
     allowed_paths: list[str] | None = None
     artifact: Artifact | None = None
 
-    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
+    _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
     # Cumulative across clarification rounds; carried into the created task budget.
     calls: int = Field(default=0, ge=0, strict=True)
     elapsed_seconds: float = Field(default=0.0, ge=0)

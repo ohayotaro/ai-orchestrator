@@ -31,7 +31,8 @@ class Supervisor:
         if intake.artifact is None or intake.result is None:
             raise OrchestratorError("intake has no completed Supervisor artifact")
         stored = self.store.read_artifact(intake.artifact)
-        if stored != intake.result.model_dump():
+        expected = {**intake.result.model_dump(), **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {})}
+        if stored != expected:
             raise OrchestratorError("intake result disagrees with its immutable artifact")
 
     def scope(self, intake: IntakeState) -> str:

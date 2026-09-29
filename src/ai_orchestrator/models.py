@@ -18,7 +18,7 @@ def identifier(value: str) -> str:
     return value
 
 
-def allowed_paths(value: list[str] | None) -> list[str] | None:
+def validate_allowed_paths(value: list[str] | None) -> list[str] | None:
     """Exact project-relative files. None preserves legacy/manual task behavior."""
     if value is None:
         return None
@@ -186,7 +186,7 @@ class TaskState(Contract):
     allowed_paths: list[str] | None = None
     spec: TaskSpec
 
-    _allowed_paths = field_validator("allowed_paths")(allowed_paths)
+    _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
     profile_digest: str
     status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled"] = "ready"
     phase: Literal["plan", "execute", "validate", "review", "accept"] = "plan"
