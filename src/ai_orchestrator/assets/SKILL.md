@@ -52,13 +52,16 @@ respect poll_after_seconds. Never create a new job merely to check progress.
 
 ## Native confirmation flow
 
-1. Show the proposed task, risk and validators. Call `request_start` with the
-   intake ID and a new request ID. The HOST asks the user to confirm. An applied
-   start registers the task and queues planning; it does not authorize writing.
+1. Show the proposed task, allowed_paths, risk and validators. Call
+   `request_start` with the intake ID and a new request ID. The HOST asks the
+   user to confirm. An applied start registers the task and queues planning; it
+   does not authorize writing. If the result contains job_id, call `wait_job`
+   once for that job rather than polling.
 2. At `awaiting_approval`, show the plan/feedback and call `request_execution`
    with task ID and a new request ID. The HOST asks the user to authorize this
    exact attempt and validators. An applied gate queues execution automatically.
-   Do not additionally call run_task for the same automatically queued operation.
+   If the result contains job_id, call `wait_job` once. Do not additionally call
+   run_task for the same automatically queued operation.
 3. Read `get_task` and hash-verified `get_artifact` write_set, validation and
    review output. The controller's write_set records exactly which paths changed
    during implementation and enforces Supervisor-declared allowed_paths. Use that

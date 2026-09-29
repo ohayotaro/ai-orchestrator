@@ -57,7 +57,7 @@ def test_ask_proposes_without_creating_task_or_granting_approval(supervisor):
     assert state.calls == 1
     assert len(reasoning.requests) == 1 and not engineering.requests
     assert reasoning.requests[0].phase == "supervise"
-    assert issubclass(reasoning.requests[0].result_model, SupervisorResult)
+    assert reasoning.requests[0].result_model.__name__ == "SupervisorResultScoped"
     assert intake.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     assert intake.store.db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
     assert before == intake.project.snapshot()
