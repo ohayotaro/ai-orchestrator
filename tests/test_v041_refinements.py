@@ -63,9 +63,19 @@ def test_write_outside_allowed_paths_fails_with_evidence(engine):
 def test_invalid_allowed_paths_fail_closed():
     from ai_orchestrator.models import TaskState
     base = {"spec": spec(), "profile_digest": "x"}
-    for paths in [[".orchestrator/config.yaml"], ["../escape"], ["src/*.py"], ["dir/"]]:
+    for paths in [[".orchestrator/config.yaml"], ["../escape"], ["src/*.py"], ["dir/"], ["dir\\file.py"]]:
         with pytest.raises(Exception):
             TaskState(**base, allowed_paths=paths)
+
+
+def test_existing_directory_cannot_be_an_allowed_file(engine):
+    controller, _, _ = engine
+    (controller.project.root / "output-dir").mkdir()
+    state = controller.create(spec())
+    state.allowed_paths = ["output-dir"]
+    controller.store.save(state, "test.allowed_directory")
+    assert controller.run(state.spec.id).status == "blocked"
+    assert "must be a file" in controller.store.get(state.spec.id).error
 
 
 def test_gate_uses_explicit_yes_no_enum(workspace):

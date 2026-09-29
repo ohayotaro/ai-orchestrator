@@ -103,6 +103,9 @@ class Engine:
             inspect_validator(self.project, self.profile, name)
         if state.allowed_paths is not None:
             for path in state.allowed_paths:
+                candidate = confined(self.project.root, path)
+                if candidate.exists() and not candidate.is_file():
+                    raise OrchestratorError(f"allowed path must be a file, not a directory/special entry: {path}")
                 for protected in self.profile.policy.protected_paths:
                     if path == protected or path.startswith(protected + "/") or protected.startswith(path + "/"):
                         raise OrchestratorError(f"allowed path overlaps protected path: {path}")

@@ -109,14 +109,22 @@ class Client:
         return result['result']['structuredContent']
 
     def wait_job(self, job_id):
-        deadline = time.monotonic()+35
+        rid = self.request('tools/call', {'name':'wait_job','arguments':{'job_id':job_id,'timeout_seconds':35},'_meta':{'progressToken':'wire-'+job_id}})
+        deadline = time.monotonic()+40
+        progress = []
         while time.monotonic()<deadline:
-            job = self.tool('get_job', job_id=job_id)
-            if job['status'] not in ('queued','running'):
-                assert job['status']=='succeeded', job
-                return job['result']
-            time.sleep(.15)
-        raise AssertionError('auto-worker did not complete job: '+repr(job))
+            message = self.read(timeout=max(.1, deadline-time.monotonic()))
+            if message.get('method') == 'notifications/progress':
+                progress.append(message['params'])
+                continue
+            assert message['id'] == rid, message
+            assert not message['result']['isError'], message
+            job = message['result']['structuredContent']
+            assert not job['wait_timed_out'], job
+            assert job['status'] == 'succeeded', job
+            assert progress
+            return job['result']
+        raise AssertionError('wait_job did not complete')
 
 
 def launch(workspace, timeout=30):

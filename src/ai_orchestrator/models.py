@@ -28,7 +28,7 @@ def validate_allowed_paths(value: list[str] | None) -> list[str] | None:
         if (not item or item.startswith(("/", "\\")) or "\x00" in item or
                 any(part in ("", ".", "..") for part in parts) or
                 parts[0] in (".git", ".orchestrator") or
-                any(char in item for char in ("*", "?", "[", "]", "\\\\"))):
+                any(char in item for char in ("*", "?", "[", "]", "\\"))):
             raise ValueError("allowed_paths must contain exact project-relative files without globs, traversal or control paths")
         result.append(item)
     if len(result) != len(set(result)):

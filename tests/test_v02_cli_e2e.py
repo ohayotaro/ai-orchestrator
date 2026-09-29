@@ -95,6 +95,6 @@ def test_ask_to_succeeded_through_real_cli_processes(workspace, tmp_path_factory
     assert state["attempt"] == 1
     state = invoke("accept", "wire-task", "--by", "wire-test")
     assert state["status"] == "succeeded"
-    assert {a["kind"] for a in state["artifacts"]} == {"supervisor", "plan", "execute", "validation", "review", "acceptance"}
+    assert {a["kind"] for a in state["artifacts"]} == {"supervisor", "plan", "write_set", "execute", "validation", "review", "acceptance"}
     assert not list(workspace.rglob("*.pyc"))
     assert not (workspace / ".pytest_cache").exists()
