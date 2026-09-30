@@ -66,6 +66,8 @@ class Engine:
             raise OrchestratorError("proposed workflow requires more agent nodes than the task call budget")
         known = set(CAPABILITIES)
         for node in agent_nodes:
+            if len(node.instructions) > 4000:
+                raise OrchestratorError(f"workflow node {node.id}: proposed instructions exceed 4000 characters")
             unknown = sorted(set(node.capabilities) - known)
             if unknown:
                 raise OrchestratorError(
