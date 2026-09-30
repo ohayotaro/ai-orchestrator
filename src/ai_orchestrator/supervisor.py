@@ -364,18 +364,20 @@ class Supervisor:
             path = confined(self.project.root, f".orchestrator/tasks/{intake.task_id}.json")
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {intake.task_id}")
-            selected_workflow = intake.workflow_ref or self.engine.profile.workflow
-            compiled_workflow = self.engine.workflow_for_ref(selected_workflow)
+            compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=4, spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
+            state = TaskState(schema_version=5, spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
                               calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
-            executor = self.engine.bind_workflow(
-                state, selected_workflow,
-                source=intake.workflow_source or "profile_default",
-            )
+            if intake.workflow_spec is not None:
+                executor = self.engine.bind_proposed_workflow(state, intake.workflow_spec)
+            else:
+                executor = self.engine.bind_workflow(
+                    state, intake.workflow_ref or self.engine.profile.workflow,
+                    source=intake.workflow_source or "profile_default",
+                )
             if precondition is not None:
                 precondition()
             self.store.create_from_intake(state, intake, actor, scope)
