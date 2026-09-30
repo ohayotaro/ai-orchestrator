@@ -2,6 +2,13 @@
 
 ## 0.6.2 — alpha
 
+Live verification (owner-reported, Claude Code):
+
+- Verified task-scoped `workflow_ref=branched-review` while the project default remained built-in `build-review`, with no config edit or re-trust during the task.
+- Verified selection source `requested`, deterministic five-node execution, one execution HumanGate, allowed-path write-set, **45 passing pytest tests**, independent review and final `succeeded`.
+- Recorded the v0.6.1 dynamic-resolution approval-scope fix and custom branched-DAG live runs as the sequential baseline before v0.7 isolation/parallelism.
+
+
 - Add a trusted workflow registry with built-in `build-review` and `branched-review` templates.
 - Allow task/intake-scoped `workflow_ref` selection without mutating `.orchestrator/config.yaml` or changing the profile digest.
 - Keep new workflow installation as trusted profile authority; task selection cannot install, modify or trust workflow definitions.

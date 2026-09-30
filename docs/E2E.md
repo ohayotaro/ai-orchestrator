@@ -162,3 +162,83 @@ config.yaml or re-running trust**. Expected provenance is TaskState v4 with
 `workflow_id=branched-review`, selection source `requested`, sequential
 `analyze_a -> analyze_b -> implement -> validate -> review`, one execution
 HumanGate, write-set/validator/reviewer evidence and final `succeeded`.
+
+
+## Owner-reported live v0.6 / v0.6.2 workflow E2E (2026-09-30)
+
+The owner completed the sequential workflow/DAG live E2E series from Claude Code
+against the calculator fixture. These observations are owner-reported host runs;
+the repository does not cryptographically authenticate who selected the forms.
+
+### v0.6 built-in and custom DAG
+
+A built-in `build-review` task reached `succeeded` with TaskState schema v4.
+The implementer dynamically resolved to the engineering/Codex provider with
+`source: candidates`, and start/execution/acceptance HumanGates, write-set,
+pytest validation and independent Claude review all completed.
+
+That run exposed one approval-scope regression: revalidating the frozen dynamic
+provider temporarily surfaced `source: fixed` in the role-level compatibility
+view. v0.6.1 fixed the provenance rewrite. A repeat live run then showed one
+execution approval flowing directly into implementation while both role-level
+and node-level implementer provenance remained `source: candidates`.
+
+The owner then installed a temporary project-defined `branched-review` workflow
+for v0.6 DAG testing. The live task executed deterministically and sequentially:
+
+```text
+analyze_a -> analyze_b -> execution approval -> implement -> validate -> review
+```
+
+Both analysis artifacts were persisted, the Codex implementer changed only the
+two allowed calculator paths, validation passed, Claude review approved, and all
+five workflow nodes plus final acceptance reached `succeeded`. This validates
+branched DAG semantics but does not claim parallel execution.
+
+### v0.6.2 task-scoped trusted workflow selection
+
+After restoring the project default to the built-in `build-review` and
+re-establishing that baseline once, the registry reported:
+
+- `build-review`: built-in, default;
+- `branched-review`: built-in, non-default.
+
+A new single-terminal task explicitly passed
+`workflow_ref=branched-review` without editing `.orchestrator/config.yaml`
+and without re-running trust. The task recorded:
+
+- workflow ID: `branched-review`;
+- workflow selection source: `requested`;
+- project default: still `build-review`;
+- node order: `analyze_a -> analyze_b -> implement -> validate -> review`;
+- one execution HumanGate after both analyses;
+- write-set limited to the two allowed calculator files;
+- pytest: **45 passed**;
+- independent review: approved;
+- final task status: `succeeded`.
+
+The reported profile digest stayed constant through the task. After the run the
+registry still showed `build-review` as the built-in default and
+`branched-review` as a built-in non-default template. The post-run
+`.orchestrator/config.yaml` SHA-256 was
+`4edb310347f2efa0824610b58a3473a42071c680faf7251967513f891eb47fbd`.
+A pre-run byte hash was not retained in the transcript, so this hash is recorded
+as post-run evidence rather than claimed as an independently verified before/after
+byte comparison.
+
+### v0.6 baseline before v0.7
+
+Together with the offline CI suite, the live runs establish the v0.6.x baseline
+needed before isolated parallel execution:
+
+- Workflow Schema v1 / TaskState v4;
+- deterministic sequential DAG execution;
+- typed branched analysis artifacts;
+- per-node Provider Resolution and frozen provenance;
+- stable execution approval scope across provider revalidation;
+- HumanGate/write-set/validator/independent-review/acceptance boundaries;
+- task-scoped selection of already-trusted workflow authority without profile
+  mutation or re-trust.
+
+v0.7 may build parallel scheduling on this baseline, but must preserve these
+authority and provenance properties while adding workspace isolation.

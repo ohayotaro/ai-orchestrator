@@ -199,6 +199,20 @@ Implemented in v0.6.2: built-in `build-review` and `branched-review` registry en
 
 See `docs/WORKFLOWS.md` for the workflow-selection/authority distinction.
 
+## v0.6.x live baseline — verified before v0.7
+
+Owner-reported Claude Code live E2E now covers the built-in sequential DAG,
+v0.6.1 approval-scope regression fix, a custom branched DAG, and v0.6.2
+task-scoped selection of built-in `branched-review` while the project default
+remained `build-review`. The final task used selection source `requested`,
+required no config edit or re-trust, executed all five nodes in deterministic
+order, passed 45 pytest tests, received independent review and reached
+`succeeded`.
+
+This closes the v0.6.x workflow-selection/DAG validation milestone. See
+`docs/E2E.md` for the evidence and limitations. v0.7 must preserve this
+sequential/authority behavior while introducing isolation and concurrency.
+
 ## v0.7 — Isolated parallel execution
 
 Parallelism comes only after workflow dependencies and effect contracts exist.
