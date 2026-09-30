@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.2 — alpha
+
+- Add a trusted workflow registry with built-in `build-review` and `branched-review` templates.
+- Allow task/intake-scoped `workflow_ref` selection without mutating `.orchestrator/config.yaml` or changing the profile digest.
+- Keep new workflow installation as trusted profile authority; task selection cannot install, modify or trust workflow definitions.
+- Freeze selected workflow ID/digest/source into intake/start scope, TaskState provenance and HumanGate previews.
+- Let the Supervisor propose only controller-advertised trusted workflows, while an explicit user/controller workflow_ref wins over model suggestions.
+- Add `orchestrator workflows`, `workflow --ref`, `ask --workflow`, `create --workflow` and MCP registry inspection.
+- Add the built-in sequential branched template: two complementary planner analyses converge on one gated implementation, deterministic validation and independent review.
+- Preserve v0.6.1 profile fingerprints and existing custom `branched-review` projects; project-defined trusted workflows may continue to shadow that new package template.
+
+
 ## 0.6.1 — alpha
 
 - Fix execution approval scope drift for dynamically resolved workflow nodes.

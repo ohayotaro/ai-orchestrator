@@ -162,5 +162,11 @@ class Store:
                 raise OrchestratorError(f"task already exists: {state.spec.id}") from exc
             intake.status = "consumed"
             self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake.id))
-            self._event(state.spec.id, "task.created", {"intake_id": intake.id, "risk": state.spec.risk, "profile_digest": state.profile_digest})
+            self._event(state.spec.id, "task.created", {
+                "intake_id": intake.id, "risk": state.spec.risk,
+                "profile_digest": state.profile_digest,
+                "workflow_id": state.workflow_id,
+                "workflow_digest": state.workflow_digest,
+                "workflow_selection_source": state.workflow_selection_source,
+            })
             self._event(state.spec.id, "intake.confirmed", {"intake_id": intake.id, "actor": actor, "scope": scope})

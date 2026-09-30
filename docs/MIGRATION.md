@@ -103,3 +103,19 @@ inspection/re-trust.
 
 Run `orchestrator workflow` after upgrade to inspect the compiled graph before
 testing live E2E.
+
+
+## v0.6.1 to v0.6.2
+
+An unchanged profile does not require re-trust merely because the package now
+advertises the built-in `branched-review` template. Built-in registry entries
+are package authority; profile fingerprints remain based on project configuration
+and accepted context.
+
+Existing projects that already defined `branched-review` continue to use their
+trusted project definition. To adopt the package template later, remove the
+project definition only as an intentional profile change and re-trust normally.
+
+New task-scoped workflow selection is persisted in intake/TaskState provenance;
+older persisted TaskState v4 rows without a selection-source field remain
+readable and use their frozen workflow ID/digest.

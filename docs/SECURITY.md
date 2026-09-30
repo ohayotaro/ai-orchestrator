@@ -117,3 +117,16 @@ Typed artifact edges reduce unnecessary transcript/data propagation: downstream
 nodes receive declared artifacts, not every upstream conversation. Artifact
 hashing, protected paths, allowed_paths/write-set enforcement, external-effect
 blocking and HumanGate scopes remain independent controls.
+
+
+## v0.6.2 workflow selection authority
+
+`workflow_ref` is selection, not permission expansion. It can reference only a
+workflow already present in the package/project trusted registry. Unknown IDs
+fail before model execution. The Supervisor cannot submit workflow definitions,
+modify config, or create trust.
+
+The selected workflow digest is included in intake/start and task execution
+provenance. Selecting a trusted entry leaves the profile digest unchanged;
+installing/removing/changing a project workflow remains a profile change and
+requires the existing trust ceremony.

@@ -325,6 +325,7 @@ class TaskState(Contract):
     provider_resolutions: dict[str, dict[str, object]] | None = None
     workflow_id: str | None = None
     workflow_digest: str | None = None
+    workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor"] | None = None
     workflow_order: list[str] | None = None
     workflow_current: str | None = None
     workflow_nodes: dict[str, WorkflowNodeState] | None = None

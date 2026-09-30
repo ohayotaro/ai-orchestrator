@@ -47,10 +47,11 @@ class AskInput(Contract):
     task_id: str | None = None
     advisory: StrictBool = False
     reply_to: str | None = None
+    workflow_ref: str | None = None
 
     _request_id = field_validator("request_id")(identifier)
 
-    @field_validator("task_id", "reply_to")
+    @field_validator("task_id", "reply_to", "workflow_ref")
     @classmethod
     def optional_id(cls, value: str | None) -> str | None:
         return identifier(value) if value is not None else None
@@ -78,7 +79,7 @@ class ArtifactInput(TaskInput):
 # Immutable dispatch definitions; additional fields are rejected, not ignored.
 TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "inspect_project": (Empty, "Inspect the fixed project's profile and validator diagnostics. Does not execute validators or check model authentication.", True),
-    "propose_task": (AskInput, "Queue a natural-language Supervisor request. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries. A separately started operator worker executes it.", False),
+    "propose_task": (AskInput, "Queue a natural-language Supervisor request. workflow_ref may select an already-trusted workflow from inspect_project; it never installs/trusts one. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
     "get_job": (JobInput, "Read a queued job immediately. Prefer wait_job for active work instead of repeated polling.", True),
     "wait_job": (WaitJobInput, "Wait up to a bounded timeout for one job; in MCP single-terminal mode the server can emit progress notifications. Timeout never cancels the job.", True),
     "get_intake": (IntakeInput, "Read a proposed TaskSpec and confirmation scope. A human must confirm it using start in a separate terminal.", True),
@@ -145,6 +146,7 @@ class ApplicationService:
                         "roles": {name: {"provider": role.provider, "capabilities": role.capabilities, "candidates": role.candidates} for name, role in engine.profile.roles.items()},
                         "capabilities": engine.capability_report(),
                         "workflow": engine.workflow_report(),
+                        "workflows": engine.workflow_registry_report(),
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
                         "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover"]}

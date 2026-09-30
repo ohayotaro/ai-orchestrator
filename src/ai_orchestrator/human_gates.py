@@ -180,9 +180,12 @@ class HumanGateBroker:
             if intake.workspace_snapshot != project.snapshot():
                 raise OrchestratorError("worktree changed since intake")
             task = intake.task
+            selected_workflow = intake.workflow_ref or engine.profile.workflow
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
-                       "workflow": engine.workflow_report(),
+                       "workflow_ref": selected_workflow,
+                       "workflow_source": intake.workflow_source or "profile_default",
+                       "workflow": engine.workflow_report(selected_workflow),
                        "supervisor_summary": intake.result.summary, "notes": intake.notes}
             state = intake.model_dump()
             if state.get("allowed_paths") is None:

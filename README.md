@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.6.0 alpha** refines optional single-terminal host confirmations and automatic
+**v0.6.2 alpha** refines optional single-terminal host confirmations and automatic
 separate workers. This remains a trusted-local application, not authenticated
 human identity or an OS-isolated control plane.
 
@@ -90,6 +90,26 @@ Workflow/DAG provenance in TaskState schema v4.
 
 See **[Workflow Schema v1](docs/WORKFLOWS.md)**.
 
+## v0.6.2 task-scoped trusted workflow selection
+
+Workflow shape is now separable from profile authority. `inspect_project` and
+`orchestrator workflows` expose the trusted registry. The package provides
+`build-review` and `branched-review`; project-defined workflows already present
+in the trusted profile are also selectable.
+
+Selecting a listed workflow for one task does **not** edit config or require
+re-trust:
+
+```bash
+orchestrator ask --workflow branched-review "Implement the requested change"
+# or for a manual TaskSpec:
+orchestrator create --task-file task.yaml --workflow branched-review
+```
+
+The selected ID/digest is frozen into intake/task provenance and displayed by
+the Start HumanGate. Adding a new workflow definition remains a profile/trust
+operation; models cannot install or trust one.
+
 ## Important approval distinction
 
 v0.4 uses MCP `elicitation/create`, not ordinary tool permission prompts,
@@ -116,7 +136,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.6.0
+.venv/bin/orchestrator --version  # 0.6.2
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`

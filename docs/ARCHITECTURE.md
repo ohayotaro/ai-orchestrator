@@ -110,3 +110,16 @@ receive. HumanGate/write-set/acceptance remain outside model authority.
 
 TaskState v4 stores workflow digest/order/current node and per-node status,
 artifact/provisioning provenance. v1-v3 tasks retain the legacy state machine.
+
+
+## v0.6.2 workflow registry/binding
+
+The Engine compiles a trusted workflow registry at startup. Package templates
+and profile-defined templates are authority; a task merely selects an entry.
+Task selection therefore does not alter the profile digest. The selected
+workflow ID/digest is frozen in TaskState and a state-specific executor is
+resolved from that frozen ID on every preflight/run.
+
+Supervisor output may reference only advertised registry IDs. Explicit
+user/controller selection is kept outside TaskSpec business semantics and wins
+over a conflicting model suggestion.

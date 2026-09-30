@@ -36,8 +36,17 @@ folders, old conversation logs or unrelated repositories to discover commands.
 
 ## Propose and inspect
 
-Discuss the desired outcome, constraints and acceptance criteria. Call
-`propose_task` with a new task ID and stable request ID. Reuse the exact ID AND
+Discuss the desired outcome, constraints and acceptance criteria. Inspect the
+trusted workflow registry returned by `inspect_project.workflows`. If the user
+explicitly names one of those workflow IDs, pass it as `workflow_ref` to
+`propose_task`; this is task-scoped selection and does not require editing
+config.yaml or re-trusting the profile. If the user does not name a workflow,
+omit workflow_ref and let the Supervisor use the project default or propose a
+listed trusted workflow. Never invent a workflow ID. If the requested workflow
+is not listed, stop and explain that installing new workflow authority is still
+an operator/profile action; do not edit config or run trust on the user's behalf.
+
+Call `propose_task` with a new task ID and stable request ID. Reuse the exact ID AND
 arguments for an identical transport retry. A queued result is NOT a task proposal
 or completion. Use `get_job` to retrieve the result and `get_intake` to inspect it.
 If clarification is needed, relay the questions and send the user's answer through
@@ -52,7 +61,7 @@ respect poll_after_seconds. Never create a new job merely to check progress.
 
 ## Native confirmation flow
 
-1. Show the proposed task, allowed_paths, risk and validators. Call
+1. Show the proposed task, selected workflow, allowed_paths, risk and validators. Call
    `request_start` with the intake ID and a new request ID. The HOST asks the
    user to confirm. An applied start registers the task and queues planning; it
    does not authorize writing. If the result contains job_id, call `wait_job`

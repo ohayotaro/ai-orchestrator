@@ -31,13 +31,14 @@ class IntakeAdapter(FakeAdapter):
         if self.mutation:
             self.mutation(request.workspace)
         if self.next_result is not None:
-            data = self.next_result.model_dump()
+            data = self.next_result.model_dump() if hasattr(self.next_result, "model_dump") else dict(self.next_result)
             if data.get("task") is not None:
                 data["task"].setdefault("allowed_paths", ["result.txt"])
                 data["task"].setdefault("capabilities", {})
+                data["task"].setdefault("workflow_ref", None)
             return request.result_model.model_validate(data)
         advisory = json.loads(request.prompt)["advisory"]
-        return request.result_model(outcome="proposed", summary="A focused task", task={"goal":"Produce a result","acceptance":["A result exists"],"risk":"T0" if advisory else "T2","validators":[] if advisory else ["check"],"external_effects":False,"allowed_paths":[] if advisory else ["result.txt"],"capabilities":{}}, questions=[])
+        return request.result_model(outcome="proposed", summary="A focused task", task={"goal":"Produce a result","acceptance":["A result exists"],"risk":"T0" if advisory else "T2","validators":[] if advisory else ["check"],"external_effects":False,"allowed_paths":[] if advisory else ["result.txt"],"capabilities":{},"workflow_ref":None}, questions=[])
 
 
 @pytest.fixture

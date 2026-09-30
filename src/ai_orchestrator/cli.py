@@ -25,7 +25,7 @@ from .project import atomic_write, digest, initialize, load_yaml
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.4 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.6.2 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)

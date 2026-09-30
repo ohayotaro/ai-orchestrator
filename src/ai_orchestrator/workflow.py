@@ -52,6 +52,58 @@ def builtin_build_review() -> WorkflowSpec:
     )
 
 
+def builtin_branched_review() -> WorkflowSpec:
+    """Two complementary read-only analyses converge on one gated implementation."""
+    return WorkflowSpec(
+        id="branched-review",
+        nodes=[
+            WorkflowNodeSpec(
+                id="analyze_a", kind="agent", role="planner", run_for="all",
+                instructions="Analyze the implementation approach, repository impact and constraints.",
+                outputs=[WorkflowArtifactSpec(name="analysis_a", type="plan")],
+            ),
+            WorkflowNodeSpec(
+                id="analyze_b", kind="agent", role="planner", run_for="all",
+                instructions="Independently analyze edge cases, validation strategy and regression risks.",
+                outputs=[WorkflowArtifactSpec(name="analysis_b", type="plan")],
+            ),
+            WorkflowNodeSpec(
+                id="implement", kind="agent", role="implementer", run_for="write",
+                depends_on=["analyze_a", "analyze_b"],
+                inputs=[
+                    WorkflowInputSpec(artifact="analysis_a", type="plan"),
+                    WorkflowInputSpec(artifact="analysis_b", type="plan"),
+                ],
+                outputs=[
+                    WorkflowArtifactSpec(name="execute", type="implementation"),
+                    WorkflowArtifactSpec(name="write_set", type="write_set"),
+                ],
+                gate_before="execution", writes="task_allowed_paths",
+            ),
+            WorkflowNodeSpec(
+                id="validate", kind="validator", run_for="write",
+                depends_on=["implement"],
+                inputs=[
+                    WorkflowInputSpec(artifact="execute", type="implementation"),
+                    WorkflowInputSpec(artifact="write_set", type="write_set", optional=True),
+                ],
+                outputs=[WorkflowArtifactSpec(name="validation", type="validation")],
+            ),
+            WorkflowNodeSpec(
+                id="review", kind="agent", role="reviewer", run_for="write",
+                depends_on=["validate"], independent_of=["implement"],
+                inputs=[
+                    WorkflowInputSpec(artifact="validation", type="validation"),
+                    WorkflowInputSpec(artifact="write_set", type="write_set", optional=True),
+                ],
+                outputs=[WorkflowArtifactSpec(name="review", type="review")],
+            ),
+        ],
+        repair_on="review",
+        repair_from="implement",
+    )
+
+
 @dataclass(frozen=True)
 class CompiledWorkflow:
     spec: WorkflowSpec
@@ -218,13 +270,52 @@ def compile_workflow(spec: WorkflowSpec, *, cross_provider_review: bool) -> Comp
     )
 
 
-def workflow_for_profile(profile: Profile) -> CompiledWorkflow:
-    if profile.workflow == "build-review":
-        if "build-review" in profile.workflows:
-            raise OrchestratorError("custom workflows cannot override built-in build-review")
-        spec = builtin_build_review()
-    else:
-        spec = profile.workflows.get(profile.workflow)
-        if spec is None:
-            raise OrchestratorError(f"unknown active workflow: {profile.workflow}")
-    return compile_workflow(spec, cross_provider_review=profile.policy.cross_provider_review)
+def workflow_registry(profile: Profile) -> dict[str, CompiledWorkflow]:
+    """Compile every workflow authority already trusted by the project/package."""
+    if "build-review" in profile.workflows:
+        raise OrchestratorError("custom workflows cannot override built-in build-review")
+    specs: dict[str, WorkflowSpec] = {
+        "build-review": builtin_build_review(),
+        "branched-review": builtin_branched_review(),
+    }
+    # Project workflows are trusted profile authority. A project may retain a
+    # pre-v0.6.2 branched-review definition; it intentionally shadows the
+    # package template without requiring a migration.
+    specs.update(profile.workflows)
+    compiled = {
+        name: compile_workflow(spec, cross_provider_review=profile.policy.cross_provider_review)
+        for name, spec in specs.items()
+    }
+    if profile.workflow not in compiled:
+        raise OrchestratorError(f"unknown default workflow: {profile.workflow}")
+    return compiled
+
+
+def workflow_registry_report(profile: Profile, registry: dict[str, CompiledWorkflow] | None = None) -> dict[str, Any]:
+    registry = registry or workflow_registry(profile)
+    return {
+        "schema_version": 1,
+        "default": profile.workflow,
+        "workflows": {
+            name: {
+                "id": name,
+                "source": "project" if name in profile.workflows else "builtin",
+                "digest": compiled.digest,
+                "order": list(compiled.order),
+                "repair_on": compiled.spec.repair_on,
+                "repair_from": compiled.spec.repair_from,
+            }
+            for name, compiled in sorted(registry.items())
+        },
+    }
+
+
+def workflow_for_profile(profile: Profile, workflow_ref: str | None = None) -> CompiledWorkflow:
+    registry = workflow_registry(profile)
+    selected = workflow_ref or profile.workflow
+    compiled = registry.get(selected)
+    if compiled is None:
+        raise OrchestratorError(
+            f"unknown trusted workflow: {selected}; select one from the workflow registry"
+        )
+    return compiled

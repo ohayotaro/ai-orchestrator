@@ -151,3 +151,14 @@ reaches `succeeded` through the built-in DAG and exposes TaskState schema v4
 workflow provenance. A subsequent custom branched workflow E2E can demonstrate
 two read-only planning nodes converging on one gated implementation. Neither test
 should claim parallel execution.
+
+
+## v0.6.2 live E2E target
+
+After offline CI, verify from an unchanged trusted calculator profile that
+`inspect_project.workflows` lists package `branched-review`, then submit a
+single-terminal task with `workflow_ref=branched-review` **without editing
+config.yaml or re-running trust**. Expected provenance is TaskState v4 with
+`workflow_id=branched-review`, selection source `requested`, sequential
+`analyze_a -> analyze_b -> implement -> validate -> review`, one execution
+HumanGate, write-set/validator/reviewer evidence and final `succeeded`.

@@ -55,7 +55,13 @@ class TaskDraftScoped(TaskDraft):
 
     allowed_paths: list[str] = Field(description="Exact project-relative files this task may create or modify. Empty only for advisory work.")
     capabilities: dict[str, list[str]] = Field(description="Additional semantic capabilities required per planner/implementer/reviewer role. Use only names advertised by the controller.")
+    workflow_ref: str | None = Field(description="Trusted workflow ID advertised by the controller, or null to use the project default.")
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
+
+    @field_validator("workflow_ref")
+    @classmethod
+    def valid_workflow_ref(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
 
     @field_validator("capabilities")
     @classmethod
@@ -123,6 +129,10 @@ class IntakeState(Contract):
     task: TaskSpec | None = None
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
+    requested_workflow_ref: str | None = None
+    workflow_ref: str | None = None
+    workflow_digest: str | None = None
+    workflow_source: Literal["profile_default", "requested", "supervisor"] | None = None
     artifact: Artifact | None = None
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
@@ -136,6 +146,11 @@ class IntakeState(Contract):
     @classmethod
     def valid_id(cls, value: str) -> str:
         return identifier(value)
+
+    @field_validator("requested_workflow_ref", "workflow_ref")
+    @classmethod
+    def valid_optional_workflow_id(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
 
 
 def result_contract(phase: str, version: int = 2) -> type[Contract]:

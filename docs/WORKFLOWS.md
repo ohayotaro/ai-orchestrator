@@ -255,15 +255,14 @@ workflows:
 Changing custom workflow configuration changes the profile digest and therefore
 requires the normal inspect/re-trust step.
 
-## Pre-v0.7 UX candidate: select workflow without editing authority
+## v0.6.2: task-scoped selection without editing authority
 
 The v0.6 live custom branched-DAG E2E validated the graph/runtime design, but it
 also exposed an avoidable operator workflow: edit `.orchestrator/config.yaml`,
 inspect the resulting graph, then re-trust the profile before one task can use
 that shape.
 
-The design direction is to separate **workflow selection** from **workflow
-installation/authority expansion**.
+v0.6.2 separates **workflow selection** from **workflow installation/authority expansion**.
 
 Conceptually:
 
@@ -309,13 +308,7 @@ but it must not install, modify or trust workflow definitions on its own.
 Automatic workflow generation remains a later feature and must use the same
 proposal/HumanGate principles.
 
-A future task contract may contain a `workflow_ref` (name subject to schema
-design). Whichever representation is chosen, the resolved workflow ID, version
-or digest must be frozen before execution and included in approval/provenance so
-selection cannot silently change after confirmation.
-
-This is a design candidate to settle before v0.7; it is **not implemented in
-v0.6.1**.
+The intake/task execution binding now carries `workflow_ref`. The resolved workflow ID and digest are frozen before execution and included in Start/TaskState provenance so selection cannot silently change after confirmation.
 
 ## Inspection and provenance
 
@@ -362,3 +355,36 @@ v0.6 does not add:
 - hidden fallback around HumanGates.
 
 Those remain later roadmap work.
+
+
+## Trusted workflow registry
+
+v0.6.2 exposes the already-trusted workflow authority as a registry.
+
+Package built-ins:
+
+- `build-review`: one planner -> gated implementer -> validator -> independent reviewer.
+- `branched-review`: two sequential, complementary read-only planner analyses -> one gated implementer -> validator -> independent reviewer.
+
+Project-defined entries in `workflows:` remain trusted profile data. For
+migration compatibility, a pre-v0.6.2 project-defined `branched-review` may
+shadow the package template; its profile digest continues to bind that definition.
+`build-review` remains reserved.
+
+Use:
+
+```bash
+orchestrator workflows
+orchestrator workflow --ref branched-review
+```
+
+Task-scoped selection is available through `ask --workflow`,
+`create --workflow`, and MCP `propose_task.workflow_ref`. Selecting a registry
+entry does not rewrite the profile and does not require re-trust. An unknown ID
+fails before Supervisor/provider work.
+
+When no explicit workflow_ref is supplied, the Supervisor receives only the
+trusted registry and may propose a listed workflow; null means the project
+default. An explicit controller/user workflow_ref is authoritative over a
+different model suggestion. The Start HumanGate shows the selected workflow and
+its compiled digest before registration.

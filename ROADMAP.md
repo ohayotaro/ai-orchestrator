@@ -170,12 +170,11 @@ Implemented output: typed node/artifact dependencies, DAG validation, per-node c
 
 v0.6 does **not** introduce unsafe same-worktree parallel editing. The next implementation milestone is v0.7 isolated parallel execution.
 
-## v0.6.x UX follow-up — Workflow selection vs authority expansion
+## v0.6.2 — Task-scoped workflow selection — implemented
 
 Live custom-DAG E2E showed a real usability cost in requiring users to hand-edit
 `.orchestrator/config.yaml` and manually re-trust the profile merely to select
-a workflow shape for one task. Before v0.7 implementation, keep the following
-design candidate explicit:
+a workflow shape for one task. v0.6.2 resolves that distinction before v0.7:
 
 - **Selecting already-trusted authority should be task-scoped.** A task should be
   able to reference an existing built-in or project-trusted workflow template
@@ -187,21 +186,16 @@ design candidate explicit:
 - The intended boundary is:
   `select existing authority -> task/start confirmation`, while
   `expand authority -> trust confirmation`.
-- A future Workflow Registry should distinguish built-in/trusted templates from
-  project-defined templates and allow a task to bind a `workflow_ref` (exact
-  field name TBD).
+- The Workflow Registry distinguishes package built-ins from project-defined trusted templates and allows task/intake-scoped `workflow_ref` binding.
 - The Supervisor may propose/select from already-trusted workflows, but must not
   silently author, install, switch to or trust a new workflow definition.
-- YAML hand-editing is not a security requirement. A future host form or
-  operator command may perform a validated workflow-install/profile mutation and
-  explicit trust step atomically, while preserving the same authority boundary.
+- YAML hand-editing is not required to select existing authority. Installing new project workflow authority remains an explicit profile/trust action and may gain a dedicated install UX later.
 - Task-scoped workflow selection must be frozen into TaskState/HumanGate
   provenance exactly like current workflow digest/provider resolution.
 - This UX work must not weaken profile digest binding, HumanGate semantics,
   write-set enforcement, validator registration or fail-closed behavior.
 
-This is a **recorded pre-v0.7 improvement candidate**, not an implemented v0.6
-feature and not permission for models to mutate trusted workflow configuration.
+Implemented in v0.6.2: built-in `build-review` and `branched-review` registry entries, task/intake workflow selection, frozen workflow provenance, CLI/MCP inspection and Supervisor selection constrained to advertised trusted IDs. This does not permit models to mutate trusted workflow configuration.
 
 See `docs/WORKFLOWS.md` for the workflow-selection/authority distinction.
 

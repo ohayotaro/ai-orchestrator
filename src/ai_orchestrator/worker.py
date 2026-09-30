@@ -60,7 +60,11 @@ def process_one(queue: JobQueue, *, registry: dict[str, ProviderAdapter] | None 
             raise OrchestratorError("profile changed since queueing; no model was called")
         if job.action == "ask":
             params = AskInput.model_validate({**job.arguments, "request_id": job.request_id})
-            intake = Supervisor(engine).ask(params.request, task_id=params.task_id, advisory=params.advisory, reply_to=params.reply_to, expected_workspace=job.workspace_snapshot)
+            intake = Supervisor(engine).ask(
+                params.request, task_id=params.task_id, advisory=params.advisory,
+                reply_to=params.reply_to, workflow_ref=params.workflow_ref,
+                expected_workspace=job.workspace_snapshot,
+            )
             job.result = Supervisor(engine).describe(intake.id)
         else:
             params = RunInput.model_validate({**job.arguments, "request_id": job.request_id})

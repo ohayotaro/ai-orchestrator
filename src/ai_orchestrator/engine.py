@@ -14,7 +14,7 @@ from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
-from .workflow import workflow_for_profile
+from .workflow import workflow_registry, workflow_registry_report
 from .workflow_runtime import WorkflowExecutor
 
 
@@ -25,7 +25,10 @@ class Engine:
         self.registry = registry if registry is not None else default_registry()
         self.capability_resolver = CapabilityResolver(self.profile, self.registry)
         self.store = Store(self.project, cancel_check)
-        self.compiled_workflow = workflow_for_profile(self.profile)
+        self.workflow_registry = workflow_registry(self.profile)
+        self.compiled_workflow = self.workflow_registry[self.profile.workflow]
+        # Default executor is retained for internal/backward compatibility;
+        # v4 tasks resolve their executor from the workflow frozen in TaskState.
         self.workflow_executor = WorkflowExecutor(self, self.compiled_workflow)
 
     def close(self) -> None:
@@ -38,7 +41,29 @@ class Engine:
             self.store.trust(self.profile_digest, actor)
         return {"trusted_profile": self.profile_digest, "execution": "local-trusted", "actor": actor}
 
-    def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None) -> TaskState:
+    def workflow_for_ref(self, workflow_ref: str | None = None):
+        selected = workflow_ref or self.profile.workflow
+        compiled = self.workflow_registry.get(selected)
+        if compiled is None:
+            raise OrchestratorError(
+                f"unknown trusted workflow: {selected}; select one from the workflow registry"
+            )
+        return compiled
+
+    def workflow_executor_for_state(self, state: TaskState) -> WorkflowExecutor:
+        selected = state.workflow_id or self.profile.workflow
+        return WorkflowExecutor(self, self.workflow_for_ref(selected))
+
+    def bind_workflow(self, state: TaskState, workflow_ref: str | None = None, *,
+                      source: str | None = None) -> WorkflowExecutor:
+        compiled = self.workflow_for_ref(workflow_ref)
+        executor = WorkflowExecutor(self, compiled)
+        executor.bind(state)
+        state.workflow_selection_source = source or ("task" if workflow_ref is not None else "profile_default")
+        return executor
+
+    def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
+               workflow_ref: str | None = None) -> TaskState:
         with self.project.lock():
             missing = set(spec.validators) - self.profile.validators.keys()
             if missing:
@@ -53,13 +78,20 @@ class Engine:
             requested = validate_requirements(capability_requirements)
             state = TaskState(schema_version=4, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None)
-            self.workflow_executor.bind(state)
+            executor = self.bind_workflow(
+                state, workflow_ref,
+                source="task" if workflow_ref is not None else "profile_default",
+            )
             self.store.save(state, "task.created", {
                 "risk": spec.risk, "profile_digest": self.profile_digest,
                 "capability_requirements": requested,
                 "workflow_id": state.workflow_id, "workflow_digest": state.workflow_digest,
+                "workflow_selection_source": state.workflow_selection_source,
             }, create=True)
-            self.store.save(state, "workflow.bound", self.workflow_executor.gate_context(state))
+            self.store.save(state, "workflow.bound", {
+                "selection_source": state.workflow_selection_source,
+                **executor.gate_context(state),
+            })
             atomic_write(path, spec.model_dump_json(indent=2) + "\n")
             return state
 
@@ -156,13 +188,22 @@ class Engine:
         report["roles"] = roles
         return report
 
-    def workflow_report(self) -> dict[str, Any]:
-        return self.compiled_workflow.report()
+    def workflow_report(self, workflow_ref: str | None = None) -> dict[str, Any]:
+        compiled = self.workflow_for_ref(workflow_ref)
+        report = compiled.report()
+        report["source"] = "project" if compiled.spec.id in self.profile.workflows else "builtin"
+        report["is_default"] = compiled.spec.id == self.profile.workflow
+        return report
+
+    def workflow_registry_report(self) -> dict[str, Any]:
+        return workflow_registry_report(self.profile, self.workflow_registry)
 
     def workflow_gate_context(self, state: TaskState) -> dict[str, Any]:
         if state.schema_version < 4:
             return {}
-        return self.workflow_executor.gate_context(state)
+        context = self.workflow_executor_for_state(state).gate_context(state)
+        context["selection_source"] = state.workflow_selection_source
+        return context
 
     def doctor(self, *, validators_only: bool = False) -> dict[str, Any]:
         reports: dict[str, Any] = {}
@@ -194,7 +235,7 @@ class Engine:
                     if path == protected or path.startswith(protected + "/") or protected.startswith(path + "/"):
                         raise OrchestratorError(f"allowed path overlaps protected path: {path}")
         if state.schema_version >= 4:
-            self.workflow_executor.preflight(state)
+            self.workflow_executor_for_state(state).preflight(state)
             return
         resolved = self._resolve_task_capabilities(state)
         roles = self._task_roles(state)
@@ -400,7 +441,7 @@ class Engine:
                 return state
             if state.schema_version >= 4:
                 try:
-                    return self.workflow_executor.run(state)
+                    return self.workflow_executor_for_state(state).run(state)
                 except (Exception, KeyboardInterrupt) as exc:
                     state.status = "cancelled" if isinstance(exc, KeyboardInterrupt) or self.store.cancelled(task_id) else "failed"
                     state.error = redact(str(exc))[:4000]
