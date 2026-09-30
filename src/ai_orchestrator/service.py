@@ -147,6 +147,12 @@ class ApplicationService:
                         "capabilities": engine.capability_report(),
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
+                        "adaptive_orchestration": {
+                            "task_scoped_workflow_proposals": True,
+                            "conversational_revision": True,
+                            "persistent_template_save": "operator-only after successful evidence-backed execution",
+                            "profile_mutation_by_agent": False,
+                        },
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
                         "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover"]}
@@ -178,7 +184,7 @@ class ApplicationService:
                         raise OrchestratorError("register a validator in the operator terminal before requesting write work")
                     if params.reply_to:
                         parent = engine.store.get_intake(params.reply_to)
-                        if parent.status != "needs_clarification":
-                            raise OrchestratorError("reply_to must identify an intake awaiting clarification")
+                        if parent.status not in ("needs_clarification", "proposed"):
+                            raise OrchestratorError("reply_to must identify an intake awaiting clarification or revision")
                 job = queue.enqueue(action, data, params.request_id, current, engine.project.snapshot())
                 return job.model_dump()
