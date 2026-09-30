@@ -12,6 +12,11 @@ from .project import digest
 def _workflow_digest_payload(spec: WorkflowSpec) -> dict[str, Any]:
     """Canonical v1 payload; v0.7 default fields do not change v0.6 digests."""
     payload = spec.model_dump()
+    # Template version/provenance describe where a reusable template came from,
+    # not executable DAG semantics. Keep workflow digests stable across metadata-
+    # only promotion/revision while profile digests still bind that metadata.
+    payload.pop("template_version", None)
+    payload.pop("provenance", None)
     for node in payload["nodes"]:
         if node.get("workspace") == "shared":
             node.pop("workspace", None)
@@ -138,6 +143,8 @@ class CompiledWorkflow:
             "order": list(self.order),
             "repair_on": self.spec.repair_on,
             "repair_from": self.spec.repair_from,
+            "template_version": self.spec.template_version,
+            "provenance": self.spec.provenance.model_dump() if self.spec.provenance is not None else None,
             "nodes": [self.nodes[node_id].model_dump() for node_id in self.order],
             "artifacts": {name: {"producer": self.artifact_producers[name], "type": self.artifact_types[name]}
                           for name in sorted(self.artifact_producers)},
@@ -328,6 +335,8 @@ def workflow_registry_report(profile: Profile, registry: dict[str, CompiledWorkf
                 "order": list(compiled.order),
                 "repair_on": compiled.spec.repair_on,
                 "repair_from": compiled.spec.repair_from,
+                "template_version": compiled.spec.template_version,
+                "provenance": compiled.spec.provenance.model_dump() if compiled.spec.provenance is not None else None,
             }
             for name, compiled in sorted(registry.items())
         },
