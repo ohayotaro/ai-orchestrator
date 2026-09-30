@@ -42,7 +42,7 @@ def builtin_build_review() -> WorkflowSpec:
                 independent_of=["implement"],
                 inputs=[
                     WorkflowInputSpec(artifact="validation", type="validation"),
-                    WorkflowInputSpec(artifact="write_set", type="write_set"),
+                    WorkflowInputSpec(artifact="write_set", type="write_set", optional=True),
                 ],
                 outputs=[WorkflowArtifactSpec(name="review", type="review")],
             ),
