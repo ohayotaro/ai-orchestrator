@@ -37,7 +37,7 @@ assert set(schema["required"]) == set(schema["properties"])
 role = schema["title"]
 if role == "SupervisorResult":
     assert request["role"] == "supervisor"
-    result = {"outcome": "proposed", "summary": "Add a multiply function", "task": {"goal": "Add multiply(a,b) and its tests", "acceptance": ["multiply(2,3) returns 6", "Existing add test passes"], "risk": "T2", "validators": ["check"], "external_effects": False, "allowed_paths": ["calculator.py", "test_calculator.py"], "capabilities": {}}, "questions": []}
+    result = {"outcome": "proposed", "summary": "Add a multiply function", "task": {"goal": "Add multiply(a,b) and its tests", "acceptance": ["multiply(2,3) returns 6", "Existing add test passes"], "risk": "T2", "validators": ["check"], "external_effects": False, "allowed_paths": ["calculator.py", "test_calculator.py"], "capabilities": {}, "workflow_ref": None}, "questions": []}
 elif role == "PlanResult":
     result = {"outcome": "completed", "summary": "Implement then validate", "steps": ["Add multiply", "Add tests"], "uncertainties": [], "evidence": ["calculator.py"]}
 elif role == "ImplementationResult":
