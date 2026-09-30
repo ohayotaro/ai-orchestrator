@@ -130,3 +130,37 @@ The selected workflow digest is included in intake/start and task execution
 provenance. Selecting a trusted entry leaves the profile digest unchanged;
 installing/removing/changing a project workflow remains a profile change and
 requires the existing trust ceremony.
+
+
+## v0.7 isolated parallel write boundary
+
+v0.7 removes the cooperating-worker same-worktree race for opt-in writable DAG
+nodes. Each concurrent writer receives a distinct Git worktree and exact
+`write_paths`; independent isolated nodes with overlapping ownership are
+rejected before execution. The task's `allowed_paths` remains the outer effect
+contract.
+
+A worker result is not applied directly to the user's worktree. The controller
+creates seed/worktree Git metadata inside a disposable runtime-local shared
+clone rather than registering temporary worktrees in the user's repository. It
+first checks protected/control state and exact changed paths, records patch
+provenance, integrates all branch patches in deterministic workflow order in the
+disposable integration worktree, rechecks the project root, and only then
+applies one aggregate patch. Validators and fresh review run after that integration. Provider failure,
+ownership violation or integration conflict prevents partial sibling application.
+
+`max_parallel_workers` defaults to one. Increasing it is trusted profile policy
+and therefore changes the effective profile fingerprint/requires the existing
+trust ceremony. Execution approval additionally binds the current isolated batch
+and ownership.
+
+This is **not** an OS security sandbox. Git worktrees separate cooperating file
+writes but provider processes still run as the same local user and can in
+principle attack paths outside their cwd, Git metadata, controller state or other
+processes. Existing native provider sandbox/tool restrictions and post-execution
+integrity checks remain defense in depth, not an adversarial boundary.
+
+A hard controller interruption can leave temporary Git worktrees. The task is
+persisted as running before those effects begin; `recover` removes stale
+worktrees and marks the task failed without replay. Automatic conflict repair,
+rebase or interrupted-batch resume is deliberately unsupported.

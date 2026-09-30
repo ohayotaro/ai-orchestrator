@@ -1,6 +1,6 @@
 # AI Orchestrator Roadmap
 
-This document describes the intended path from the current v0.6 declarative-workflow control-plane
+This document describes the intended path from the current v0.7 isolated-parallel control-plane
 foundation toward stable v1.0 contracts. Version numbers describe sequencing and
 design boundaries, not promised release dates. Live E2E evidence, security
 findings and implementation experience may change the details or order.
@@ -168,7 +168,7 @@ exact write-set/security guarantees already established.
 
 Implemented output: typed node/artifact dependencies, DAG validation, per-node capability resolution, bounded repair and a sequential scheduler. The built-in build-review profile now runs through this engine without requiring configuration changes.
 
-v0.6 does **not** introduce unsafe same-worktree parallel editing. The next implementation milestone is v0.7 isolated parallel execution.
+v0.6 intentionally established the sequential baseline before isolated parallel execution.
 
 ## v0.6.2 — Task-scoped workflow selection — implemented
 
@@ -213,26 +213,41 @@ This closes the v0.6.x workflow-selection/DAG validation milestone. See
 `docs/E2E.md` for the evidence and limitations. v0.7 must preserve this
 sequential/authority behavior while introducing isolation and concurrency.
 
-## v0.7 — Isolated parallel execution
+## v0.7 — Isolated parallel execution — implemented
 
-Parallelism comes only after workflow dependencies and effect contracts exist.
+v0.7 adds writable concurrency only after the v0.6 dependency and effect
+contracts are explicit.
 
-Goals:
+Implemented:
 
-- isolated Git worktrees or equivalent sandboxes per writable branch/node;
-- explicit ownership of writable paths/workspaces;
-- bounded concurrent worker scheduling;
-- controlled integration/merge phase;
-- validation after integration, not merely per branch;
-- conflict handling and provenance;
-- cancellation/recovery across concurrent nodes.
+- private Git worktrees per isolated writable node;
+- exact per-node `write_paths` ownership checked against task
+  `allowed_paths`;
+- compile-time rejection of overlapping ownership between independent isolated
+  writers;
+- bounded provider concurrency through trusted
+  `policy.max_parallel_workers`, defaulting to one;
+- deterministic patch integration in workflow order inside a separate
+  integration worktree;
+- one aggregate project-worktree apply only after all branches pass ownership
+  checks and the approved root/control/protected snapshots remain unchanged;
+- deterministic validators and fresh review only after integrated changes are
+  present in the project worktree;
+- integration/patch/workspace provenance in events and write-set artifacts;
+- cancellation propagation to concurrent workers where adapters honor the
+  callback, fail-closed batch behavior and cleanup;
+- conservative recovery that removes stale isolated worktrees without replay.
 
-The invariant is:
+The invariant is enforced:
 
 > No two independent workers concurrently mutate the same unisolated worktree.
 
-Parallel execution should be opt-in until isolation and recovery are well
-tested.
+Parallel writes remain opt-in. Existing workflows keep shared sequential
+execution, and the new concurrency limit defaults to `1`. v0.7 worktree
+isolation separates cooperating worker writes; it is not a general OS security
+sandbox against a hostile same-user process.
+
+See `docs/PARALLEL_EXECUTION.md`.
 
 ## v0.8 — Adaptive and user-defined orchestration
 

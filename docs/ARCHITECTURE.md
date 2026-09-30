@@ -123,3 +123,31 @@ resolved from that frozen ID on every preflight/run.
 Supervisor output may reference only advertised registry IDs. Explicit
 user/controller selection is kept outside TaskSpec business semantics and wins
 over a conflicting model suggestion.
+
+
+## v0.7 isolated writable execution
+
+WorkflowExecutor now has two scheduling paths. Shared nodes retain the
+declaration-ordered v0.6 path. A ready set of `workspace: isolated` writable
+nodes is treated as one approval-bound batch. Provider calls may run in a bounded
+thread pool, but those threads receive only immutable RunRequest inputs and call
+provider adapters; SQLite, TaskState, artifacts and events remain controller-
+thread operations.
+
+`workspaces.py` owns the effect boundary. It creates a temporary integration
+worktree, materializes the current non-control project snapshot into a detached
+seed commit, and creates one detached worker worktree per node. Per-node
+ownership is verified before a binary patch is accepted. Patches are integrated
+in compiled workflow order away from the project worktree, then one aggregate
+patch is applied only if the root/control/protected snapshots are still the
+approved values.
+
+This makes provider completion nondeterministic while keeping effect ordering,
+state transitions and downstream validation deterministic. Registered validators
+and reviewers run against the integrated project state, never as a substitute
+branch-local check.
+
+The execution approval scope and HumanGate preview include the full isolated
+batch, node ownership and worker bound. Normal cleanup removes worktrees;
+interrupted running tasks use conservative recovery to remove stale worktrees
+without replay. See `PARALLEL_EXECUTION.md`.

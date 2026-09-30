@@ -1,4 +1,4 @@
-"""A bounded sequential workflow. Models cannot select or bypass transitions."""
+"""Bounded workflow execution. Models cannot select or bypass transitions."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import workflow_registry, workflow_registry_report
 from .workflow_runtime import WorkflowExecutor
+from .workspaces import WorkspaceManager
 
 
 class Engine:
@@ -273,6 +274,15 @@ class Engine:
                 "nodes": {key: value.model_dump() for key, value in (state.workflow_nodes or {}).items()},
             }
             payload["artifacts"] = [artifact.model_dump() for artifact in state.artifacts]
+            batch = self.workflow_executor_for_state(state).execution_batch(state)
+            if batch:
+                payload["isolated_execution"] = {
+                    "max_parallel_workers": self.profile.policy.max_parallel_workers,
+                    "batch": [
+                        {"node": node.id, "workspace": node.workspace, "write_paths": node.write_paths}
+                        for node in batch
+                    ],
+                }
         return digest(payload)
 
     def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
@@ -524,6 +534,11 @@ class Engine:
             state = self.store.get(task_id)
             if state.status != "running":
                 raise OrchestratorError("only interrupted running tasks can be recovered")
-            state.status, state.error = "failed", "Interrupted execution; inspect worktree and create a new task. No automatic replay."
-            self.store.save(state, "task.recovered")
+            removed = WorkspaceManager.cleanup_task(self.project, task_id)
+            state.status, state.error = (
+                "failed",
+                "Interrupted execution; isolated workspaces were cleaned without replay. "
+                "Inspect the project worktree and create a new task.",
+            )
+            self.store.save(state, "task.recovered", {"isolated_workspaces_removed": removed})
             return state

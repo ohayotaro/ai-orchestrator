@@ -1,8 +1,9 @@
-# Workflow Schema v1 and Sequential DAG Execution
+# Workflow Schema v1, deterministic DAGs and isolated parallel writers
 
-v0.6 generalizes workflow topology while preserving the existing authority and
-effect boundaries. The workflow graph says **what depends on what**; v0.5
-capability resolution still decides **who** runs each agent node.
+v0.6 generalized workflow topology while preserving the existing authority and
+effect boundaries. v0.7 retains that schema and adds an opt-in execution mode
+for isolated writable nodes. The workflow graph says **what depends on what**;
+v0.5 capability resolution still decides **who** runs each agent node.
 
 ## Built-in build-review
 
@@ -60,6 +61,9 @@ capabilities: [test_authoring]
 gate_before: execution
 writes: task_allowed_paths
 run_for: write
+# Optional v0.7 writable isolation:
+workspace: isolated
+write_paths: [src/component.py]
 ```
 
 Supported artifact types are currently:
@@ -90,20 +94,32 @@ Before any task can use a workflow, the controller validates:
 - write paths contain a gated writable agent, validator and reviewer;
 - with cross-provider review enabled, reviewers declare independence from all
   writable nodes;
+- isolated writable nodes declare nonempty exact `write_paths`;
+- independent isolated writable nodes have disjoint ownership;
 - repair nodes exist and the repair target is downstream from a writable node.
 
 Invalid graphs fail before provider work.
 
-## Deterministic sequential scheduler
+## Deterministic scheduler modes
 
-A DAG does not imply parallel execution in v0.6.
+Shared nodes retain the v0.6 scheduler: when multiple nodes are ready, compiled
+topological/declaration order is the stable tie-breaker and exactly one shared
+node runs at a time in the project worktree.
 
-When multiple nodes are ready, the scheduler uses compiled topological order;
-declaration order is the stable tie-breaker. Exactly one node is executed at a
-time in the project workspace.
+v0.7 may batch simultaneously ready writable nodes only when each declares
+`workspace: isolated`. The task must have exact `allowed_paths`, every node's
+`write_paths` must be a subset, and independent nodes must own disjoint files.
+Provider calls use private Git worktrees and a bounded pool controlled by trusted
+`policy.max_parallel_workers`.
 
-This makes DAG semantics/provenance testable without introducing same-worktree
-write races. Isolated parallel execution belongs to v0.7.
+Parallel provider completion order never determines integration order. The
+controller converts each branch to a verified patch, applies patches to a
+separate integration worktree in compiled workflow order, then applies one
+aggregate patch to the project worktree. Downstream validator/reviewer nodes run
+only after that integrated state exists.
+
+The default worker limit is `1`, and existing shared workflows remain fully
+sequential. See `PARALLEL_EXECUTION.md`.
 
 ## Typed artifact passing
 

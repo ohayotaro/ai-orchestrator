@@ -1,9 +1,10 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.6.2 alpha** refines optional single-terminal host confirmations and automatic
-separate workers. This remains a trusted-local application, not authenticated
-human identity or an OS-isolated control plane.
+**v0.7 alpha** adds opt-in isolated parallel writable workflow nodes with
+deterministic integration before validation. This remains a trusted-local
+application, not authenticated human identity or a general OS-isolated control
+plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -248,3 +249,28 @@ Earlier [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md),
 retained legacy mode; the v0.4 document supersedes their manual-only claims for
 explicit single-terminal mode. Trust/configuration changes remain operator-only
 in both modes. License remains to be determined.
+
+
+## v0.7 isolated parallel execution
+
+Trusted project workflows may mark writable implementer nodes with
+`workspace: isolated` and exact `write_paths`. Independent isolated nodes with
+disjoint ownership may execute concurrently. `policy.max_parallel_workers`
+bounds the worker pool and defaults to `1`, so existing projects remain
+sequential unless the trusted profile explicitly opts in.
+
+The controller seeds private Git worktrees from the exact approved project
+snapshot, executes providers only in those worktrees, rejects writes outside the
+node's ownership, and prepares each result as a binary patch. Patches are applied
+to an integration worktree in compiled workflow order. Only after every branch
+integrates successfully is one aggregate patch applied to the user's worktree.
+Registered validators and fresh review then run against that integrated result.
+
+The execution HumanGate binds the complete ready isolated batch, ownership and
+worker bound. Provider threads never write TaskState/SQLite directly; controller
+state transitions remain serialized. Failed/cancelled batches do not partially
+apply successful siblings. Recovery removes stale isolated worktrees without
+automatic replay.
+
+See `docs/PARALLEL_EXECUTION.md` and `docs/SECURITY.md` for the exact boundary
+and limitations.

@@ -134,6 +134,8 @@ class Policy(Contract):
     max_agent_calls: int = Field(default=12, ge=1, le=100, strict=True)
     call_timeout_seconds: int = Field(default=600, ge=1, le=3600, strict=True)
     task_timeout_seconds: int = Field(default=3600, ge=1, le=86400, strict=True)
+    # v0.7 parallelism is explicitly opt-in. A value of 1 preserves v0.6 scheduling.
+    max_parallel_workers: int = Field(default=1, ge=1, le=8, strict=True)
 
     @field_validator("protected_paths")
     @classmethod
@@ -183,6 +185,10 @@ class WorkflowNodeSpec(Contract):
     run_for: Literal["all", "write", "advisory"] = "all"
     instructions: str = ""
     independent_of: list[str] = Field(default_factory=list)
+    # Writable nodes may opt into a private Git worktree. Ownership is exact-file
+    # based so integration can fail closed before touching the user's worktree.
+    workspace: Literal["shared", "isolated"] = "shared"
+    write_paths: list[str] = Field(default_factory=list)
 
     @field_validator("id")
     @classmethod
@@ -197,6 +203,12 @@ class WorkflowNodeSpec(Contract):
             raise ValueError("workflow identifier lists must not contain duplicates")
         return normalized
 
+    @field_validator("write_paths")
+    @classmethod
+    def valid_write_paths(cls, values: list[str]) -> list[str]:
+        normalized = validate_allowed_paths(values)
+        return normalized or []
+
     @model_validator(mode="after")
     def coherent_node(self) -> WorkflowNodeSpec:
         if self.kind == "agent":
@@ -206,9 +218,17 @@ class WorkflowNodeSpec(Contract):
                 raise ValueError("only implementer nodes may write project files")
             if self.writes == "task_allowed_paths" and self.gate_before != "execution":
                 raise ValueError("writable workflow nodes require an execution gate")
+            if self.workspace == "isolated":
+                if self.role != "implementer" or self.writes != "task_allowed_paths":
+                    raise ValueError("isolated workspaces are supported only for writable implementer nodes")
+                if not self.write_paths:
+                    raise ValueError("isolated writable nodes require nonempty exact write_paths")
+            elif self.write_paths:
+                raise ValueError("write_paths are only valid for isolated writable nodes")
         else:
-            if self.role is not None or self.capabilities or self.gate_before is not None or self.writes != "none" or self.independent_of:
-                raise ValueError("validator workflow nodes cannot declare agent role/capabilities/gates/writes/independence")
+            if (self.role is not None or self.capabilities or self.gate_before is not None or
+                    self.writes != "none" or self.independent_of or self.workspace != "shared" or self.write_paths):
+                raise ValueError("validator workflow nodes cannot declare agent role/capabilities/gates/writes/independence/workspace ownership")
         return self
 
 
