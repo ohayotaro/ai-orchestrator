@@ -69,19 +69,18 @@ class WorkspaceManager:
             )
         return result.stdout.decode().strip()
 
-    def _sync_root_state(self, destination: Path) -> None:
-        manifest = self.project.manifest()
+    def _sync_project_state(self, source_project: Project, destination: Path) -> None:
+        manifest = source_project.manifest()
         # Start from an empty worktree payload (keeping only Git's administrative
-        # file). This avoids following stale/symlinked parents from HEAD while
-        # materializing a dirty root snapshot and deliberately withholds ignored
-        # and .orchestrator content from provider workers.
+        # file). This avoids following stale/symlinked parents while materializing
+        # the approved snapshot and deliberately withholds ignored/control content.
         for child in destination.iterdir():
             if child.name != ".git":
                 _remove_path(child)
         for relative, (value, mode) in manifest.items():
             if value == "deleted":
                 continue
-            source = self.project.root / relative
+            source = source_project.root / relative
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             if value.startswith("link:"):
@@ -110,8 +109,9 @@ class WorkspaceManager:
                 str(self.project.root), str(self.integration),
             )
             _git(self.integration, "remote", "remove", "origin", check=False)
-            _git(self.integration, "checkout", "--detach", "HEAD")
-            self._sync_root_state(self.integration)
+            # --no-checkout plus direct manifest materialization avoids invoking
+            # repository/global smudge filters while constructing the seed.
+            self._sync_project_state(self.project, self.integration)
             integration_project = Project(self.integration)
             _git(self.integration, "add", "-A")
             _git(
@@ -132,7 +132,14 @@ class WorkspaceManager:
             for node_id in node_ids:
                 identifier(node_id)
                 path = self.task_dir / f"node-{node_id}"
-                _git(self.integration, "worktree", "add", "--detach", str(path), self.seed_sha)
+                _git(
+                    self.integration, "-c", "core.hooksPath=/dev/null",
+                    "worktree", "add", "--detach", "--no-checkout", str(path), self.seed_sha,
+                )
+                # Populate only the index, never the worktree, then copy the
+                # exact seed payload without running checkout filters.
+                _git(path, "-c", "core.hooksPath=/dev/null", "reset", "--mixed", self.seed_sha)
+                self._sync_project_state(integration_project, path)
                 node_project = Project(path)
                 if node_project.snapshot() != self.seed_snapshot:
                     raise OrchestratorError(f"workflow node {node_id}: isolated workspace seed mismatch")
