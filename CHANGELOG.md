@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.7.0 — alpha
+
+- Add opt-in isolated Git worktrees for writable Workflow Schema v1 nodes using
+  `workspace: isolated` and exact per-node `write_paths`.
+- Reject overlapping ownership for independent isolated writers at workflow
+  compile time and require every node's ownership to fit the task's
+  `allowed_paths` contract at preflight.
+- Add bounded concurrent provider scheduling through
+  `policy.max_parallel_workers` (default `1` for v0.6-compatible sequential
+  behavior) while keeping controller state and SQLite transitions serialized.
+- Seed every isolated branch from the exact approved project snapshot, preserve
+  dirty/nonignored project state in a temporary seed commit, and record branch
+  patch provenance.
+- Integrate successful branch patches in deterministic workflow order inside a
+  separate worktree; apply one aggregate patch to the user's worktree only if
+  the root snapshot/control/protected state is still unchanged.
+- Run registered validators and fresh review after integration. A branch-local
+  success never substitutes for integrated validation.
+- Bind the full isolated execution batch, ownership and worker bound into the
+  execution approval scope/HumanGate context.
+- Cancel sibling providers on failure where supported, prevent partial sibling
+  integration, clean worktrees on completion/failure, and clean stale worktrees
+  during conservative `recover` without replay.
+- Preserve existing v0.6 profile and workflow digests when only v0.7 default
+  fields are present.
+- Add regressions for real concurrent overlap, worker bounds, ownership
+  violations, fail-closed provider failure, integrated validation and recovery.
+
+
 ## 0.6.2 — alpha
 
 Live verification (owner-reported, Claude Code):
