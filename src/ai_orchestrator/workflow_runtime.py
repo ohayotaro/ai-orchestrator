@@ -694,12 +694,17 @@ class WorkflowExecutor:
 
     def execution_batch(self, state: TaskState) -> list[WorkflowNodeSpec]:
         ready = self._ready_nodes(state)
-        if not ready or ready[0].workspace != "isolated":
-            return []
-        return [
-            node for node in ready
-            if node.workspace == "isolated" and node.kind == "agent" and node.writes == "task_allowed_paths"
-        ]
+        batch: list[WorkflowNodeSpec] = []
+        # Preserve declaration-order semantics around shared nodes. Only the
+        # leading ready isolated writers form a concurrent batch; a shared node
+        # is never jumped by a later isolated node.
+        for node in ready:
+            if node.workspace != "isolated":
+                break
+            if node.kind != "agent" or node.writes != "task_allowed_paths":
+                break
+            batch.append(node)
+        return batch
 
     def run(self, state: TaskState) -> TaskState:
         self.assert_binding(state)
