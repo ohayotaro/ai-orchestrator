@@ -90,6 +90,10 @@ class WorkflowExecutor:
                 raise OrchestratorError(
                     f"workflow node {node.id}: provider capability resolution changed since task binding; create a new task"
                 )
+            # force_provider is a validation mechanism, not a new routing
+            # decision. Preserve the original source/candidate provenance so
+            # repeated preflight is canonical and cannot drift approval scope.
+            resolution = ProviderResolution.model_validate(frozen)
         else:
             resolution = self.engine.capability_resolver.resolve(
                 node.role, required=extra, exclude_families=exclude or None,

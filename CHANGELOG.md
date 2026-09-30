@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 — alpha
+
+- Fix execution approval scope drift for dynamically resolved workflow nodes.
+- Revalidation of a frozen candidate/priority provider now preserves the original routing provenance instead of exposing the internal `force_provider` check as `source: fixed`.
+- Add candidate- and priority-routing regressions asserting repeated preflight keeps the execution approval scope stable and a single approval proceeds to implementation.
+
+
 ## 0.6.0 — alpha
 
 - Add Workflow Schema v1 contracts for agent/validator nodes, typed artifact inputs/outputs, dependencies, execution gates, write semantics, run modes and bounded repair paths.

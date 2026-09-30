@@ -317,3 +317,70 @@ def test_workflow_resolution_provenance_is_per_node(workspace):
         assert len(resolved) == 1
     finally:
         controller.close()
+
+
+def test_dynamic_candidate_resolution_does_not_drift_execution_approval_scope(workspace):
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["providers"]["engineering"]["priority"] = 10
+    data["providers"]["reasoning"]["priority"] = 20
+    data["roles"]["implementer"]["provider"] = None
+    data["roles"]["implementer"]["candidates"] = ["engineering", "reasoning"]
+    data["roles"]["implementer"]["capabilities"] = ["code_edit"]
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+    reasoning, engineering = FakeAdapter("anthropic"), FakeAdapter("openai")
+    controller = Engine(workspace, {"claude": reasoning, "codex": engineering})
+    try:
+        controller.trust("operator")
+        state = controller.create(spec(), capability_requirements={"implementer": ["test_authoring"]})
+        state.allowed_paths = ["result.txt"]
+        controller.store.save(state, "test.allowed_paths")
+
+        state = controller.run(state.spec.id)
+        assert state.status == "awaiting_approval"
+        assert state.provider_resolutions["implementer"]["source"] == "candidates"
+        assert state.workflow_nodes["implement"].provider_resolution["source"] == "candidates"
+        first_scope = controller.approval_scope(state)
+
+        # Re-running preflight is what happens when the approved execution job
+        # reloads/runs the task. It must validate the frozen choice without
+        # rewriting provenance to source=fixed.
+        controller._preflight(state)
+        second_scope = controller.approval_scope(state)
+        assert second_scope == first_scope
+        assert state.provider_resolutions["implementer"]["source"] == "candidates"
+        assert state.provider_resolutions["implementer"]["candidates_considered"] == ["engineering"]
+        assert state.workflow_nodes["implement"].provider_resolution["source"] == "candidates"
+
+        controller.approve(state.spec.id, first_scope, "operator")
+        state = controller.run(state.spec.id)
+        assert state.status == "awaiting_acceptance", state.error
+        assert len(engineering.requests) == 1
+        assert state.provider_resolutions["implementer"]["source"] == "candidates"
+    finally:
+        controller.close()
+
+
+def test_dynamic_priority_resolution_does_not_drift_execution_approval_scope(workspace):
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["providers"]["engineering"]["priority"] = 10
+    data["providers"]["reasoning"]["priority"] = 20
+    data["roles"]["implementer"]["provider"] = None
+    data["roles"]["implementer"]["candidates"] = []
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+    controller = Engine(workspace, registry())
+    try:
+        controller.trust("operator")
+        state = controller.create(spec())
+        state = controller.run(state.spec.id)
+        assert state.status == "awaiting_approval"
+        assert state.provider_resolutions["implementer"]["source"] == "priority"
+        first_scope = controller.approval_scope(state)
+        controller._preflight(state)
+        assert controller.approval_scope(state) == first_scope
+        assert state.provider_resolutions["implementer"]["source"] == "priority"
+    finally:
+        controller.close()
