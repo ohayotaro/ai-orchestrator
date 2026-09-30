@@ -101,7 +101,16 @@ class WorkspaceManager:
         self.task_dir.mkdir(parents=True, exist_ok=False)
         self.patch_dir.mkdir()
         try:
-            _git(self.project.root, "worktree", "add", "--detach", str(self.integration), "HEAD")
+            # Use a disposable local clone as the worktree owner. --shared reads
+            # existing project objects through alternates but all new seed/blob
+            # objects and worktree metadata stay under runtime and are deleted
+            # on cleanup; the user's .git directory is not mutated.
+            _git(
+                self.project.root, "clone", "--shared", "--no-checkout", "--quiet",
+                str(self.project.root), str(self.integration),
+            )
+            _git(self.integration, "remote", "remove", "origin", check=False)
+            _git(self.integration, "checkout", "--detach", "HEAD")
             self._sync_root_state(self.integration)
             integration_project = Project(self.integration)
             _git(self.integration, "add", "-A")
@@ -123,7 +132,7 @@ class WorkspaceManager:
             for node_id in node_ids:
                 identifier(node_id)
                 path = self.task_dir / f"node-{node_id}"
-                _git(self.project.root, "worktree", "add", "--detach", str(path), self.seed_sha)
+                _git(self.integration, "worktree", "add", "--detach", str(path), self.seed_sha)
                 node_project = Project(path)
                 if node_project.snapshot() != self.seed_snapshot:
                     raise OrchestratorError(f"workflow node {node_id}: isolated workspace seed mismatch")
@@ -217,23 +226,16 @@ class WorkspaceManager:
 
     def cleanup(self) -> list[str]:
         removed: list[str] = []
-        prefix = self.task_dir.resolve()
-        listed = _git(self.project.root, "worktree", "list", "--porcelain", check=False)
-        if listed.returncode == 0:
-            paths: list[Path] = []
-            for raw in listed.stdout.decode("utf-8", "replace").splitlines():
-                if not raw.startswith("worktree "):
-                    continue
-                path = Path(raw[len("worktree "):]).resolve()
-                if path != self.project.root and path.is_relative_to(prefix):
-                    paths.append(path)
-            for path in sorted(paths, key=lambda item: len(item.parts), reverse=True):
-                _git(self.project.root, "worktree", "remove", "--force", str(path), check=False)
-                removed.append(str(path))
-        _git(self.project.root, "worktree", "prune", check=False)
         if self.task_dir.exists():
+            # The disposable clone owns every linked worktree and all metadata
+            # is inside task_dir, so recursive deletion cannot leave registrations
+            # in the user's repository.
+            for node_id, path in self.node_paths.items():
+                if path.exists():
+                    removed.append(str(path))
+            if self.integration.exists():
+                removed.append(str(self.integration))
             shutil.rmtree(self.task_dir, ignore_errors=True)
-        # Keep the runtime tree free of misleading empty task directories.
         task_root = self.task_dir.parent
         try:
             task_root.rmdir()
@@ -246,16 +248,10 @@ class WorkspaceManager:
         identifier(task_id)
         base = confined(project.root, f".orchestrator/runtime/worktrees/{task_id}")
         removed: list[str] = []
-        listed = _git(project.root, "worktree", "list", "--porcelain", check=False)
-        if listed.returncode == 0:
-            for raw in listed.stdout.decode("utf-8", "replace").splitlines():
-                if not raw.startswith("worktree "):
-                    continue
-                path = Path(raw[len("worktree "):]).resolve()
-                if path != project.root and path.is_relative_to(base.resolve()):
-                    _git(project.root, "worktree", "remove", "--force", str(path), check=False)
-                    removed.append(str(path))
-        _git(project.root, "worktree", "prune", check=False)
         if base.exists():
+            for path in sorted(base.rglob("node-*")):
+                if path.is_dir():
+                    removed.append(str(path))
+            removed.extend(str(path) for path in sorted(base.glob("attempt-*/integration")) if path.exists())
             shutil.rmtree(base, ignore_errors=True)
         return removed
