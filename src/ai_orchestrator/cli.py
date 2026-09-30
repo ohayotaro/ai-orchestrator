@@ -14,7 +14,7 @@ from typing import Any
 from pydantic import ValidationError
 import yaml
 
-from . import __version__, knowledge
+from . import __version__, knowledge, workflow_templates
 from .capabilities import CapabilityRegistryDescriptor, ProviderDescriptor, ProviderResolution
 from .engine import Engine
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
@@ -25,7 +25,7 @@ from .project import atomic_write, digest, initialize, load_yaml
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.7 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.8 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -53,11 +53,21 @@ def parser() -> argparse.ArgumentParser:
     workflow = commands.add_parser("workflow", help="Inspect a trusted compiled Workflow Schema v1 DAG")
     workflow.add_argument("--ref", dest="workflow_ref", help="Trusted workflow ID; defaults to the project default")
     commands.add_parser("workflows", help="List the trusted workflow registry without changing the profile")
+    workflow_candidate = commands.add_parser("workflow-candidate", help="Inspect an evidence-backed task-scoped workflow before optional persistent save")
+    workflow_candidate.add_argument("intake_id")
+    workflow_candidate.add_argument("--as", dest="template_id", required=True)
+    workflow_candidate.add_argument("--replace", action="store_true", help="Preview revision of an existing project workflow template")
+    workflow_save = commands.add_parser("workflow-save", help="Persist a successful task-scoped workflow into project config; requires subsequent re-trust")
+    workflow_save.add_argument("intake_id")
+    workflow_save.add_argument("--as", dest="template_id", required=True)
+    workflow_save.add_argument("--scope", required=True)
+    workflow_save.add_argument("--by", required=True)
+    workflow_save.add_argument("--replace", action="store_true")
     ask = commands.add_parser("ask", help="Propose a TaskSpec from natural language; never auto-approve execution")
     ask.add_argument("prompt")
     ask.add_argument("--task-id")
     ask.add_argument("--advisory", action="store_true")
-    ask.add_argument("--reply-to", help="Intake ID whose clarification questions this prompt answers")
+    ask.add_argument("--reply-to", help="Intake ID to answer clarification or revise an unconfirmed proposal")
     ask.add_argument("--workflow", dest="workflow_ref", help="Select an already-trusted workflow for this intake/task")
     intake = commands.add_parser("intake", help="Inspect an intake proposal and its confirmation scope")
     intake.add_argument("intake_id")
@@ -193,6 +203,12 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return engine.workflow_report(args.workflow_ref), 0
         if args.command == "workflows":
             return engine.workflow_registry_report(), 0
+        if args.command == "workflow-candidate":
+            return workflow_templates.candidate(engine, args.intake_id, args.template_id, replace=args.replace), 0
+        if args.command == "workflow-save":
+            return workflow_templates.save(
+                engine, args.intake_id, args.template_id, args.scope, args.by, replace=args.replace
+            ), 0
         if args.command == "ask":
             supervisor = Supervisor(engine)
             intake = supervisor.ask(args.prompt, task_id=args.task_id, advisory=args.advisory,
