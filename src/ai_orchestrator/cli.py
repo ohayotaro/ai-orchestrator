@@ -50,12 +50,15 @@ def parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
-    commands.add_parser("workflow", help="Inspect the active compiled Workflow Schema v1 DAG")
+    workflow = commands.add_parser("workflow", help="Inspect a trusted compiled Workflow Schema v1 DAG")
+    workflow.add_argument("--ref", dest="workflow_ref", help="Trusted workflow ID; defaults to the project default")
+    commands.add_parser("workflows", help="List the trusted workflow registry without changing the profile")
     ask = commands.add_parser("ask", help="Propose a TaskSpec from natural language; never auto-approve execution")
     ask.add_argument("prompt")
     ask.add_argument("--task-id")
     ask.add_argument("--advisory", action="store_true")
     ask.add_argument("--reply-to", help="Intake ID whose clarification questions this prompt answers")
+    ask.add_argument("--workflow", dest="workflow_ref", help="Select an already-trusted workflow for this intake/task")
     intake = commands.add_parser("intake", help="Inspect an intake proposal and its confirmation scope")
     intake.add_argument("intake_id")
     start = commands.add_parser("start", help="Confirm an intake and run planning, stopping at the execution gate")
@@ -82,6 +85,7 @@ def parser() -> argparse.ArgumentParser:
     create.add_argument("--task-file", type=Path, required=True, help="TaskSpec YAML or JSON")
     create.add_argument("--require", action="append", default=[], metavar="ROLE=CAPABILITY",
                         help="Add a semantic capability requirement to this task; repeat as needed")
+    create.add_argument("--workflow", dest="workflow_ref", help="Select an already-trusted workflow for this task")
     for command in ("run", "status", "cancel", "recover"):
         sub = commands.add_parser(command)
         sub.add_argument("task_id")
@@ -186,10 +190,13 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         if args.command == "capabilities":
             return engine.capability_report(), 0
         if args.command == "workflow":
-            return engine.workflow_report(), 0
+            return engine.workflow_report(args.workflow_ref), 0
+        if args.command == "workflows":
+            return engine.workflow_registry_report(), 0
         if args.command == "ask":
             supervisor = Supervisor(engine)
-            intake = supervisor.ask(args.prompt, task_id=args.task_id, advisory=args.advisory, reply_to=args.reply_to)
+            intake = supervisor.ask(args.prompt, task_id=args.task_id, advisory=args.advisory,
+                                    reply_to=args.reply_to, workflow_ref=args.workflow_ref)
             return supervisor.describe(intake.id), 1 if intake.status in ("blocked", "failed", "cancelled") else 0
         if args.command == "intake":
             return Supervisor(engine).describe(args.intake_id), 0
@@ -209,7 +216,11 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
                 if not role or not capability:
                     raise OrchestratorError("--require must use nonempty ROLE=CAPABILITY")
                 requirements.setdefault(role, []).append(capability)
-            state = engine.create(TaskSpec.model_validate(load_yaml(args.task_file)), capability_requirements=requirements or None)
+            state = engine.create(
+                TaskSpec.model_validate(load_yaml(args.task_file)),
+                capability_requirements=requirements or None,
+                workflow_ref=args.workflow_ref,
+            )
         elif args.command == "run":
             state = engine.run(args.task_id)
         elif args.command == "status":
