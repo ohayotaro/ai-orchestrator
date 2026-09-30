@@ -137,3 +137,17 @@ earlier Skill wording was too narrow. The packaged Skill now explicitly treats
 write_set + validation + review as canonical Orchestrator evidence and forbids
 Read/sed/grep/git/shell/test re-inspection solely to double-check that evidence,
 unless the user explicitly asks for independent verification.
+
+
+## v0.6 verification target
+
+Offline tests cover Workflow Schema validation, deterministic topological order,
+advisory-node skipping, built-in build-review compatibility, bounded downstream
+repair, per-node provider provenance, typed artifact passing and a small branched
+DAG executed sequentially.
+
+The first live v0.6 E2E should verify that an unchanged calculator project still
+reaches `succeeded` through the built-in DAG and exposes TaskState schema v4
+workflow provenance. A subsequent custom branched workflow E2E can demonstrate
+two read-only planning nodes converging on one gated implementation. Neither test
+should claim parallel execution.

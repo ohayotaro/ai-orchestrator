@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.5.0 alpha** refines optional single-terminal host confirmations and automatic
+**v0.6.0 alpha** refines optional single-terminal host confirmations and automatic
 separate workers. This remains a trusted-local application, not authenticated
 human identity or an OS-isolated control plane.
 
@@ -64,6 +64,32 @@ Existing profiles with no new capability fields keep their previous digest and
 do not need re-trust merely because the package was upgraded. Explicit capability,
 candidate or priority changes are normal profile changes and do require re-trust.
 
+## v0.6 declarative Workflow Schema / DAG
+
+v0.6 moves the existing sequential build-review flow onto a versioned Workflow
+Schema v1. The default `workflow: build-review` requires no configuration change:
+it is now a built-in DAG with typed artifacts and deterministic node ordering.
+
+Custom workflows can define multiple read-only analysis/planning nodes that
+converge on a gated implementation, registered validators and independent review.
+Each agent node resolves semantic capabilities through the v0.5 Provider Resolver;
+provider/model identity is not baked into the graph.
+
+Execution remains deliberately **sequential**. v0.6 validates dependencies,
+cycles, typed artifact edges, advisory/write safety, repair semantics and
+cross-provider independence before running. Writable parallelism and isolated
+worktrees remain v0.7 work.
+
+```bash
+orchestrator workflow
+```
+
+shows the active compiled workflow, digest, deterministic order and artifact
+producers. MCP `inspect_project` exposes the same report. New tasks persist
+Workflow/DAG provenance in TaskState schema v4.
+
+See **[Workflow Schema v1](docs/WORKFLOWS.md)**.
+
 ## Important approval distinction
 
 v0.4 uses MCP `elicitation/create`, not ordinary tool permission prompts,
@@ -90,7 +116,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.5.0
+.venv/bin/orchestrator --version  # 0.6.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -177,13 +203,12 @@ replayed.
 
 ## Roadmap
 
-The current v0.5.0 baseline adds deterministic capability/provider resolution on top of the control-plane foundation: live
+The current v0.6.0 baseline adds declarative sequential Workflow/DAG execution on top of deterministic capability/provider resolution and the control-plane foundation: live
 Claude Code and Codex frontends, explicit HumanGates, managed workers,
 allowed-path/write-set enforcement, deterministic validation and independent
-review. The next development phase can generalize workflow topology because provider/capability resolution is now explicit.
+review. The next development phase is isolated parallel execution; v0.6 itself intentionally executes one runnable node at a time.
 
-See **[ROADMAP.md](ROADMAP.md)** for the planned path from the completed v0.5 capability-based
-provider resolution through v0.6 workflow DAGs, isolated parallel execution,
+See **[ROADMAP.md](ROADMAP.md)** for the planned path from completed v0.5 provider resolution and v0.6 workflow DAGs, isolated parallel execution,
 adaptive/user-defined orchestration, observability and stable v1.0 contracts.
 The roadmap is directional rather than a release-date commitment and may be
 revised from measured E2E evidence.

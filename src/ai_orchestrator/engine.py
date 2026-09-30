@@ -14,6 +14,8 @@ from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
+from .workflow import workflow_for_profile
+from .workflow_runtime import WorkflowExecutor
 
 
 class Engine:
@@ -23,6 +25,8 @@ class Engine:
         self.registry = registry if registry is not None else default_registry()
         self.capability_resolver = CapabilityResolver(self.profile, self.registry)
         self.store = Store(self.project, cancel_check)
+        self.compiled_workflow = workflow_for_profile(self.profile)
+        self.workflow_executor = WorkflowExecutor(self, self.compiled_workflow)
 
     def close(self) -> None:
         self.store.close()
@@ -47,10 +51,15 @@ class Engine:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
             requested = validate_requirements(capability_requirements)
-            state = TaskState(schema_version=3, spec=spec, profile_digest=self.profile_digest,
+            state = TaskState(schema_version=4, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None)
-            self.store.save(state, "task.created", {"risk": spec.risk, "profile_digest": self.profile_digest,
-                                                    "capability_requirements": requested}, create=True)
+            self.workflow_executor.bind(state)
+            self.store.save(state, "task.created", {
+                "risk": spec.risk, "profile_digest": self.profile_digest,
+                "capability_requirements": requested,
+                "workflow_id": state.workflow_id, "workflow_digest": state.workflow_digest,
+            }, create=True)
+            self.store.save(state, "workflow.bound", self.workflow_executor.gate_context(state))
             atomic_write(path, spec.model_dump_json(indent=2) + "\n")
             return state
 
@@ -147,6 +156,14 @@ class Engine:
         report["roles"] = roles
         return report
 
+    def workflow_report(self) -> dict[str, Any]:
+        return self.compiled_workflow.report()
+
+    def workflow_gate_context(self, state: TaskState) -> dict[str, Any]:
+        if state.schema_version < 4:
+            return {}
+        return self.workflow_executor.gate_context(state)
+
     def doctor(self, *, validators_only: bool = False) -> dict[str, Any]:
         reports: dict[str, Any] = {}
         for role in ([] if validators_only else sorted(set(self.profile.roles) | {"supervisor"})):
@@ -176,6 +193,9 @@ class Engine:
                 for protected in self.profile.policy.protected_paths:
                     if path == protected or path.startswith(protected + "/") or protected.startswith(path + "/"):
                         raise OrchestratorError(f"allowed path overlaps protected path: {path}")
+        if state.schema_version >= 4:
+            self.workflow_executor.preflight(state)
+            return
         resolved = self._resolve_task_capabilities(state)
         roles = self._task_roles(state)
         for role in roles:
@@ -202,6 +222,16 @@ class Engine:
         if state.schema_version >= 3:
             payload["capability_requirements"] = state.capability_requirements
             payload["provider_resolutions"] = state.provider_resolutions
+        if state.schema_version >= 4:
+            payload["task_capability_requirements"] = state.task_capability_requirements
+            payload["workflow"] = {
+                "id": state.workflow_id,
+                "digest": state.workflow_digest,
+                "order": state.workflow_order,
+                "current": state.workflow_current,
+                "nodes": {key: value.model_dump() for key, value in (state.workflow_nodes or {}).items()},
+            }
+            payload["artifacts"] = [artifact.model_dump() for artifact in state.artifacts]
         return digest(payload)
 
     def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
@@ -368,6 +398,14 @@ class Engine:
                 state.status, state.error = "blocked", redact(str(exc))
                 self.store.save(state, "task.blocked")
                 return state
+            if state.schema_version >= 4:
+                try:
+                    return self.workflow_executor.run(state)
+                except (Exception, KeyboardInterrupt) as exc:
+                    state.status = "cancelled" if isinstance(exc, KeyboardInterrupt) or self.store.cancelled(task_id) else "failed"
+                    state.error = redact(str(exc))[:4000]
+                    self.store.save(state, "task." + state.status)
+                    return state
             try:
                 while True:
                     self._check(state)

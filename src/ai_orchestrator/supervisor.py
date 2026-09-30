@@ -233,12 +233,14 @@ class Supervisor:
             path = confined(self.project.root, f".orchestrator/tasks/{intake.task_id}.json")
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {intake.task_id}")
-            state = TaskState(schema_version=3, spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
+            state = TaskState(schema_version=4, spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
                               calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
+            self.engine.workflow_executor.bind(state)
             if precondition is not None:
                 precondition()
             self.store.create_from_intake(state, intake, actor, scope)
+            self.store.save(state, "workflow.bound", self.engine.workflow_gate_context(state))
             atomic_write(path, state.spec.model_dump_json(indent=2) + "\n")
             return state

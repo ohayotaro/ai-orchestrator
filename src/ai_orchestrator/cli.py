@@ -20,7 +20,7 @@ from .engine import Engine
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
 from .supervisor import Supervisor
 from .validators import register_validator
-from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, TaskSpec, TaskState
+from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
 from .project import atomic_write, digest, initialize, load_yaml
 
 
@@ -50,6 +50,7 @@ def parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
+    commands.add_parser("workflow", help="Inspect the active compiled Workflow Schema v1 DAG")
     ask = commands.add_parser("ask", help="Propose a TaskSpec from natural language; never auto-approve execution")
     ask.add_argument("prompt")
     ask.add_argument("--task-id")
@@ -96,7 +97,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("task_id")
     accept.add_argument("--by", required=True)
     schema = commands.add_parser("schema")
-    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "capability-registry", "provider-descriptor", "provider-resolution"])
+    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact"])
     schema.add_argument("--output", type=Path)
     proposal = commands.add_parser("propose")
     proposal.add_argument("--kind", choices=["knowledge", "policy", "skill"], required=True)
@@ -149,7 +150,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
     if args.command == "schema":
-        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution}[args.kind]
+        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec}[args.kind]
         schema = model.model_json_schema()
         if args.output:
             atomic_write(args.output, json.dumps(schema, indent=2) + "\n")
@@ -184,6 +185,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return report, 0 if all(item["ok"] for item in report.values()) else 1
         if args.command == "capabilities":
             return engine.capability_report(), 0
+        if args.command == "workflow":
+            return engine.workflow_report(), 0
         if args.command == "ask":
             supervisor = Supervisor(engine)
             intake = supervisor.ask(args.prompt, task_id=args.task_id, advisory=args.advisory, reply_to=args.reply_to)

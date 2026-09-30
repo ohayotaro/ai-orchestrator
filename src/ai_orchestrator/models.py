@@ -146,6 +146,105 @@ class Policy(Contract):
         return values
 
 
+WorkflowArtifactType = Literal["plan", "implementation", "write_set", "validation", "review", "json"]
+
+
+class WorkflowArtifactSpec(Contract):
+    name: str
+    type: WorkflowArtifactType
+
+    @field_validator("name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        return identifier(value)
+
+
+class WorkflowInputSpec(Contract):
+    artifact: str
+    type: WorkflowArtifactType
+    optional: StrictBool = False
+
+    @field_validator("artifact")
+    @classmethod
+    def valid_artifact(cls, value: str) -> str:
+        return identifier(value)
+
+
+class WorkflowNodeSpec(Contract):
+    id: str
+    kind: Literal["agent", "validator"]
+    role: Literal["planner", "implementer", "reviewer"] | None = None
+    depends_on: list[str] = Field(default_factory=list)
+    inputs: list[WorkflowInputSpec] = Field(default_factory=list)
+    outputs: list[WorkflowArtifactSpec] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    gate_before: Literal["execution"] | None = None
+    writes: Literal["none", "task_allowed_paths"] = "none"
+    run_for: Literal["all", "write", "advisory"] = "all"
+    instructions: str = ""
+    independent_of: list[str] = Field(default_factory=list)
+
+    @field_validator("id")
+    @classmethod
+    def valid_id(cls, value: str) -> str:
+        return identifier(value)
+
+    @field_validator("depends_on", "capabilities", "independent_of")
+    @classmethod
+    def valid_identifier_list(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("workflow identifier lists must not contain duplicates")
+        return normalized
+
+    @model_validator(mode="after")
+    def coherent_node(self) -> WorkflowNodeSpec:
+        if self.kind == "agent":
+            if self.role is None:
+                raise ValueError("agent workflow nodes require a role")
+            if self.role != "implementer" and self.writes != "none":
+                raise ValueError("only implementer nodes may write project files")
+            if self.writes == "task_allowed_paths" and self.gate_before != "execution":
+                raise ValueError("writable workflow nodes require an execution gate")
+        else:
+            if self.role is not None or self.capabilities or self.gate_before is not None or self.writes != "none" or self.independent_of:
+                raise ValueError("validator workflow nodes cannot declare agent role/capabilities/gates/writes/independence")
+        return self
+
+
+class WorkflowSpec(Contract):
+    schema_version: Literal[1] = 1
+    id: str
+    nodes: list[WorkflowNodeSpec] = Field(min_length=1)
+    repair_on: str | None = None
+    repair_from: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def valid_id(cls, value: str) -> str:
+        return identifier(value)
+
+    @field_validator("repair_on", "repair_from")
+    @classmethod
+    def valid_optional_id(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def repair_pair(self) -> WorkflowSpec:
+        if (self.repair_on is None) != (self.repair_from is None):
+            raise ValueError("workflow repair_on and repair_from must be configured together")
+        return self
+
+
+class WorkflowNodeState(Contract):
+    status: Literal["pending", "running", "succeeded", "skipped", "failed"] = "pending"
+    attempt: int = Field(default=0, ge=0, strict=True)
+    required_capabilities: list[str] = Field(default_factory=list)
+    provider_resolution: dict[str, object] | None = None
+    artifact_kinds: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
 class Profile(Contract):
     schema_version: Literal[1] = 1
     name: str = Field(min_length=1, max_length=200)
@@ -153,12 +252,17 @@ class Profile(Contract):
     roles: dict[str, RoleConfig]
     policy: Policy = Field(default_factory=Policy)
     validators: dict[str, ValidatorConfig] = Field(default_factory=dict)
-    workflow: Literal["build-review"] = "build-review"
+    workflow: str = "build-review"
+    workflows: dict[str, WorkflowSpec] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def bindings(self) -> Profile:
-        for key in [*self.providers, *self.roles, *self.validators]:
+        for key in [*self.providers, *self.roles, *self.validators, *self.workflows]:
             identifier(key)
+        identifier(self.workflow)
+        for key, workflow in self.workflows.items():
+            if key != workflow.id:
+                raise ValueError(f"workflow key/id mismatch: {key} != {workflow.id}")
         for role in ("planner", "implementer", "reviewer"):
             if role not in self.roles:
                 raise ValueError(f"missing role: {role}")
@@ -211,13 +315,19 @@ class Artifact(Contract):
 
 
 class TaskState(Contract):
-    # Existing rows remain readable; v3 snapshots capability requirements/resolution.
-    schema_version: Literal[1, 2, 3] = 1
+    # Existing rows remain readable; v4 adds declarative workflow/DAG provenance.
+    schema_version: Literal[1, 2, 3, 4] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
+    task_capability_requirements: dict[str, list[str]] | None = None
     provider_resolutions: dict[str, dict[str, object]] | None = None
+    workflow_id: str | None = None
+    workflow_digest: str | None = None
+    workflow_order: list[str] | None = None
+    workflow_current: str | None = None
+    workflow_nodes: dict[str, WorkflowNodeState] | None = None
     spec: TaskSpec
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)

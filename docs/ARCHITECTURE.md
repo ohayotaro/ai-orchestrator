@@ -98,3 +98,15 @@ through CapabilityResolver. Semantic capabilities are distinct from runtime
 adapter capabilities. New tasks freeze effective requirements and provider
 resolution before the first provider call; approval and audit provenance include
 that resolution. See CAPABILITIES.md.
+
+
+## v0.6 workflow/DAG layer
+
+New tasks bind a compiled Workflow Schema v1 from the trusted profile. The
+scheduler validates the graph and executes one ready node at a time. Agent nodes
+resolve v0.5 capabilities per node; validator nodes remain deterministic
+controller operations. Typed artifact edges control what downstream agents
+receive. HumanGate/write-set/acceptance remain outside model authority.
+
+TaskState v4 stores workflow digest/order/current node and per-node status,
+artifact/provisioning provenance. v1-v3 tasks retain the legacy state machine.

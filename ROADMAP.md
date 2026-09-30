@@ -1,6 +1,6 @@
 # AI Orchestrator Roadmap
 
-This document describes the intended path from the current v0.5 capability-based control-plane
+This document describes the intended path from the current v0.6 declarative-workflow control-plane
 foundation toward stable v1.0 contracts. Version numbers describe sequencing and
 design boundaries, not promised release dates. Live E2E evidence, security
 findings and implementation experience may change the details or order.
@@ -134,11 +134,9 @@ design contract. v0.5.x does not need to implement automatic variant routing.
 
 See `docs/MODEL_VARIANTS.md` for the full design decision.
 
-## v0.6 — Workflow Schema and DAG
+## v0.6 — Workflow Schema and DAG — implemented
 
-After capability resolution is stable, generalize the current fixed
-Supervisor -> Planner -> Implementer -> Validator -> Reviewer sequence into a
-versioned workflow schema.
+v0.6 generalizes the fixed Supervisor -> Planner -> Implementer -> Validator -> Reviewer sequence into a versioned, deterministically scheduled Workflow Schema v1.
 
 Goals:
 
@@ -168,7 +166,9 @@ validators:
 The final schema may differ. In particular, write patterns must not weaken the
 exact write-set/security guarantees already established.
 
-v0.6 does **not** introduce unsafe same-worktree parallel editing.
+Implemented output: typed node/artifact dependencies, DAG validation, per-node capability resolution, bounded repair and a sequential scheduler. The built-in build-review profile now runs through this engine without requiring configuration changes.
+
+v0.6 does **not** introduce unsafe same-worktree parallel editing. The next implementation milestone is v0.7 isolated parallel execution.
 
 ## v0.7 — Isolated parallel execution
 

@@ -100,3 +100,20 @@ routing is deterministic profile policy, not model scoring. A model can request
 additional task requirements but cannot mutate provider capability declarations
 or provider priority. Provider Adapter v1 compatibility is limited to existing
 fixed bindings without new semantic declarations.
+
+
+## v0.6 workflow security boundary
+
+Workflow configuration is trusted profile data, never model-authored authority.
+The compiler rejects cycles, unknown/type-invalid artifact dependencies, unsafe
+advisory nodes and write graphs lacking gated writes, deterministic validation
+or independent review. Models cannot install a new graph through TaskSpec.
+
+DAG topology does not grant concurrency. v0.6 executes exactly one ready node in
+the shared worktree. This intentionally avoids introducing same-worktree write
+races before v0.7 isolation.
+
+Typed artifact edges reduce unnecessary transcript/data propagation: downstream
+nodes receive declared artifacts, not every upstream conversation. Artifact
+hashing, protected paths, allowed_paths/write-set enforcement, external-effect
+blocking and HumanGate scopes remain independent controls.

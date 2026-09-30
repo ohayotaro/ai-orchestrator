@@ -87,3 +87,19 @@ priority is an intentional profile change and requires inspection/re-trust.
 Persisted TaskState v1/v2 remains readable. New tasks use state schema v3 to
 freeze capability requirements and provider-resolution provenance. Existing tasks
 are not silently rerouted. See CAPABILITIES.md.
+
+
+## v0.5 to v0.6
+
+Stop active workers and back up runtime state before upgrading. Existing projects
+using `workflow: build-review` need no config migration and, because an empty
+custom-workflow registry is excluded from the fingerprint, do not need re-trust
+solely for this package upgrade.
+
+New tasks use TaskState schema v4 and the compiled built-in workflow. Persisted
+v1-v3 tasks remain readable/runnable through the legacy path. Adding or selecting
+a custom `workflows:` definition is a real profile change and requires normal
+inspection/re-trust.
+
+Run `orchestrator workflow` after upgrade to inspect the compiled graph before
+testing live E2E.

@@ -130,6 +130,8 @@ class Project:
             for key in ("capabilities", "candidates"):
                 if not role[key]:
                     del role[key]
+        if not effective["workflows"]:
+            del effective["workflows"]
         return profile, digest({"profile": effective, "context": context}), context
 
     @contextlib.contextmanager

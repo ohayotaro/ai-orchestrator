@@ -182,6 +182,7 @@ class HumanGateBroker:
             task = intake.task
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
+                       "workflow": engine.workflow_report(),
                        "supervisor_summary": intake.result.summary, "notes": intake.notes}
             state = intake.model_dump()
             if state.get("allowed_paths") is None:
@@ -202,7 +203,9 @@ class HumanGateBroker:
                 payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths,
                            "capability_requirements": state_object.capability_requirements,
                            "provider_resolutions": state_object.provider_resolutions,
-                           "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"), "feedback": state_object.feedback}
+                           "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
+                           "feedback": state_object.feedback,
+                           **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             elif kind == "acceptance":
                 if state_object.status != "awaiting_acceptance" or state_object.reviewed_snapshot != project.snapshot():
                     raise OrchestratorError("task is not awaiting acceptance or worktree changed since review")
@@ -213,7 +216,8 @@ class HumanGateBroker:
                            "write_set": engine.store.latest(state_object, "write_set"),
                            "validation": engine.store.latest(state_object, "validation"),
                            "review": engine.store.latest(state_object, "review"),
-                           "reviewed_snapshot": state_object.reviewed_snapshot}
+                           "reviewed_snapshot": state_object.reviewed_snapshot,
+                           **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             else:
                 raise OrchestratorError("unknown gate kind")
         if task.external_effects:

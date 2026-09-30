@@ -144,6 +144,7 @@ class ApplicationService:
                         "trusted": engine.store.trusted(engine.profile_digest),
                         "roles": {name: {"provider": role.provider, "capabilities": role.capabilities, "candidates": role.candidates} for name, role in engine.profile.roles.items()},
                         "capabilities": engine.capability_report(),
+                        "workflow": engine.workflow_report(),
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
                         "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover"]}

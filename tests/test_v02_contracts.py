@@ -17,7 +17,7 @@ from conftest import approve_and_run, spec
 def test_new_tasks_use_explicit_v2_role_contracts(engine):
     controller, reasoning, engineering = engine
     state = controller.create(spec())
-    assert state.schema_version == 3
+    assert state.schema_version == 4
     state = approve_and_run(controller)
     assert state.status == "awaiting_acceptance"
     assert reasoning.requests[0].result_model is PlanResult
@@ -75,6 +75,12 @@ def test_legacy_pending_task_keeps_v1_wire_results_and_scope(engine):
     old.pop("allowed_paths", None)
     old.pop("capability_requirements", None)
     old.pop("provider_resolutions", None)
+    old.pop("task_capability_requirements", None)
+    old.pop("workflow_id", None)
+    old.pop("workflow_digest", None)
+    old.pop("workflow_order", None)
+    old.pop("workflow_current", None)
+    old.pop("workflow_nodes", None)
     with controller.store.db:
         controller.store.db.execute("UPDATE tasks SET data=? WHERE id=?", (json.dumps(old), state.spec.id))
     state = approve_and_run(controller)
@@ -103,6 +109,7 @@ def test_empty_v2_validator_defaults_preserve_v1_profile_digest(workspace):
     for role in old["roles"].values():
         role.pop("capabilities", None)
         role.pop("candidates", None)
+    old.pop("workflows", None)
     assert digest({"profile": old, "context": context}) == actual
 
 

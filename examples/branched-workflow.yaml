@@ -1,0 +1,67 @@
+# Merge this fragment into .orchestrator/config.yaml only after inspection.
+# Changing workflows is a profile change and requires re-trust.
+workflow: branched-review
+workflows:
+  branched-review:
+    schema_version: 1
+    id: branched-review
+    nodes:
+      - id: analyze_a
+        kind: agent
+        role: planner
+        run_for: all
+        outputs:
+          - name: analysis_a
+            type: plan
+      - id: analyze_b
+        kind: agent
+        role: planner
+        run_for: all
+        outputs:
+          - name: analysis_b
+            type: plan
+      - id: implement
+        kind: agent
+        role: implementer
+        run_for: write
+        depends_on: [analyze_a, analyze_b]
+        inputs:
+          - artifact: analysis_a
+            type: plan
+          - artifact: analysis_b
+            type: plan
+        outputs:
+          - name: execute
+            type: implementation
+          - name: write_set
+            type: write_set
+        gate_before: execution
+        writes: task_allowed_paths
+      - id: validate
+        kind: validator
+        run_for: write
+        depends_on: [implement]
+        inputs:
+          - artifact: execute
+            type: implementation
+          - artifact: write_set
+            type: write_set
+        outputs:
+          - name: validation
+            type: validation
+      - id: review
+        kind: agent
+        role: reviewer
+        run_for: write
+        depends_on: [validate]
+        independent_of: [implement]
+        inputs:
+          - artifact: validation
+            type: validation
+          - artifact: write_set
+            type: write_set
+        outputs:
+          - name: review
+            type: review
+    repair_from: implement
+    repair_on: review

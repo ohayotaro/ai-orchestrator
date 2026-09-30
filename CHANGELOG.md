@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 — alpha
+
+- Add Workflow Schema v1 contracts for agent/validator nodes, typed artifact inputs/outputs, dependencies, execution gates, write semantics, run modes and bounded repair paths.
+- Compile/validate DAGs before execution: duplicate/cyclic/unknown dependencies, artifact type/ancestry errors, unsafe advisory paths, missing write/validator/reviewer stages and cross-provider independence fail closed.
+- Move new tasks to TaskState schema v4 with workflow ID/digest/order/current node and per-node execution/provider provenance.
+- Execute ready DAG nodes deterministically and sequentially; declaration order is the stable tie-breaker for independent nodes.
+- Resolve Provider Adapter v2 capabilities per agent node, including branched workflows with multiple nodes using the same role.
+- Pass only declared typed artifacts to downstream nodes; preserve validator/write-set/fresh-review semantics.
+- Preserve execution HumanGates at writable nodes and final acceptance; every repair resets only the configured downstream subgraph and requires a fresh execution scope.
+- Keep `build-review` as a built-in Workflow Schema v1 DAG, preserving existing profile configuration and v1-v3 persisted task compatibility.
+- Add `orchestrator workflow`, workflow JSON schemas, MCP workflow inspection, custom branched-DAG tests and provenance tests.
+- Keep v0.6 intentionally single-worker/sequential: no writable parallelism, isolated worktree scheduling or automatic workflow generation.
+
+
 ## 0.5.0 — alpha
 
 - Add a versioned semantic Capability Registry and Provider Descriptor/Resolution contracts.
