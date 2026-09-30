@@ -179,8 +179,9 @@ git pull --ff-only
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
 (or Python 3.11/3.12). Install/authenticate Claude Code and Codex CLI separately.
 No model name is fixed; configured CLI defaults apply unless the profile specifies
-one. Additional provider adapters, arbitrary DAGs and parallel workspaces remain
-outside this release.
+one. v0.8 can propose task-scoped DAGs and reuse v0.7 isolated parallel execution,
+but it still cannot install new providers, validator commands, policies or
+external-effect authority.
 
 ## Opt in for the existing calculator fixture
 
@@ -218,8 +219,8 @@ Inspect registration scope before removing any existing server; do not remove an
 unrelated server. Reload/restart the client as needed after configuration changes.
 
 An unchanged profile needs no new trust grant. If configuration changed, inspect
-it and explicitly retrust from the operator terminal. v0.4 does not grant trust
-through MCP. A manual worker already running is reused; stop it before testing
+it and explicitly retrust from the operator terminal. No MCP request grants
+project trust. A manual worker already running is reused; stop it before testing
 that automatic startup works. Do not run a second manual worker.
 
 ## Ordinary use
@@ -247,9 +248,11 @@ an approval scope is pending. Read existing validation evidence instead.
 
 Plain `orchestrator serve` retains the v0.3 manual-worker/operator-gate behavior.
 The existing `ask`, `create`, `start`, `approve`, `run`, `accept`, validator and
-knowledge commands remain supported. Task/profile schemas and fingerprints are
-unchanged. Gates are stored separately in `runtime/gates.sqlite3`; old artifacts
-are not rewritten. `orchestrator gate G-ID` reads the gate/audit metadata.
+knowledge commands remain supported. Persisted TaskState v1-v4 remains readable;
+trusted/manual workflows continue to create v4 state, while confirmed embedded
+adaptive DAGs use v5. Default v0.8 template metadata preserves an unchanged v0.7
+profile fingerprint. Gates are stored separately in `runtime/gates.sqlite3`;
+old artifacts are not rewritten. `orchestrator gate G-ID` reads the gate/audit metadata.
 
 Managed workers idle-exit after draining the queue. Their private log paths and
 startup errors appear in MCP job/inspection output. Repeated failed startups stop
