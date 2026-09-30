@@ -164,3 +164,30 @@ A hard controller interruption can leave temporary Git worktrees. The task is
 persisted as running before those effects begin; `recover` removes stale
 worktrees and marks the task failed without replay. Automatic conflict repair,
 rebase or interrupted-batch resume is deliberately unsupported.
+
+## v0.8 adaptive workflow authority boundary
+
+v0.8 allows a model to propose task structure, not permissions. A
+Supervisor-authored DAG cannot add providers, executables, models, validator
+commands, semantic capabilities absent from the registry, protected-path policy,
+external effects or project trust. It is compiled and capability-resolved under
+the current trusted profile before a human sees the Start confirmation.
+
+The exact proposed graph is immutable intake evidence and part of the HumanGate
+scope. If a user revises an unconfirmed proposal, the old intake becomes
+`superseded` only after a new bounded result is produced; a stale Start request
+therefore cannot register the superseded proposal.
+
+Persistent workflow learning is intentionally not exposed as an MCP agent tool.
+Only the local operator CLI can create an evidence-backed candidate and save it,
+and only after the source adaptive task is finally `succeeded` with a reviewed
+snapshot. The candidate scope binds source intake/task, source DAG digest,
+reviewed snapshot, target template/version and current profile digest. Saving
+that template invalidates the prior profile trust and requires normal re-trust.
+
+This remains a trusted-local application. An agent with independent unrestricted
+same-user shell access could still invoke local operator commands despite Skill
+instructions; v0.8 does not claim OS-level separation between the conversational
+host and the operator account. The control-plane guarantee is that the MCP
+surface itself does not expose template save/trust authority and the kernel does
+not infer persistent authority from model output or task success.
