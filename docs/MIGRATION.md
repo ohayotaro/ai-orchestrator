@@ -119,3 +119,31 @@ project definition only as an intentional profile change and re-trust normally.
 New task-scoped workflow selection is persisted in intake/TaskState provenance;
 older persisted TaskState v4 rows without a selection-source field remain
 readable and use their frozen workflow ID/digest.
+
+
+## v0.6.2 to v0.7
+
+Stop active workers/controllers and back up runtime state before upgrading.
+Existing shared workflows remain sequential. The new
+`policy.max_parallel_workers` default is `1`, and default
+`workspace: shared` / empty `write_paths` workflow fields are omitted from
+effective profile/workflow fingerprints, so an otherwise unchanged v0.6.2
+project does not require re-trust solely for the software upgrade.
+
+Opting into writable isolation is a trusted authority change. Add
+`workspace: isolated` and exact `write_paths` to writable implementer nodes,
+ensure every owned file is also included in each task's exact `allowed_paths`,
+and set `policy.max_parallel_workers` above one only after inspecting the
+workflow. Those non-default changes alter the effective profile fingerprint and
+require normal re-trust.
+
+Isolated execution requires an existing Git commit. It uses disposable runtime
+Git metadata and does not migrate TaskState or the runtime database schema; new
+tasks continue to use TaskState v4. Interrupted parallel batches are never
+replayed automatically. Use `recover` to clean stale runtime workspaces and
+mark the task failed, then inspect the project worktree before creating a new
+task.
+
+Run the offline suite and inspect `orchestrator workflow --ref <id>` before a
+live-provider smoke test. See PARALLEL_EXECUTION.md for ownership, integration,
+cancellation and security boundaries.
