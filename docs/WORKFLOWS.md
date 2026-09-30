@@ -255,6 +255,68 @@ workflows:
 Changing custom workflow configuration changes the profile digest and therefore
 requires the normal inspect/re-trust step.
 
+## Pre-v0.7 UX candidate: select workflow without editing authority
+
+The v0.6 live custom branched-DAG E2E validated the graph/runtime design, but it
+also exposed an avoidable operator workflow: edit `.orchestrator/config.yaml`,
+inspect the resulting graph, then re-trust the profile before one task can use
+that shape.
+
+The design direction is to separate **workflow selection** from **workflow
+installation/authority expansion**.
+
+Conceptually:
+
+```text
+Already trusted registry
+  +-- build-review
+  +-- branched-review
+  +-- project-approved-template
+          |
+          +--> Task chooses workflow_ref
+                    |
+                    +--> Start HumanGate
+                    +--> frozen workflow digest/provenance
+```
+
+Selecting one of those already-trusted entries should not change the profile
+digest and should not require project re-trust. It is a task choice and remains
+visible/bound in the Start HumanGate and TaskState.
+
+By contrast:
+
+```text
+New workflow definition
+  -> validate schema/policy/effect boundaries
+  -> explicit operator/host trust confirmation
+  -> add to trusted registry/profile
+```
+
+is an authority expansion and must retain the existing trust boundary.
+
+The intended invariant is:
+
+> **Select existing authority with task confirmation; expand authority with
+> trust confirmation.**
+
+This means YAML hand-editing is an implementation/UX detail, not a required
+security ceremony. A later UI/CLI may safely replace it with a validated
+workflow-install form that applies the config change and trust confirmation as
+one explicit operator action.
+
+The Supervisor may recommend an already-trusted workflow based on task needs,
+but it must not install, modify or trust workflow definitions on its own.
+Automatic workflow generation remains a later feature and must use the same
+proposal/HumanGate principles.
+
+A future task contract may contain a `workflow_ref` (name subject to schema
+design). Whichever representation is chosen, the resolved workflow ID, version
+or digest must be frozen before execution and included in approval/provenance so
+selection cannot silently change after confirmation.
+
+This is a design candidate to settle before v0.7; it is **not implemented in
+v0.6.1**.
+
 ## Inspection and provenance
 
 Use:
