@@ -6,15 +6,15 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from .capabilities import CapabilityResolver, ProviderResolution, validate_requirements
+from .capabilities import CAPABILITIES, CapabilityResolver, ProviderResolution, validate_requirements
 from .contracts import ReviewResult, result_contract
-from .models import AgentResult, Contract, OrchestratorError, TaskSpec, TaskState
+from .models import AgentResult, Contract, OrchestratorError, TaskSpec, TaskState, WorkflowSpec
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
-from .workflow import workflow_registry, workflow_registry_report
+from .workflow import compile_workflow, workflow_registry, workflow_registry_report
 from .workflow_runtime import WorkflowExecutor
 from .workspaces import WorkspaceManager
 
@@ -51,16 +51,57 @@ class Engine:
             )
         return compiled
 
+    def compile_proposed_workflow(self, spec: WorkflowSpec):
+        """Compile task-scoped model-authored structure without granting new authority."""
+        if spec.id in self.workflow_registry:
+            raise OrchestratorError(
+                f"proposed workflow ID collides with trusted workflow: {spec.id}; select it by workflow_ref instead"
+            )
+        if spec.template_version != 1 or spec.provenance is not None:
+            raise OrchestratorError("Supervisor workflow proposals cannot set template version/provenance")
+        if len(spec.nodes) > 16:
+            raise OrchestratorError("Supervisor workflow proposals are limited to 16 nodes")
+        agent_nodes = [node for node in spec.nodes if node.kind == "agent"]
+        if len(agent_nodes) > self.profile.policy.max_agent_calls:
+            raise OrchestratorError("proposed workflow requires more agent nodes than the task call budget")
+        known = set(CAPABILITIES)
+        for node in agent_nodes:
+            unknown = sorted(set(node.capabilities) - known)
+            if unknown:
+                raise OrchestratorError(
+                    f"workflow node {node.id}: unknown semantic capabilities: {', '.join(unknown)}"
+                )
+        return compile_workflow(spec, cross_provider_review=self.profile.policy.cross_provider_review)
+
+    def workflow_for_state(self, state: TaskState):
+        if state.workflow_spec is not None:
+            spec = state.workflow_spec
+            if spec.template_version != 1 or spec.provenance is not None:
+                raise OrchestratorError("task-scoped workflow metadata changed since confirmation")
+            compiled = compile_workflow(spec, cross_provider_review=self.profile.policy.cross_provider_review)
+            if compiled.spec.id != state.workflow_id or compiled.digest != state.workflow_digest:
+                raise OrchestratorError("task-scoped workflow changed since binding; create a new task")
+            return compiled
+        return self.workflow_for_ref(state.workflow_id or self.profile.workflow)
+
     def workflow_executor_for_state(self, state: TaskState) -> WorkflowExecutor:
-        selected = state.workflow_id or self.profile.workflow
-        return WorkflowExecutor(self, self.workflow_for_ref(selected))
+        return WorkflowExecutor(self, self.workflow_for_state(state))
 
     def bind_workflow(self, state: TaskState, workflow_ref: str | None = None, *,
                       source: str | None = None) -> WorkflowExecutor:
         compiled = self.workflow_for_ref(workflow_ref)
+        state.workflow_spec = None
         executor = WorkflowExecutor(self, compiled)
         executor.bind(state)
         state.workflow_selection_source = source or ("task" if workflow_ref is not None else "profile_default")
+        return executor
+
+    def bind_proposed_workflow(self, state: TaskState, spec: WorkflowSpec) -> WorkflowExecutor:
+        compiled = self.compile_proposed_workflow(spec)
+        state.workflow_spec = spec
+        executor = WorkflowExecutor(self, compiled)
+        executor.bind(state)
+        state.workflow_selection_source = "supervisor_proposed"
         return executor
 
     def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
@@ -77,7 +118,7 @@ class Engine:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
             requested = validate_requirements(capability_requirements)
-            state = TaskState(schema_version=4, spec=spec, profile_digest=self.profile_digest,
+            state = TaskState(schema_version=5, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None)
             executor = self.bind_workflow(
                 state, workflow_ref,
@@ -269,6 +310,8 @@ class Engine:
             payload["workflow"] = {
                 "id": state.workflow_id,
                 "digest": state.workflow_digest,
+                "selection_source": state.workflow_selection_source,
+                "spec": state.workflow_spec.model_dump() if state.workflow_spec is not None else None,
                 "order": state.workflow_order,
                 "current": state.workflow_current,
                 "nodes": {key: value.model_dump() for key, value in (state.workflow_nodes or {}).items()},
