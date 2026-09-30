@@ -382,6 +382,7 @@ class WorkflowExecutor:
         manager = WorkspaceManager(engine.project, engine.profile, state.spec.id, state.attempt)
         cancel_event = threading.Event()
         prepared: dict[str, dict[str, Any]] = {}
+        completed = False
         started = time.monotonic()
         try:
             # Persist the effectful phase before creating any worktree. A hard
@@ -578,11 +579,11 @@ class WorkflowExecutor:
                         "snapshot": integrated_snapshot, "workspace": "isolated",
                     },
                 )
-            state.status = "ready"
             engine.store.save(
                 state, "workflow.parallel.finished",
                 {"nodes": [node.id for node in nodes], "integrated_snapshot": integrated_snapshot},
             )
+            completed = True
         except Exception as exc:
             cancel_event.set()
             for node in nodes:
@@ -595,6 +596,8 @@ class WorkflowExecutor:
             raise
         finally:
             removed = manager.cleanup()
+            if completed:
+                state.status = "ready"
             try:
                 engine.store.save(
                     state, "workspace.cleaned",
