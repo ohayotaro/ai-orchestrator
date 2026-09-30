@@ -242,7 +242,7 @@ class WorkspaceManager:
                     removed.append(str(path))
             if self.integration.exists():
                 removed.append(str(self.integration))
-            shutil.rmtree(self.task_dir, ignore_errors=True)
+            shutil.rmtree(self.task_dir)
         task_root = self.task_dir.parent
         try:
             task_root.rmdir()
@@ -256,9 +256,10 @@ class WorkspaceManager:
         base = confined(project.root, f".orchestrator/runtime/worktrees/{task_id}")
         removed: list[str] = []
         if base.exists():
-            for path in sorted(base.rglob("node-*")):
-                if path.is_dir():
-                    removed.append(str(path))
-            removed.extend(str(path) for path in sorted(base.glob("attempt-*/integration")) if path.exists())
-            shutil.rmtree(base, ignore_errors=True)
+            for attempt in sorted(base.glob("attempt-*")):
+                removed.extend(str(path) for path in sorted(attempt.glob("node-*")) if path.is_dir())
+                integration = attempt / "integration"
+                if integration.exists():
+                    removed.append(str(integration))
+            shutil.rmtree(base)
         return removed
