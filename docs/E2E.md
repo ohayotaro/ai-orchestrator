@@ -242,3 +242,57 @@ needed before isolated parallel execution:
 
 v0.7 may build parallel scheduling on this baseline, but must preserve these
 authority and provenance properties while adding workspace isolation.
+
+
+## Owner-reported live v0.7 isolated parallel E2E (2026-09-30)
+
+The owner completed the first live v0.7 isolated writable-parallel E2E from
+Claude Code 2.1.284 against the calculator fixture. The selected trusted
+`parallel-review` workflow used Claude for planning/review and Codex CLI 0.159.0
+for two independent implementation nodes.
+
+The task `is-even-v07-parallel` added `is_even(value)` and its pytest coverage.
+TaskState schema v4 recorded `workflow_id=parallel-review`,
+`workflow_selection_source=requested`, exact task `allowed_paths` for
+`calculator.py` and `tests/test_calculator.py`, and
+`max_parallel_workers=2`. Start, execution and acceptance were all applied
+through Claude Code host elicitation.
+
+After the execution HumanGate, the controller prepared one isolated workspace
+for `implement_code` owning only `calculator.py` and another for
+`implement_tests` owning only `tests/test_calculator.py`. Both nodes shared
+the same seed snapshot
+`ee06c704ddc13ff28a2f257763a3549809307da75418fa1b8dd1c16794751b79`.
+Their controller start events were approximately 0.6 ms apart. A separate
+operator observation at 2026-09-30 22:23:30 local time saw two simultaneous real
+`codex exec` processes (PIDs 30865 and 30866), providing direct live evidence
+that the provider calls overlapped rather than merely executing two isolated
+nodes sequentially.
+
+Each worker produced a disjoint verified patch with no ownership violations:
+`implement_code` changed only `calculator.py`, while `implement_tests`
+changed only `tests/test_calculator.py`. The controller then prepared and
+applied one aggregate integration patch, producing integrated snapshot
+`c9d8081e7bf504a023a9f6a32c7e8d7aaaca84a7f7970c59b30683a292acaff5`.
+Both write-set artifacts and subsequent review provenance refer to that integrated
+state.
+
+The isolated node worktrees and integration workspace were cleaned before
+validation. The registered pytest validator then ran against the integrated
+project and recorded `passed: true`. A fresh Claude reviewer subsequently
+approved the same integrated snapshot. The task completed on attempt 1 with no
+repair, no error, five model calls, and final status `succeeded` after the
+acceptance HumanGate.
+
+This live run verifies the intended v0.7 happy-path invariant for cooperating
+workers: two writable provider calls can overlap without sharing a writable
+worktree; exact per-node ownership is enforced; successful branch patches are
+integrated deterministically; deterministic validation and independent review
+occur only after integration; temporary workspaces are cleaned; and the existing
+HumanGate/acceptance boundaries remain in force.
+
+The observation is owner-reported rather than independently captured by the
+repository, and host elicitation still does not cryptographically attest human
+presence. It does not establish OS-level isolation against a hostile same-user
+process, failure/cancellation recovery under real providers, conflict behavior
+under live concurrent edits, or performance/scaling beyond this two-worker run.
