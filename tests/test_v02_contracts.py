@@ -109,6 +109,9 @@ def test_empty_v2_validator_defaults_preserve_v1_profile_digest(workspace):
     for role in old["roles"].values():
         role.pop("capabilities", None)
         role.pop("candidates", None)
+    # v0.7 parallelism defaults to one and is digest-compatible with the
+    # pre-v0.7 sequential policy.
+    old["policy"].pop("max_parallel_workers", None)
     old.pop("workflows", None)
     assert digest({"profile": old, "context": context}) == actual
 
