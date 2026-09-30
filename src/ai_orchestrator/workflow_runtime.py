@@ -178,8 +178,7 @@ class WorkflowExecutor:
         payload: dict[str, Any] = {
             "role": node.role,
             "workflow": {"id": state.workflow_id, "digest": state.workflow_digest, "node": node.id},
-            "instructions": "
-".join(part for part in (self.engine._role_config(node.role).instructions, node.instructions) if part),
+            "instructions": "\n".join(part for part in (self.engine._role_config(node.role).instructions, node.instructions) if part),
             "task": state.spec.model_dump(),
             "allowed_paths": state.allowed_paths,
             "capability_requirements": state.workflow_nodes[node.id].required_capabilities,
