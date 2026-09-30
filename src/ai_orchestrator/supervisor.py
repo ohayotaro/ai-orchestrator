@@ -289,26 +289,42 @@ class Supervisor:
                     raise OrchestratorError("Supervisor modified worktree: " + ", ".join(paths[:20]))
                 scoped = SupervisorResultScoped.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
                 raw_result = scoped.model_dump()
-                intake.allowed_paths = raw_result["task"].pop("allowed_paths") if raw_result.get("task") is not None else None
-                raw_requirements = raw_result["task"].pop("capabilities") if raw_result.get("task") is not None else None
-                proposed_workflow_ref = raw_result["task"].pop("workflow_ref") if raw_result.get("task") is not None else None
+                task_result = raw_result.get("task")
+                intake.allowed_paths = task_result.pop("allowed_paths") if task_result is not None else None
+                raw_requirements = task_result.pop("capabilities") if task_result is not None else None
+                proposed_workflow_ref = task_result.pop("workflow_ref") if task_result is not None else None
+                proposed_workflow_raw = task_result.pop("workflow") if task_result is not None else None
+                proposed_workflow = WorkflowSpec.model_validate(proposed_workflow_raw) if proposed_workflow_raw is not None else None
                 intake.capability_requirements = validate_requirements(raw_requirements) or None
-                if raw_result.get("task") is not None:
+                if task_result is not None:
                     if intake.requested_workflow_ref is not None:
-                        if proposed_workflow_ref not in (None, intake.requested_workflow_ref):
-                            intake.notes.append("Controller retained the explicitly requested trusted workflow and ignored a different Supervisor workflow proposal.")
-                        selected_workflow = intake.requested_workflow_ref
-                        workflow_source = "requested"
+                        if proposed_workflow_ref not in (None, intake.requested_workflow_ref) or proposed_workflow is not None:
+                            intake.notes.append(
+                                "Controller retained the explicitly requested trusted workflow and ignored a different Supervisor workflow proposal."
+                            )
+                        compiled_workflow = self.engine.workflow_for_ref(intake.requested_workflow_ref)
+                        intake.workflow_ref = intake.requested_workflow_ref
+                        intake.workflow_spec = None
+                        intake.workflow_digest = compiled_workflow.digest
+                        intake.workflow_source = "requested"
+                    elif proposed_workflow is not None:
+                        compiled_workflow = self.engine.compile_proposed_workflow(proposed_workflow)
+                        intake.workflow_ref = proposed_workflow.id
+                        intake.workflow_spec = proposed_workflow
+                        intake.workflow_digest = compiled_workflow.digest
+                        intake.workflow_source = "supervisor_proposed"
                     elif proposed_workflow_ref is not None:
-                        selected_workflow = proposed_workflow_ref
-                        workflow_source = "supervisor"
+                        compiled_workflow = self.engine.workflow_for_ref(proposed_workflow_ref)
+                        intake.workflow_ref = proposed_workflow_ref
+                        intake.workflow_spec = None
+                        intake.workflow_digest = compiled_workflow.digest
+                        intake.workflow_source = "supervisor"
                     else:
-                        selected_workflow = self.engine.profile.workflow
-                        workflow_source = "profile_default"
-                    compiled_workflow = self.engine.workflow_for_ref(selected_workflow)
-                    intake.workflow_ref = selected_workflow
-                    intake.workflow_digest = compiled_workflow.digest
-                    intake.workflow_source = workflow_source
+                        compiled_workflow = self.engine.workflow_for_ref(self.engine.profile.workflow)
+                        intake.workflow_ref = self.engine.profile.workflow
+                        intake.workflow_spec = None
+                        intake.workflow_digest = compiled_workflow.digest
+                        intake.workflow_source = "profile_default"
                 intake.result = SupervisorResult.model_validate(raw_result)
                 intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
@@ -322,6 +338,11 @@ class Supervisor:
                 if start is not None:
                     intake.elapsed_seconds += time.monotonic() - start
                 self.store.save_intake(intake, "supervisor.finished")
+                # A successful conversational revision invalidates the earlier
+                # proposal so an old confirmation form cannot register stale work.
+                if revision_parent is not None and intake.status in ("proposed", "needs_clarification", "blocked"):
+                    revision_parent.status = "superseded"
+                    self.store.save_intake(revision_parent, "intake.superseded")
             return intake
 
     def start(self, intake_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
