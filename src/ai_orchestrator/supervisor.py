@@ -38,6 +38,7 @@ class Supervisor:
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
+            **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
             **({"workflow_digest": intake.workflow_digest} if intake.workflow_digest is not None else {}),
             **({"workflow_source": intake.workflow_source} if intake.workflow_source is not None else {}),
         }
@@ -62,6 +63,7 @@ class Supervisor:
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
+            **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
             **({"workflow_digest": intake.workflow_digest} if intake.workflow_digest is not None else {}),
             **({"workflow_source": intake.workflow_source} if intake.workflow_source is not None else {}),
             "result_sha256": intake.artifact.sha256,
