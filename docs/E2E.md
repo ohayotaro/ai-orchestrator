@@ -296,3 +296,26 @@ repository, and host elicitation still does not cryptographically attest human
 presence. It does not establish OS-level isolation against a hostile same-user
 process, failure/cancellation recovery under real providers, conflict behavior
 under live concurrent edits, or performance/scaling beyond this two-worker run.
+
+## v0.8 verification status
+
+The v0.8 offline suite covers Supervisor-authored task-scoped DAGs, Start
+HumanGate preview/scope binding, full execution through existing validator/review
+paths, authority rejection, isolated ownership validation, conversational
+revision with stale-proposal supersession, profile-fingerprint compatibility and
+evidence-backed template promotion/versioning.
+
+A live v0.8 frontend/provider run has not yet been claimed. The first live smoke
+test should intentionally omit `workflow_ref` and ask for work whose files can
+be split into independent implementation branches. Expected evidence is a
+Supervisor-selected trusted template or an explicit
+`workflow_source=supervisor_proposed`, a Start form showing the exact ephemeral
+DAG, TaskState v5 only for the latter case, normal execution/acceptance gates,
+deterministic integrated validation/review and final `succeeded`. The run
+should also confirm that `.orchestrator/config.yaml` and profile trust are
+unchanged unless the operator separately executes `workflow-save`.
+
+Persistent-template E2E should be treated as a separate operator action: inspect
+the candidate, save with the exact scope, observe the profile digest change and
+required re-trust, then verify the new template appears in the trusted registry.
+Task completion alone must never save it.

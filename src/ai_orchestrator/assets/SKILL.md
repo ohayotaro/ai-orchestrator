@@ -40,11 +40,26 @@ Discuss the desired outcome, constraints and acceptance criteria. Inspect the
 trusted workflow registry returned by `inspect_project.workflows`. If the user
 explicitly names one of those workflow IDs, pass it as `workflow_ref` to
 `propose_task`; this is task-scoped selection and does not require editing
-config.yaml or re-trusting the profile. If the user does not name a workflow,
-omit workflow_ref and let the Supervisor use the project default or propose a
-listed trusted workflow. Never invent a workflow ID. If the requested workflow
-is not listed, stop and explain that installing new workflow authority is still
-an operator/profile action; do not edit config or run trust on the user's behalf.
+config.yaml or re-trusting the profile.
+
+Normally the user should not need to name a workflow, DAG shape, parallelism or
+provider. Omit `workflow_ref` and let the Supervisor identify capabilities,
+reuse a suitable trusted template, or propose a bounded task-scoped Workflow
+Schema v1 DAG when the trusted registry does not fit. A Supervisor-authored DAG
+is embedded in the intake/task and shown by the start HumanGate; it does NOT edit
+config.yaml, install authority, select vendor permissions, or persist after the
+task. Review its nodes, exact write ownership, validators and execution gates as
+part of the start confirmation.
+
+If the user asks to revise an unconfirmed proposal, call `propose_task` again
+with `reply_to` set to that proposed intake and forward the user's revision.
+The controller supersedes the older proposal only after the revised intake is
+successfully produced, so a stale start form cannot register it.
+
+Persistent reuse of a successful Supervisor-authored workflow is an
+operator-only action (`workflow-candidate` / `workflow-save` in the local
+CLI). Do not invoke it through shell or edit config yourself. Saving changes the
+trusted profile and requires explicit operator inspection/re-trust.
 
 Call `propose_task` with a new task ID and stable request ID. Reuse the exact ID AND
 arguments for an identical transport retry. A queued result is NOT a task proposal
@@ -61,9 +76,11 @@ respect poll_after_seconds. Never create a new job merely to check progress.
 
 ## Native confirmation flow
 
-1. Show the proposed task, selected workflow, allowed_paths, risk and validators. Call
-   `request_start` with the intake ID and a new request ID. The HOST asks the
-   user to confirm. An applied start registers the task and queues planning; it
+1. Show the proposed task, selected or task-scoped proposed workflow, allowed_paths,
+   risk and validators. For an adaptive workflow, call out that it is ephemeral
+   and show any isolated/parallel ownership split. Call `request_start` with
+   the intake ID and a new request ID. The HOST asks the user to confirm. An
+   applied start registers the task and queues planning; it
    does not authorize writing. If the result contains job_id, call `wait_job`
    once for that job rather than polling.
 2. At `awaiting_approval`, show the plan/feedback and call `request_execution`

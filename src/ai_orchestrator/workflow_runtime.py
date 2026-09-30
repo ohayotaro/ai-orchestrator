@@ -33,7 +33,9 @@ class WorkflowExecutor:
         self.workflow = workflow
 
     def bind(self, state: TaskState) -> None:
-        state.schema_version = 4
+        # v0.8 TaskState v5 carries an embedded task-scoped workflow. Binding a
+        # DAG must never downgrade that persisted state back to v4.
+        state.schema_version = max(state.schema_version, 4)
         state.workflow_id = self.workflow.spec.id
         state.workflow_digest = self.workflow.digest
         state.workflow_order = list(self.workflow.order)

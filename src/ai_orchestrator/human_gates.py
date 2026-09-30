@@ -181,11 +181,20 @@ class HumanGateBroker:
                 raise OrchestratorError("worktree changed since intake")
             task = intake.task
             selected_workflow = intake.workflow_ref or engine.profile.workflow
+            if intake.workflow_spec is not None:
+                compiled = engine.compile_proposed_workflow(intake.workflow_spec)
+                workflow_report = compiled.report()
+                workflow_report["source"] = "task_scoped_supervisor_proposal"
+                workflow_persistence = "task_scoped_only; not installed in project profile"
+            else:
+                workflow_report = engine.workflow_report(selected_workflow)
+                workflow_persistence = "trusted_registry"
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
                        "workflow_ref": selected_workflow,
                        "workflow_source": intake.workflow_source or "profile_default",
-                       "workflow": engine.workflow_report(selected_workflow),
+                       "workflow_persistence": workflow_persistence,
+                       "workflow": workflow_report,
                        "supervisor_summary": intake.result.summary, "notes": intake.notes}
             state = intake.model_dump()
             if state.get("allowed_paths") is None:

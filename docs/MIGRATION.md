@@ -147,3 +147,32 @@ task.
 Run the offline suite and inspect `orchestrator workflow --ref <id>` before a
 live-provider smoke test. See PARALLEL_EXECUTION.md for ownership, integration,
 cancellation and security boundaries.
+
+
+## v0.7 to v0.8
+
+Stop active workers/controllers and back up runtime state before upgrading.
+Reinstall the package and run the offline suite. An unchanged v0.7 project does
+not require re-trust solely for the software update: default workflow-template
+metadata (`template_version: 1` and null provenance) is excluded from the
+effective compatibility fingerprint.
+
+Existing persisted TaskState v1-v4 rows remain readable. Existing manual tasks
+and tasks using built-in/project-trusted workflows continue to be created as
+TaskState v4. TaskState v5 is used only when a confirmed intake embeds a
+Supervisor-authored task-scoped workflow.
+
+No runtime database migration is required. Adaptive workflow content is persisted
+inside intake/task state and immutable artifacts. It does not edit
+`.orchestrator/config.yaml` and therefore does not change project trust.
+
+If the operator later chooses to persist a successful adaptive workflow using
+`workflow-save`, that is an intentional project-authority mutation. Inspect the
+candidate scope and saved workflow/provenance, then run the normal `trust`
+ceremony before queueing additional work. Do not treat successful execution as
+implicit permission to save a template.
+
+The packaged Agent Skill should be re-exported after upgrade so connected clients
+learn the v0.8 default: omit workflow/provider choices unless the user explicitly
+requests a trusted template, and let the Supervisor propose bounded task-scoped
+structure when needed.

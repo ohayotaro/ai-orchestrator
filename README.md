@@ -1,10 +1,11 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.7 alpha** adds opt-in isolated parallel writable workflow nodes with
-deterministic integration before validation. This remains a trusted-local
-application, not authenticated human identity or a general OS-isolated control
-plane.
+**v0.8 alpha** adds adaptive, task-scoped workflow authoring: users can describe
+the desired outcome while the Supervisor reuses trusted templates or proposes a
+bounded DAG for that task. Persistent template installation remains an explicit
+operator/profile action. This remains a trusted-local application, not
+authenticated human identity or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -111,6 +112,41 @@ The selected ID/digest is frozen into intake/task provenance and displayed by
 the Start HumanGate. Adding a new workflow definition remains a profile/trust
 operation; models cannot install or trust one.
 
+## v0.8 adaptive task-scoped orchestration
+
+Normal users no longer need to choose a workflow ID, edit `.orchestrator/config.yaml`,
+design a DAG, decide whether work should be parallel, or name a provider. When
+`workflow_ref` is omitted, the Supervisor first considers the trusted workflow
+registry. If no trusted template expresses the requested structure, it may
+propose one bounded Workflow Schema v1 DAG for that intake.
+
+The proposed DAG is **ephemeral authority**: it is embedded in the immutable
+Supervisor artifact, bound into the Start HumanGate, and persisted with the task
+in TaskState v5. It may only use the already configured roles, semantic
+capabilities, validators and policy. It cannot install providers, validators,
+models, executable commands, permissions, policies or external effects.
+
+An unconfirmed proposal can be revised conversationally with `reply_to`; a
+successful revision supersedes the older proposal so a stale confirmation cannot
+register it. Adaptive execution then uses the existing v0.5-v0.7 machinery,
+including capability resolution, exact allowed paths, isolated worktrees,
+bounded parallelism, deterministic integration, validators, independent review
+and final acceptance.
+
+Successful task-scoped workflows can optionally become reusable project
+templates, but only through explicit operator commands:
+
+```bash
+orchestrator workflow-candidate I-... --as my-template
+orchestrator workflow-save I-... --as my-template --scope <exact-scope> --by "$USER"
+```
+
+Saving records version/provenance in project configuration, changes profile
+authority and therefore requires the normal inspection/re-trust ceremony. No MCP
+agent tool can persist or trust a template.
+
+See **[Adaptive orchestration](docs/ADAPTIVE_ORCHESTRATION.md)**.
+
 ## Important approval distinction
 
 v0.4 uses MCP `elicitation/create`, not ordinary tool permission prompts,
@@ -137,14 +173,15 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.6.2
+.venv/bin/orchestrator --version  # 0.8.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
 (or Python 3.11/3.12). Install/authenticate Claude Code and Codex CLI separately.
 No model name is fixed; configured CLI defaults apply unless the profile specifies
-one. Additional provider adapters, arbitrary DAGs and parallel workspaces remain
-outside this release.
+one. v0.8 can propose task-scoped DAGs and reuse v0.7 isolated parallel execution,
+but it still cannot install new providers, validator commands, policies or
+external-effect authority.
 
 ## Opt in for the existing calculator fixture
 
@@ -182,8 +219,8 @@ Inspect registration scope before removing any existing server; do not remove an
 unrelated server. Reload/restart the client as needed after configuration changes.
 
 An unchanged profile needs no new trust grant. If configuration changed, inspect
-it and explicitly retrust from the operator terminal. v0.4 does not grant trust
-through MCP. A manual worker already running is reused; stop it before testing
+it and explicitly retrust from the operator terminal. No MCP request grants
+project trust. A manual worker already running is reused; stop it before testing
 that automatic startup works. Do not run a second manual worker.
 
 ## Ordinary use
@@ -211,9 +248,11 @@ an approval scope is pending. Read existing validation evidence instead.
 
 Plain `orchestrator serve` retains the v0.3 manual-worker/operator-gate behavior.
 The existing `ask`, `create`, `start`, `approve`, `run`, `accept`, validator and
-knowledge commands remain supported. Task/profile schemas and fingerprints are
-unchanged. Gates are stored separately in `runtime/gates.sqlite3`; old artifacts
-are not rewritten. `orchestrator gate G-ID` reads the gate/audit metadata.
+knowledge commands remain supported. Persisted TaskState v1-v4 remains readable;
+trusted/manual workflows continue to create v4 state, while confirmed embedded
+adaptive DAGs use v5. Default v0.8 template metadata preserves an unchanged v0.7
+profile fingerprint. Gates are stored separately in `runtime/gates.sqlite3`;
+old artifacts are not rewritten. `orchestrator gate G-ID` reads the gate/audit metadata.
 
 Managed workers idle-exit after draining the queue. Their private log paths and
 startup errors appear in MCP job/inspection output. Repeated failed startups stop
@@ -224,10 +263,10 @@ replayed.
 
 ## Roadmap
 
-The current v0.6.0 baseline adds declarative sequential Workflow/DAG execution on top of deterministic capability/provider resolution and the control-plane foundation: live
-Claude Code and Codex frontends, explicit HumanGates, managed workers,
-allowed-path/write-set enforcement, deterministic validation and independent
-review. The next development phase is isolated parallel execution; v0.6 itself intentionally executes one runnable node at a time.
+The current v0.8 baseline combines deterministic capability/provider resolution,
+declarative workflows, isolated parallel execution and adaptive task-scoped DAG
+proposal behind the existing HumanGate/evidence boundaries. The next development
+phase is observability, budgets and recovery hardening.
 
 See **[ROADMAP.md](ROADMAP.md)** for the planned path from completed v0.5 provider resolution and v0.6 workflow DAGs, isolated parallel execution,
 adaptive/user-defined orchestration, observability and stable v1.0 contracts.

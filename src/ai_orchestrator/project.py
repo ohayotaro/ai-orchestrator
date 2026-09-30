@@ -135,6 +135,12 @@ class Project:
         if effective["policy"].get("max_parallel_workers") == 1:
             del effective["policy"]["max_parallel_workers"]
         for workflow in effective["workflows"].values():
+            # v0.8 template metadata defaults are compatibility no-ops. Explicit
+            # versions/provenance remain profile authority and therefore affect trust.
+            if workflow.get("template_version") == 1:
+                workflow.pop("template_version", None)
+            if workflow.get("provenance") is None:
+                workflow.pop("provenance", None)
             for node in workflow["nodes"]:
                 if node.get("workspace") == "shared":
                     del node["workspace"]

@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
-from .models import AgentResult, Artifact, Contract, TaskSpec, validate_allowed_paths, identifier
+from .models import AgentResult, Artifact, Contract, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
 
 
 class PlanResult(Contract):
@@ -55,13 +55,20 @@ class TaskDraftScoped(TaskDraft):
 
     allowed_paths: list[str] = Field(description="Exact project-relative files this task may create or modify. Empty only for advisory work.")
     capabilities: dict[str, list[str]] = Field(description="Additional semantic capabilities required per planner/implementer/reviewer role. Use only names advertised by the controller.")
-    workflow_ref: str | None = Field(description="Trusted workflow ID advertised by the controller, or null to use the project default.")
+    workflow_ref: str | None = Field(description="Trusted workflow ID advertised by the controller, or null when the Supervisor should use the default or propose a task-scoped workflow.")
+    workflow: WorkflowSpec | None = Field(default=None, description="Optional task-scoped Workflow Schema v1 proposal. It is never installed or trusted automatically.")
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
 
     @field_validator("workflow_ref")
     @classmethod
     def valid_workflow_ref(cls, value: str | None) -> str | None:
         return identifier(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def one_workflow_choice(self) -> TaskDraftScoped:
+        if self.workflow_ref is not None and self.workflow is not None:
+            raise ValueError("task draft may select a trusted workflow_ref or propose workflow, not both")
+        return self
 
     @field_validator("capabilities")
     @classmethod
@@ -115,7 +122,7 @@ class SupervisorResult(Contract):
 
 
 class IntakeState(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     id: str
     task_id: str
     profile_digest: str
@@ -124,15 +131,16 @@ class IntakeState(Contract):
     advisory: StrictBool = False
     reply_to: str | None = None
     round: int = Field(default=1, ge=1, le=3, strict=True)
-    status: Literal["running", "proposed", "needs_clarification", "blocked", "failed", "cancelled", "consumed"] = "running"
+    status: Literal["running", "proposed", "needs_clarification", "blocked", "failed", "cancelled", "consumed", "superseded"] = "running"
     result: SupervisorResult | None = None
     task: TaskSpec | None = None
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
+    workflow_spec: WorkflowSpec | None = None
     workflow_digest: str | None = None
-    workflow_source: Literal["profile_default", "requested", "supervisor"] | None = None
+    workflow_source: Literal["profile_default", "requested", "supervisor", "supervisor_proposed"] | None = None
     artifact: Artifact | None = None
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)

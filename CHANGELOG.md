@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.8.0 — alpha
+
+- Let the Supervisor propose a bounded task-scoped Workflow Schema v1 DAG when
+  no already-trusted template suitably expresses a non-advisory task.
+- Keep model-authored DAGs ephemeral: bind the exact workflow into the immutable
+  intake artifact, Start HumanGate and TaskState v5 without mutating
+  `.orchestrator/config.yaml` or project trust.
+- Validate proposed graphs under existing authority before confirmation:
+  registered roles/capabilities/validators only, Workflow Schema invariants,
+  cross-provider review policy, node/call limits and isolated `write_paths`
+  within exact task `allowed_paths`.
+- Make ordinary agent UX workflow/provider-neutral: when the user does not
+  explicitly select a trusted workflow, the Supervisor may reuse trusted
+  authority or propose task-scoped structure including safe isolated parallelism.
+- Allow conversational revision of an unconfirmed proposal through `reply_to`;
+  successful revision supersedes the older intake so stale Start confirmation
+  cannot register it.
+- Add operator-only `workflow-candidate` / `workflow-save` commands for
+  promoting a successfully accepted adaptive workflow into project configuration.
+  Candidate scope binds accepted task evidence; save records template
+  version/provenance and requires normal profile re-trust.
+- Separate executable workflow semantic digests from template metadata while
+  retaining explicit version/provenance in the trusted profile fingerprint.
+- Preserve v0.7 profile fingerprints when new template metadata remains at its
+  default; existing trusted/manual tasks continue using TaskState v4.
+- Add TaskState v5 only for embedded adaptive workflows and regressions covering
+  proposal, HumanGate binding, revision, authority rejection, promotion and
+  versioned template replacement.
+- Add `docs/ADAPTIVE_ORCHESTRATION.md` and update the packaged Agent Skill/MCP
+  instructions so users normally need not manipulate workflow/DAG/parallel or
+  provider configuration.
+
+
 ## 0.7.0 — alpha
 
 - Add opt-in isolated Git worktrees for writable Workflow Schema v1 nodes using

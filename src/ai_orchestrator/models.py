@@ -232,12 +232,29 @@ class WorkflowNodeSpec(Contract):
         return self
 
 
+class WorkflowProvenance(Contract):
+    source: Literal["supervisor_evidence"]
+    intake_id: str
+    task_id: str
+    source_workflow_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    reviewed_snapshot: str = Field(pattern=r"^[a-f0-9]{64}$")
+    saved_by: str = Field(min_length=1, max_length=200)
+    parent_template_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @field_validator("intake_id", "task_id")
+    @classmethod
+    def valid_ids(cls, value: str) -> str:
+        return identifier(value)
+
+
 class WorkflowSpec(Contract):
     schema_version: Literal[1] = 1
     id: str
     nodes: list[WorkflowNodeSpec] = Field(min_length=1)
     repair_on: str | None = None
     repair_from: str | None = None
+    template_version: int = Field(default=1, ge=1, le=1000000, strict=True)
+    provenance: WorkflowProvenance | None = None
 
     @field_validator("id")
     @classmethod
@@ -335,8 +352,8 @@ class Artifact(Contract):
 
 
 class TaskState(Contract):
-    # Existing rows remain readable; v4 adds declarative workflow/DAG provenance.
-    schema_version: Literal[1, 2, 3, 4] = 1
+    # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows.
+    schema_version: Literal[1, 2, 3, 4, 5] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
@@ -345,7 +362,8 @@ class TaskState(Contract):
     provider_resolutions: dict[str, dict[str, object]] | None = None
     workflow_id: str | None = None
     workflow_digest: str | None = None
-    workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor"] | None = None
+    workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor", "supervisor_proposed"] | None = None
+    workflow_spec: WorkflowSpec | None = None
     workflow_order: list[str] | None = None
     workflow_current: str | None = None
     workflow_nodes: dict[str, WorkflowNodeState] | None = None
