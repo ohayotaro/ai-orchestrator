@@ -404,3 +404,33 @@ trusted registry and may propose a listed workflow; null means the project
 default. An explicit controller/user workflow_ref is authoritative over a
 different model suggestion. The Start HumanGate shows the selected workflow and
 its compiled digest before registration.
+
+## v0.8 task-scoped workflow authoring
+
+A Workflow Schema v1 graph no longer has to be pre-installed merely to execute
+one task. When no trusted template is a suitable shape, the Supervisor may
+propose a complete workflow object as part of a non-advisory intake. The proposal
+must satisfy the ordinary compiler plus v0.8 task-scoped restrictions:
+
+- it cannot reuse/collide with a trusted workflow ID;
+- it cannot set template version or provenance;
+- it is limited to 16 nodes and the configured agent-call budget;
+- agent capabilities must already exist in the semantic registry;
+- isolated node `write_paths` must fit the intake's exact `allowed_paths`;
+- cross-provider reviewer independence and all existing artifact/dependency/write
+  invariants remain mandatory.
+
+The Start HumanGate binds the exact graph. Confirmed adaptive tasks persist it in
+TaskState v5; existing registry-selected tasks remain v4.
+
+Task-scoped graphs are deliberately not inserted into the trusted workflow
+registry. After a successful reviewed/accepted run an operator may separately
+inspect `workflow-candidate` and explicitly `workflow-save` it. Saved project
+templates carry `template_version` and provenance. Replacing a project template
+requires `--replace`, increments the version and records its parent semantic
+digest.
+
+Template version/provenance are excluded from the workflow semantic digest but
+are included in explicit project profile authority. Consequently, promotion
+metadata does not change DAG execution identity while a persistent save still
+requires profile re-trust.
