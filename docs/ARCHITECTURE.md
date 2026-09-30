@@ -151,3 +151,37 @@ The execution approval scope and HumanGate preview include the full isolated
 batch, node ownership and worker bound. Normal cleanup removes worktrees;
 interrupted running tasks use conservative recovery to remove stale worktrees
 without replay. See `PARALLEL_EXECUTION.md`.
+
+## v0.8 adaptive task-scoped orchestration
+
+The Supervisor output contract may now contain either a trusted `workflow_ref`
+or a complete task-scoped Workflow Schema v1 proposal. The latter is structure,
+not new authority. Before the Start HumanGate the controller compiles it using
+the same DAG validator as trusted workflows, checks its semantic capabilities
+against the existing registry, verifies isolated ownership against the proposed
+task `allowed_paths`, and resolves every active agent node through existing
+provider policy.
+
+An adaptive intake stores the exact workflow separately from the legacy
+Supervisor TaskDraft and includes it in the immutable Supervisor artifact and
+intake scope. Start confirmation displays the compiled graph and its
+`task_scoped_only` persistence status. Once confirmed, TaskState v5 embeds that
+workflow spec plus its semantic digest. On later process starts
+`Engine.workflow_for_state` recompiles the persisted graph and rejects any
+ID/digest drift before execution.
+
+Trusted/manual workflow tasks continue to use TaskState v4. The WorkflowExecutor
+is unchanged in authority: v0.8 adaptive graphs reuse v0.5 capability resolution,
+v0.6 typed DAG semantics and v0.7 isolated integration rather than adding a
+parallel execution bypass.
+
+Conversation revision is represented as a new intake linked by `reply_to`.
+A successful revised intake marks the former proposed intake `superseded`.
+There is no mutation-in-place of a confirmed TaskState workflow.
+
+Reusable template promotion is a separate operator path in
+`workflow_templates.py`. It requires a final succeeded task with a reviewed
+snapshot, freezes an evidence-backed candidate scope, then writes a versioned
+project workflow only after exact operator confirmation. Because this changes
+project configuration, the resulting profile digest is intentionally untrusted
+until normal re-trust.
