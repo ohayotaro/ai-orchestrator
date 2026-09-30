@@ -71,14 +71,19 @@ class WorkspaceManager:
 
     def _sync_root_state(self, destination: Path) -> None:
         manifest = self.project.manifest()
+        # Start from an empty worktree payload (keeping only Git's administrative
+        # file). This avoids following stale/symlinked parents from HEAD while
+        # materializing a dirty root snapshot and deliberately withholds ignored
+        # and .orchestrator content from provider workers.
+        for child in destination.iterdir():
+            if child.name != ".git":
+                _remove_path(child)
         for relative, (value, mode) in manifest.items():
+            if value == "deleted":
+                continue
             source = self.project.root / relative
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            if value == "deleted":
-                _remove_path(target)
-                continue
-            _remove_path(target)
             if value.startswith("link:"):
                 target.symlink_to(os.readlink(source))
             else:
