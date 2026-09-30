@@ -228,6 +228,12 @@ class WorkspaceManager:
         _git(self.project.root, "worktree", "prune", check=False)
         if self.task_dir.exists():
             shutil.rmtree(self.task_dir, ignore_errors=True)
+        # Keep the runtime tree free of misleading empty task directories.
+        task_root = self.task_dir.parent
+        try:
+            task_root.rmdir()
+        except OSError:
+            pass
         return removed
 
     @classmethod
