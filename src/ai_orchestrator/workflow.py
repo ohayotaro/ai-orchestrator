@@ -9,6 +9,17 @@ from .models import OrchestratorError, Profile, WorkflowArtifactSpec, WorkflowIn
 from .project import digest
 
 
+def _workflow_digest_payload(spec: WorkflowSpec) -> dict[str, Any]:
+    """Canonical v1 payload; v0.7 default fields do not change v0.6 digests."""
+    payload = spec.model_dump()
+    for node in payload["nodes"]:
+        if node.get("workspace") == "shared":
+            node.pop("workspace", None)
+        if not node.get("write_paths"):
+            node.pop("write_paths", None)
+    return payload
+
+
 def builtin_build_review() -> WorkflowSpec:
     return WorkflowSpec(
         id="build-review",
@@ -251,6 +262,19 @@ def compile_workflow(spec: WorkflowSpec, *, cross_provider_review: bool) -> Comp
             if independent not in ancestors[node_id]:
                 raise OrchestratorError(f"workflow node {node_id}: independent_of node {independent} must be an ancestor")
 
+    isolated = [node_id for node_id in order if nodes[node_id].workspace == "isolated"]
+    for index, left_id in enumerate(isolated):
+        for right_id in isolated[index + 1:]:
+            # Nodes ordered by dependency cannot run concurrently, so they may
+            # deliberately reuse ownership. Independent nodes must be disjoint.
+            if left_id in ancestors[right_id] or right_id in ancestors[left_id]:
+                continue
+            overlap = sorted(set(nodes[left_id].write_paths) & set(nodes[right_id].write_paths))
+            if overlap:
+                raise OrchestratorError(
+                    f"workflow isolated nodes {left_id} and {right_id}: overlapping write_paths: {', '.join(overlap)}"
+                )
+
     if spec.repair_on is not None:
         if spec.repair_on not in nodes or spec.repair_from not in nodes:
             raise OrchestratorError(f"workflow {spec.id}: repair nodes must exist")
@@ -264,7 +288,7 @@ def compile_workflow(spec: WorkflowSpec, *, cross_provider_review: bool) -> Comp
     _validate_mode(spec, order, nodes, advisory=True, cross_provider_review=cross_provider_review)
     _validate_mode(spec, order, nodes, advisory=False, cross_provider_review=cross_provider_review)
     return CompiledWorkflow(
-        spec=spec, order=tuple(order), digest=digest(spec.model_dump()), nodes=nodes,
+        spec=spec, order=tuple(order), digest=digest(_workflow_digest_payload(spec)), nodes=nodes,
         artifact_producers=artifact_producers, artifact_types=artifact_types,
         descendants=descendants, ancestors=ancestors,
     )
