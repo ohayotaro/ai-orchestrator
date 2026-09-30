@@ -141,10 +141,12 @@ rejected before execution. The task's `allowed_paths` remains the outer effect
 contract.
 
 A worker result is not applied directly to the user's worktree. The controller
+creates seed/worktree Git metadata inside a disposable runtime-local shared
+clone rather than registering temporary worktrees in the user's repository. It
 first checks protected/control state and exact changed paths, records patch
-provenance, integrates all branch patches in deterministic workflow order in a
-separate worktree, rechecks the project root, and only then applies one aggregate
-patch. Validators and fresh review run after that integration. Provider failure,
+provenance, integrates all branch patches in deterministic workflow order in the
+disposable integration worktree, rechecks the project root, and only then
+applies one aggregate patch. Validators and fresh review run after that integration. Provider failure,
 ownership violation or integration conflict prevents partial sibling application.
 
 `max_parallel_workers` defaults to one. Increasing it is trusted profile policy
