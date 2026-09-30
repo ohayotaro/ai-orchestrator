@@ -249,34 +249,49 @@ sandbox against a hostile same-user process.
 
 See `docs/PARALLEL_EXECUTION.md`.
 
-## v0.8 — Adaptive and user-defined orchestration
+## v0.8 — Adaptive and user-defined orchestration — implemented
 
-Once capabilities and workflows are explicit contracts, allow orchestration to
-grow from actual use instead of baking a fixed domain taxonomy into the kernel.
+Capabilities, Workflow Schema v1 and isolated execution now support adaptive
+task structure without turning model intent into persistent authority.
 
-Target flow:
+Implemented flow:
 
 ```text
 User task
-  -> Supervisor identifies capabilities
-  -> existing workflow/template lookup
-  -> propose a workflow when no suitable template exists
-  -> human confirmation
-  -> execution
-  -> evidence/provenance retained for later refinement
+  -> Supervisor identifies task/capabilities
+  -> trusted workflow/template lookup
+  -> task-scoped workflow proposal when no suitable template exists
+  -> Start HumanGate binds the exact proposal
+  -> existing capability/provider resolution and execution controls
+  -> evidence/provenance retained
+  -> optional operator-only template save after successful acceptance
 ```
 
-Goals:
+Implemented:
 
-- user-defined workflow templates;
-- reusable skills/policies/templates derived from finance, research, fullstack
-  and other domain experience;
-- workflow proposal and revision through the same HumanGate principles;
-- template versioning and provenance;
-- explicit operator control over whether learned/proposed templates are saved.
+- Supervisor-authored Workflow Schema v1 proposals embedded in intake/TaskState,
+  not silently written into project configuration;
+- default conversational UX that does not require users to choose workflow IDs,
+  DAG topology, parallelism or vendors;
+- pre-confirmation enforcement of existing capabilities, validators, policy,
+  allowed paths, DAG invariants and cross-provider review;
+- conversational revision of unconfirmed proposals with stale-proposal
+  supersession;
+- TaskState v5 for embedded adaptive DAG provenance while existing trusted/manual
+  tasks remain v4;
+- explicit evidence-backed `workflow-candidate` / `workflow-save` operator
+  flow for reusable project templates;
+- template version/provenance and parent-digest tracking on explicit revisions;
+- mandatory normal profile re-trust after persistent template save;
+- semantic workflow digests separated from template metadata so promotion
+  metadata does not rewrite executable graph identity.
 
-The system should learn reusable structure, not silently mutate its kernel or
-permissions.
+The invariant remains: the system may learn/reuse **structure**, but it cannot
+silently grant itself providers, validator commands, policies, permissions,
+external effects or project trust.
+
+See `docs/ADAPTIVE_ORCHESTRATION.md`. The next milestone is v0.9 operational
+observability, budgets and recovery hardening.
 
 ## v0.9 — Observability, budgets and recovery hardening
 
