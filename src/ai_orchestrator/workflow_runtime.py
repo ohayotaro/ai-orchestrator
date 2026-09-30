@@ -384,6 +384,15 @@ class WorkflowExecutor:
         prepared: dict[str, dict[str, Any]] = {}
         started = time.monotonic()
         try:
+            # Persist the effectful phase before creating any worktree. A hard
+            # process interruption is therefore recoverable instead of leaving
+            # an awaiting-approval row with unowned runtime worktrees.
+            state.phase = "execute"
+            state.status = "running"
+            engine.store.save(
+                state, "workflow.parallel.preparing",
+                {"nodes": [node.id for node in nodes], "attempt": state.attempt},
+            )
             workspaces = manager.prepare([node.id for node in nodes])
             engine.store.save(
                 state, "workspace.prepared",
@@ -444,8 +453,6 @@ class WorkflowExecutor:
                     ),
                 }
 
-            state.phase = "execute"
-            state.status = "running"
             engine.store.save(
                 state, "workflow.parallel.started",
                 {
