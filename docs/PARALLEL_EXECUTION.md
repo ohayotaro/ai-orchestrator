@@ -69,11 +69,13 @@ task's exact `allowed_paths`.
 For one ready isolated batch the controller:
 
 1. verifies a Git `HEAD` exists;
-2. creates an integration worktree under
-   `.orchestrator/runtime/worktrees/<task>/attempt-<n>/`;
-3. copies the current project snapshot into that worktree and creates a temporary
-   detached seed commit without moving a project branch;
-4. creates one detached worktree per ready isolated node from the seed;
+2. creates a disposable local `git clone --shared` under
+   `.orchestrator/runtime/worktrees/<task>/attempt-<n>/integration`, removes its
+   origin, and keeps all new Git metadata inside runtime;
+3. materializes the current project snapshot directly (without checkout filters)
+   and creates a temporary seed commit in that disposable clone;
+4. creates one detached, no-checkout worktree per ready isolated node from the
+   seed and materializes the exact seed payload;
 5. starts provider calls with a bounded thread pool; those threads call only the
    provider adapter and never mutate controller SQLite/TaskState;
 6. verifies each worker changed only its declared `write_paths`, did not change
@@ -85,8 +87,10 @@ For one ready isolated batch the controller:
     that integrated project state;
 11. removes temporary worktrees.
 
-The temporary seed commit exists only to give every worktree an identical Git
-base. It is not pushed and does not move the user's branch.
+The temporary seed commit exists only inside the disposable runtime clone to
+give every worker an identical Git base. It is not pushed, does not move the
+user's branch, and does not register worktrees or write seed objects into the
+user's `.git` directory.
 
 ## HumanGate and provenance
 
