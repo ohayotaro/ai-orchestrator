@@ -71,7 +71,7 @@ class ProviderConfig(Contract):
 
 class RoleConfig(Contract):
     provider: str | None = None
-    instructions: str = Field(default="", max_length=4000)
+    instructions: str = ""
     # Legacy/runtime adapter requirements. New semantic requirements use capabilities.
     requires: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
