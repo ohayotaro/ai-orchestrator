@@ -118,7 +118,7 @@ class Engine:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
             requested = validate_requirements(capability_requirements)
-            state = TaskState(schema_version=5, spec=spec, profile_digest=self.profile_digest,
+            state = TaskState(schema_version=4, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None)
             executor = self.bind_workflow(
                 state, workflow_ref,
