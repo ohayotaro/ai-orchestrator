@@ -80,11 +80,37 @@ class Supervisor:
         history = []
         for _ in range(3):
             self._verify_artifact(intake)
-            history.append({"request": intake.request, "questions": intake.result.questions})
+            entry: dict[str, Any] = {
+                "request": intake.request,
+                "outcome": intake.result.outcome,
+                "summary": intake.result.summary,
+                "questions": intake.result.questions,
+            }
+            if intake.result.outcome == "proposed":
+                entry["proposal"] = {
+                    "task": intake.task.model_dump() if intake.task is not None else intake.result.task.model_dump(),
+                    "allowed_paths": intake.allowed_paths,
+                    "capability_requirements": intake.capability_requirements,
+                    "workflow_ref": intake.workflow_ref,
+                    "workflow_source": intake.workflow_source,
+                    "workflow_spec": intake.workflow_spec.model_dump() if intake.workflow_spec is not None else None,
+                }
+            history.append(entry)
             if intake.reply_to is None:
                 return list(reversed(history))
             intake = self.store.get_intake(intake.reply_to)
-        raise OrchestratorError("clarification history is too deep")
+        raise OrchestratorError("intake revision/clarification history is too deep")
+
+    def _compiled_workflow(self, intake: IntakeState):
+        if intake.workflow_spec is not None:
+            compiled = self.engine.compile_proposed_workflow(intake.workflow_spec)
+            if intake.workflow_ref not in (None, compiled.spec.id):
+                raise OrchestratorError("proposed workflow identity disagrees with intake binding")
+        else:
+            compiled = self.engine.workflow_for_ref(intake.workflow_ref or self.engine.profile.workflow)
+        if intake.workflow_digest is not None and compiled.digest != intake.workflow_digest:
+            raise OrchestratorError("selected workflow changed since intake; ask again before confirmation")
+        return compiled
 
     def _normalize(self, intake: IntakeState) -> TaskSpec:
         result = intake.result
@@ -97,14 +123,14 @@ class Supervisor:
         validators = draft.validators
         paths = intake.allowed_paths
         capabilities = validate_requirements(intake.capability_requirements)
-        selected_workflow = intake.workflow_ref or self.engine.profile.workflow
-        compiled_workflow = self.engine.workflow_for_ref(selected_workflow)
-        if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
-            raise OrchestratorError("selected workflow changed since intake; ask again before confirmation")
-        intake.workflow_ref = selected_workflow
+        compiled_workflow = self._compiled_workflow(intake)
+        intake.workflow_ref = compiled_workflow.spec.id
         intake.workflow_digest = compiled_workflow.digest
         intake.workflow_source = intake.workflow_source or "profile_default"
+
         if intake.advisory:
+            if intake.workflow_spec is not None:
+                raise OrchestratorError("advisory intake cannot author a new workflow; select trusted read-only authority")
             if risk != "T0" or validators or paths:
                 raise OrchestratorError("advisory intake must propose T0 with no validators or writable paths")
             if set(capabilities) - {"planner"}:
@@ -117,17 +143,41 @@ class Supervisor:
                 raise OrchestratorError("write-task proposals must select at least one registered validator")
             if not paths:
                 raise OrchestratorError("write-task proposals must declare at least one exact allowed_path")
+            allowed = set(paths)
+            for node_id in compiled_workflow.active_ids(advisory=False):
+                node = compiled_workflow.nodes[node_id]
+                if node.workspace == "isolated":
+                    missing = [path for path in node.write_paths if path not in allowed]
+                    if missing:
+                        raise OrchestratorError(
+                            f"workflow node {node.id}: write_paths exceed proposed allowed_paths: {', '.join(missing)}"
+                        )
+
         if len(set(validators)) != len(validators):
             raise OrchestratorError("duplicate validators in Supervisor proposal")
         for name in validators:
             inspect_validator(self.project, self.engine.profile, name)
-        # Resolve semantic requirements before showing a proposal. This is
-        # registry-only validation and does not launch provider processes.
-        self.engine.capability_resolver.resolve("planner", required=capabilities.get("planner", []))
-        if not intake.advisory:
-            implementer = self.engine.capability_resolver.resolve("implementer", required=capabilities.get("implementer", []))
-            excluded = {implementer.family} if self.engine.profile.policy.cross_provider_review else None
-            self.engine.capability_resolver.resolve("reviewer", required=capabilities.get("reviewer", []), exclude_families=excluded)
+
+        # Resolve every active agent node against existing operator-controlled
+        # provider/capability policy before showing the proposal. This never
+        # launches a provider process and cannot install a new capability.
+        active = set(compiled_workflow.active_ids(advisory=intake.advisory))
+        resolved: dict[str, Any] = {}
+        for node_id in compiled_workflow.order:
+            if node_id not in active:
+                continue
+            node = compiled_workflow.nodes[node_id]
+            if node.kind != "agent":
+                continue
+            extra = [*capabilities.get(node.role, []), *node.capabilities]
+            excluded = {
+                resolved[other].family for other in node.independent_of
+                if other in resolved
+            }
+            resolution = self.engine.capability_resolver.resolve(
+                node.role, required=extra, exclude_families=excluded or None,
+            )
+            resolved[node_id] = resolution
         return TaskSpec(id=intake.task_id, **{**draft.model_dump(), "risk": risk})
 
     def ask(self, request: str, *, task_id: str | None = None, advisory: bool = False,
