@@ -43,6 +43,7 @@ class WorkflowExecutor:
         state.workflow_nodes = {node_id: WorkflowNodeState() for node_id in self.workflow.order}
         state.task_capability_requirements = validate_requirements(state.capability_requirements) or None
         state.provider_resolutions = None
+        state.model_variant_resolutions = None
 
     def assert_binding(self, state: TaskState) -> None:
         if state.workflow_id != self.workflow.spec.id or state.workflow_digest != self.workflow.digest:
@@ -107,6 +108,14 @@ class WorkflowExecutor:
         node_state.required_capabilities = list(resolution.required_capabilities)
         return resolution
 
+    def _resolve_variant(self, state: TaskState, node: WorkflowNodeSpec, resolution: ProviderResolution):
+        node_state = state.workflow_nodes[node.id]
+        frozen = node_state.model_variant_resolution
+        adapter, config, variant = self.engine._resolve_variant(resolution, frozen=frozen)
+        if frozen is None:
+            node_state.model_variant_resolution = variant.model_dump()
+        return adapter, config, variant
+
     def preflight(self, state: TaskState) -> None:
         self.assert_binding(state)
         active = set(self.active_ids(state))
@@ -125,6 +134,7 @@ class WorkflowExecutor:
         changed = False
         role_counts: dict[str, int] = {}
         role_resolutions: dict[str, dict[str, Any]] = {}
+        role_variants: dict[str, dict[str, Any]] = {}
         role_requirements: dict[str, list[str]] = {}
 
         for node_id in self.workflow.order:
@@ -138,8 +148,10 @@ class WorkflowExecutor:
             if node.kind == "validator":
                 continue
             had_resolution = node_state.provider_resolution is not None
+            had_variant = node_state.model_variant_resolution is not None
             resolution = self._resolve_node(state, node)
-            if not had_resolution:
+            adapter, config, variant = self._resolve_variant(state, node, resolution)
+            if not had_resolution or not had_variant:
                 changed = True
             role_counts[node.role] = role_counts.get(node.role, 0) + 1
             merged = role_requirements.setdefault(node.role, [])
@@ -148,24 +160,25 @@ class WorkflowExecutor:
                     merged.append(capability)
             if role_counts[node.role] == 1:
                 role_resolutions[node.role] = resolution.model_dump()
+                role_variants[node.role] = variant.model_dump()
             else:
                 role_resolutions.pop(node.role, None)
+                role_variants.pop(node.role, None)
 
-            config = self.engine.profile.providers[resolution.provider]
-            adapter = self.engine.registry.get(config.adapter)
-            if adapter is None:
-                raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
             report = adapter.doctor(config, self.engine.project.root)
             self.engine.store.save(
                 state, "provider.probed",
                 {
                     "node": node.id, "role": node.role, "provider": resolution.provider,
                     "required_capabilities": resolution.required_capabilities,
-                    "adapter_api_version": resolution.adapter_api_version, **report,
+                    "adapter_api_version": resolution.adapter_api_version,
+                    "model_variant_resolution": variant.model_dump(),
+                    **report,
                 },
             )
         state.capability_requirements = role_requirements or None
         state.provider_resolutions = role_resolutions or None
+        state.model_variant_resolutions = role_variants or None
         if changed:
             compatibility = {"requirements": role_requirements, "resolutions": role_resolutions}
             self.engine.store.save(state, "capabilities.resolved", compatibility)
@@ -285,10 +298,10 @@ class WorkflowExecutor:
             raise OrchestratorError("task execution-time budget exhausted")
 
         resolution = self._resolution_for_execution(state, node)
-        config = engine.profile.providers[resolution.provider]
-        adapter = engine.registry.get(config.adapter)
-        if adapter is None:
-            raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
+        node_state = state.workflow_nodes[node.id]
+        adapter, config, variant = engine._resolve_variant(
+            resolution, frozen=node_state.model_variant_resolution
+        )
 
         before_files = engine.project.manifest()
         before = engine.project.snapshot()
@@ -296,7 +309,6 @@ class WorkflowExecutor:
         controls = engine.project.control_snapshot()
         phase = self._phase(node)
         model = result_contract(phase, 2)
-        node_state = state.workflow_nodes[node.id]
         node_state.status = "running"
         node_state.attempt = state.attempt
         state.phase = phase
@@ -314,7 +326,8 @@ class WorkflowExecutor:
             state, "call.started",
             {
                 "node": node.id, "role": node.role, "provider": resolution.provider,
-                "family": resolution.family, "model": config.model,
+                "family": resolution.family, "model": variant.model, "effort": variant.effort,
+                "model_variant_resolution": variant.model_dump(),
                 "required_capabilities": resolution.required_capabilities,
                 "adapter_api_version": resolution.adapter_api_version,
                 "phase": phase, "attempt": state.attempt, "snapshot": before,
@@ -441,14 +454,13 @@ class WorkflowExecutor:
             )
             for node in nodes:
                 resolution = self._resolution_for_execution(state, node)
-                config = engine.profile.providers[resolution.provider]
-                adapter = engine.registry.get(config.adapter)
-                if adapter is None:
-                    raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
+                node_state = state.workflow_nodes[node.id]
+                adapter, config, variant = engine._resolve_variant(
+                    resolution, frozen=node_state.model_variant_resolution
+                )
                 workspace = workspaces[node.id]
                 workspace_project = Project(workspace)
                 model = result_contract("execute", 2)
-                node_state = state.workflow_nodes[node.id]
                 node_state.status = "running"
                 node_state.attempt = state.attempt
                 state.calls += 1
@@ -466,7 +478,8 @@ class WorkflowExecutor:
                     state, "call.started",
                     {
                         "node": node.id, "role": node.role, "provider": resolution.provider,
-                        "family": resolution.family, "model": config.model,
+                        "family": resolution.family, "model": variant.model, "effort": variant.effort,
+                        "model_variant_resolution": variant.model_dump(),
                         "required_capabilities": resolution.required_capabilities,
                         "adapter_api_version": resolution.adapter_api_version,
                         "phase": "execute", "attempt": state.attempt,
@@ -477,6 +490,7 @@ class WorkflowExecutor:
                 prepared[node.id] = {
                     "node": node,
                     "resolution": resolution,
+                    "variant": variant,
                     "config": config,
                     "adapter": adapter,
                     "model": model,
