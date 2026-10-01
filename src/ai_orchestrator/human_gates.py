@@ -23,6 +23,7 @@ from .service import ApplicationService
 from .supervisor import Supervisor
 
 MAX_PREVIEW_BYTES = 32 * 1024
+MAX_COMPACT_BINDINGS = 12
 ASSURANCE = "client-mediated; human presence not cryptographically verified"
 
 
@@ -185,6 +186,15 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
             f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
             f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
+            f"Workflow nodes: {_csv([
+                item.get('id') for item in ((p.get('workflow') or {}).get('nodes') or [])
+                if isinstance(item, dict) and item.get('id')
+            ])}",
+            f"Write ownership: {_csv([
+                f"{item.get('id')}:{','.join(item.get('write_paths') or [])}"
+                for item in ((p.get('workflow') or {}).get('nodes') or [])
+                if isinstance(item, dict) and item.get('write_paths')
+            ])}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
     elif gate.kind == "execution":
@@ -339,6 +349,10 @@ class HumanGateBroker:
 
         if kind == "binding_cleanup":
             request = BindingCleanupRequest.model_validate(authority_request or {})
+            if len(request.task_ids) + len(request.intake_ids) > MAX_COMPACT_BINDINGS:
+                raise OrchestratorError(
+                    f"binding cleanup confirmation is limited to {MAX_COMPACT_BINDINGS} exact IDs so all targets remain visible; split the cleanup into smaller confirmations"
+                )
             proposed = authority.binding_cleanup_preview(
                 engine, request.task_ids, request.intake_ids
             )
