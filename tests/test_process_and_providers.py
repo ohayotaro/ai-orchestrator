@@ -81,6 +81,90 @@ def test_agy_non_execute_uses_plan_mode(tmp_path):
     assert "--mode=accept-edits" not in args
 
 
+def test_agy_tool_telemetry_keeps_names_and_states_only(tmp_path, monkeypatch):
+    expected = AgentResult(outcome="completed", summary="implemented", findings=[], evidence=[])
+    stdout = "\n".join([
+        json.dumps({"event": "step_update", "step_update": {
+            "step_index": 2, "state": "ACTIVE", "step_type": "tool",
+            "tool_name": "view_file",
+            "tool_info": {"parameters": {"AbsolutePath": "/PRIVATE/secret.py"}},
+        }}),
+        json.dumps({"event": "step_update", "step_update": {
+            "step_index": 2, "state": "DONE", "step_type": "tool",
+            "tool_name": "view_file",
+            "tool_info": {"output": "PRIVATE_FILE_CONTENT"},
+        }}),
+        json.dumps({"event": "step_update", "step_update": {
+            "step_index": 4, "state": "ERROR", "step_type": "tool",
+            "tool_name": "replace_file_content",
+            "tool_info": {"parameters": {"TargetFile": "/PRIVATE/secret.py"},
+                          "error": {"message": "PRIVATE_ERROR_DETAIL"}},
+        }}),
+        json.dumps({"event": "result", "result": {
+            "status": "SUCCESS", "structured_output": expected.model_dump(),
+            "response": expected.model_dump_json(),
+        }}),
+    ]) + "\n"
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, stdout, "", 0.1),
+    )
+    telemetry = {}
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    req = request(tmp_path, "execute")
+    req = RunRequest(
+        req.phase, req.prompt, req.workspace, req.config, req.timeout, req.cancel,
+        result_model=req.result_model, telemetry_sink=telemetry.update,
+    )
+    assert adapter.execute(req) == expected
+    assert telemetry == {
+        "provider": "agy",
+        "tools": [
+            {"name": "replace_file_content", "calls": 1, "done": 0, "error": 1, "other": 0},
+            {"name": "view_file", "calls": 1, "done": 1, "error": 0, "other": 0},
+        ],
+        "tool_names": ["replace_file_content", "view_file"],
+        "tool_call_count": 2,
+    }
+    encoded = json.dumps(telemetry)
+    assert "/PRIVATE/secret.py" not in encoded
+    assert "PRIVATE_FILE_CONTENT" not in encoded
+    assert "PRIVATE_ERROR_DETAIL" not in encoded
+    assert "parameters" not in encoded and "tool_info" not in encoded
+
+
+def test_agy_denied_call_emits_telemetry_before_permission_failure(tmp_path, monkeypatch):
+    stdout = "\n".join([
+        json.dumps({"event": "step_update", "step_update": {
+            "step_index": 2, "state": "DONE", "step_type": "tool",
+            "tool_name": "run_command",
+            "tool_info": {"parameters": {"CommandLine": "PRIVATE_COMMAND"}},
+        }}),
+        json.dumps({"event": "result", "result": {
+            "status": "SUCCESS", "response": "",
+            "denied_actions": [{"action": "command", "display_name": "RunCommand"}],
+        }}),
+    ]) + "\n"
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, stdout, "", 0.1),
+    )
+    telemetry = {}
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    req = request(tmp_path, "execute")
+    req = RunRequest(
+        req.phase, req.prompt, req.workspace, req.config, req.timeout, req.cancel,
+        result_model=req.result_model, telemetry_sink=telemetry.update,
+    )
+    with pytest.raises(ProviderExecutionError, match="permission-denied"):
+        adapter.execute(req)
+    assert telemetry["tool_names"] == ["run_command"]
+    assert telemetry["tool_call_count"] == 1
+    assert "PRIVATE_COMMAND" not in json.dumps(telemetry)
+
+
 def test_agy_adapter_parses_terminal_structured_output(tmp_path, monkeypatch):
     expected = AgentResult(outcome="approved", summary="agy verified", findings=[], evidence=[])
     seen = {}
