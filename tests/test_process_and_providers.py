@@ -8,7 +8,7 @@ import pytest
 
 from ai_orchestrator.models import AgentResult, OrchestratorError, ProviderConfig
 from ai_orchestrator.process import ProcessResult, redact, run_process, validator_environment
-from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter, RunRequest, default_registry
+from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter, ProviderExecutionError, RunRequest, default_registry
 
 
 def request(tmp_path, phase="review", command=None):
@@ -103,10 +103,56 @@ def test_agy_adapter_accepts_schema_valid_json_response_when_structured_output_i
     assert adapter.execute(request(tmp_path, "execute")) == expected
 
 
+def test_agy_response_fallback_allows_only_known_presentation_metadata(tmp_path, monkeypatch):
+    expected = AgentResult(outcome="completed", summary="implemented", findings=[], evidence=[])
+    response = {
+        **expected.model_dump(),
+        "toolAction": "Completing implementation",
+        "toolSummary": "Implementation done",
+    }
+    envelope = {"event": "result", "result": {"status": "SUCCESS", "response": json.dumps(response)}}
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, json.dumps(envelope) + "\n", "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    assert adapter.execute(request(tmp_path, "execute")) == expected
+
+
+def test_agy_failure_exposes_safe_shape_diagnostics_without_response_content(tmp_path, monkeypatch):
+    secret = "PRIVATE_PROVIDER_RESPONSE_CONTENT"
+    envelope = {
+        "event": "result",
+        "result": {
+            "status": "SUCCESS",
+            "response": secret,
+            "conversation_id": "conversation",
+        },
+    }
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, json.dumps(envelope) + "\n", "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    with pytest.raises(ProviderExecutionError) as captured:
+        adapter.execute(request(tmp_path, "execute"))
+    diagnostics = captured.value.diagnostics
+    assert diagnostics["provider"] == "agy"
+    assert diagnostics["terminal_status"] == "SUCCESS"
+    assert diagnostics["structured_output_type"] == "NoneType"
+    assert diagnostics["response_json_type"] == "invalid"
+    assert diagnostics["response_bytes"] == len(secret.encode())
+    assert secret not in json.dumps(diagnostics)
+    assert "response" not in diagnostics
+
+
 @pytest.mark.parametrize("response", [
     "implementation completed",
     '{"outcome":"completed","summary":123}',
     '{"outcome":"unexpected","summary":"bad","findings":[],"evidence":[]}',
+    '{"outcome":"completed","summary":"ok","findings":[],"evidence":[],"unexpected":"not-allowed"}',
     '[]',
 ])
 def test_agy_response_fallback_rejects_noncontract_output(tmp_path, monkeypatch, response):
