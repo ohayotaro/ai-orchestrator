@@ -195,7 +195,7 @@ def test_legacy_serve_has_no_native_authority_tools(gate_setup):
     server = StdioServer(broker.service)
     initialize(server)
     tools = server.handle(rpc("tools/list"))["result"]["tools"]
-    assert len(tools) == 10
+    assert len(tools) == 11
     assert tool(server, "request_start", {"intake_id": intake.id, "request_id": "request-1"})["error"]["code"] == -32602
     assert server.auto_worker is None
 
@@ -204,8 +204,10 @@ def test_single_terminal_advertises_bounded_authority_tools(server_setup):
     server, _, _, _, _, _ = server_setup
     names = {item["name"] for item in server.handle(rpc("tools/list"))["result"]["tools"]}
     assert "preview_provider_change" in names
+    assert "preview_provider_change_set" in names
     assert "preview_binding_cleanup" in names
     assert "request_provider_change" in names
+    assert "request_provider_change_set" in names
     assert "request_binding_cleanup" in names
     assert "request_provider_permission" in names
 

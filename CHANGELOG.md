@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.10 — alpha
+
+- Add atomic multi-slot provider adapter change-sets for conversational swaps.
+- Validate only the final combined provider profile, so policy-valid swaps are
+  not rejected because either sequential half-swap would temporarily violate
+  cross-provider review separation.
+- Add read-only `preview_provider_change_set` and dedicated
+  `request_provider_change_set` HumanGate. One confirmation binds every
+  before/after adapter change and the resulting profile digest.
+- Apply the complete provider mapping with one atomic config replacement,
+  revalidate the final profile immediately before the effect, verify the exact
+  resulting digest, and trust only that digest.
+- Reset executable/model/effort overrides independently for every changed
+  provider slot so vendor-specific settings never cross adapter boundaries.
+- Preserve the existing single-slot provider APIs and audit events as
+  compatibility wrappers over the new change-set engine.
+- Keep binding cleanup as a separate HumanGate; active task/intake bindings still
+  block both single-slot and multi-slot provider authority changes.
+
+
 ## 0.8.9 — alpha
 
 - Render HumanGate forms as compact, operation-specific summaries instead of

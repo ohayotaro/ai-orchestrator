@@ -271,3 +271,30 @@ collector. Provider threads mutate only their own collector. After all futures
 return, the workflow controller persists `provider.tool_telemetry` events on
 the controller thread before normal error normalization/integration. Sequential
 calls use the same pattern in a local collector.
+
+
+## v0.8.10 provider change-set transaction
+
+The authority-control plane now supports an atomic provider mapping transaction:
+
+```text
+natural-language role/provider request
+  -> resolve affected provider slots
+  -> preview_provider_change_set
+  -> clone current profile in memory
+  -> apply all adapter substitutions
+  -> validate final profile once
+  -> provider-change-set HumanGate
+  -> atomic config replace
+  -> verify resulting digest
+  -> trust resulting digest
+```
+
+This deliberately differs from composing single-slot changes. A swap may be
+valid only as a simultaneous transition because either half-swap can temporarily
+collapse implementer and reviewer onto the same provider family. No intermediate
+profile is materialized or trusted.
+
+The historical single-slot API is implemented as a one-entry change-set wrapper
+and retains its legacy audit events for compatibility. Multi-slot operations use
+`profile_change_set.intent` / `profile_change_set.applied` provenance.

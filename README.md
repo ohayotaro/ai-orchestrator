@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.9 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.10 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.9
+.venv/bin/orchestrator --version  # 0.8.10
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -450,3 +450,25 @@ AGY `--dangerously-skip-permissions` forms explicitly state that all AGY-native
 tool permission prompts are auto-approved for that scoped session, list retained
 controller protections, and state that a separate execution confirmation is
 still required.
+
+
+## v0.8.10 atomic provider change-sets
+
+Provider swaps no longer need to pass through invalid intermediate profiles.
+For example, a project with reasoning=Claude and engineering=AGY can atomically
+swap to reasoning=AGY and engineering=Claude by previewing one change-set:
+
+```json
+{"changes":{"reasoning":"agy","engineering":"claude"}}
+```
+
+The controller applies those adapter changes to an in-memory copy of the profile,
+clears adapter-specific executable/model/effort overrides for each changed slot,
+and validates only the final combined profile against capability and
+cross-provider review policy. If valid, a dedicated HumanGate shows every
+before/after adapter mapping and the resulting profile digest.
+
+A Yes response performs one atomic config replacement and trusts only the
+verified resulting digest. No intermediate same-family provider configuration is
+created. Existing single-provider change tools remain available as compatibility
+wrappers.
