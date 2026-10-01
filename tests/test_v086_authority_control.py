@@ -154,7 +154,7 @@ def test_provider_change_rejected_while_task_is_active(workspace):
     try:
         engine.trust("operator")
         engine.create(spec("active-task"))
-        with pytest.raises(OrchestratorError, match="tasks are active"):
+        with pytest.raises(OrchestratorError, match="bindings are active"):
             from ai_orchestrator.authority import provider_change_preview
             provider_change_preview(engine, "engineering", "agy")
     finally:
@@ -224,6 +224,26 @@ def test_dedicated_permission_gate_then_execution_passes_flag_only_for_attempt(w
         assert engineering.execute_permissions == [
             frozenset({"agy_dangerously_skip_permissions"})
         ]
+    finally:
+        broker.close()
+        engine.close()
+
+
+def test_provider_permission_grant_becomes_stale_if_worktree_changes(workspace):
+    engine, _, _ = agy_task_setup(workspace)
+    broker = HumanGateBroker(ApplicationService(workspace), "authority-session", {"name": "test", "version": "1"})
+    try:
+        gate = broker.prepare_provider_permission(
+            ProviderPermissionRequest(
+                task_id="agy-permission-task",
+                request_id="agy-permission-stale",
+                permission="agy_dangerously_skip_permissions",
+            )
+        )
+        assert confirm(broker, gate)["gate_status"] == "applied"
+        (workspace / "input.txt").write_text("changed after provider-permission confirmation\n")
+        with pytest.raises(OrchestratorError, match="grant .* is stale"):
+            broker.prepare("execution", "agy-permission-task", "execution-stale")
     finally:
         broker.close()
         engine.close()
