@@ -168,6 +168,68 @@ def test_workflow_freezes_variant_provenance_and_executes_resolved_config(worksp
         engine.close()
 
 
+
+def test_task_runtime_override_beats_profile_and_is_frozen_per_node(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["model"] = "fast-model"
+    profile["providers"]["reasoning"]["effort"] = "low"
+    profile["providers"]["engineering"]["model"] = "fast-model"
+    profile["providers"]["engineering"]["effort"] = "low"
+    config_path.write_text(yaml.safe_dump(profile))
+
+    reasoning = RuntimeAdapter("anthropic")
+    engineering = RuntimeAdapter("openai")
+    engine = Engine(workspace, {"claude": reasoning, "codex": engineering})
+    try:
+        engine.trust("test-operator")
+        state = engine.create(
+            spec("runtime-override"),
+            runtime_overrides={
+                "implementer": {"model": "deep-model", "effort": "xhigh", "options": {}},
+            },
+        )
+        state = engine.run(state.spec.id)
+        implementer = next(
+            item for item in state.workflow_nodes.values()
+            if item.provider_resolution
+            and item.provider_resolution["provider"] == "engineering"
+        )
+        assert implementer.model_variant_resolution["model"] == "deep-model"
+        assert implementer.model_variant_resolution["effort"] == "xhigh"
+        assert implementer.model_variant_resolution["sources"] == {
+            "model": "explicit_override",
+            "effort": "explicit_override",
+        }
+        assert state.runtime_overrides["implementer"]["model"] == "deep-model"
+
+        engine.approve(state.spec.id, engine.approval_scope(state), "test-operator")
+        state = engine.run(state.spec.id)
+        assert engineering.requests
+        assert engineering.requests[0].config.model == "deep-model"
+        assert engineering.requests[0].config.effort == "xhigh"
+    finally:
+        engine.close()
+
+
+def test_task_runtime_override_rejects_unknown_workflow_target(workspace):
+    engine = Engine(
+        workspace,
+        {"claude": RuntimeAdapter("anthropic"), "codex": RuntimeAdapter("openai")},
+    )
+    try:
+        engine.trust("test-operator")
+        with pytest.raises(
+            OrchestratorError,
+            match="runtime override targets are not present in the selected workflow",
+        ):
+            engine.create(
+                spec("runtime-unknown-target"),
+                runtime_overrides={"not-a-node": {"effort": "high"}},
+            )
+    finally:
+        engine.close()
+
 def test_frozen_runtime_metadata_drift_fails_closed(workspace):
     config_path = workspace / ".orchestrator/config.yaml"
     profile = yaml.safe_load(config_path.read_text())
