@@ -625,7 +625,13 @@ class Engine:
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
         try:
-            raw = adapter.execute(RunRequest(state.phase, self._prompt(state, role), self.project.root, config, min(policy.call_timeout_seconds, remaining), lambda: self.store.cancelled(state.spec.id), result_model=model))
+            raw = adapter.execute(RunRequest(
+                state.phase, self._prompt(state, role), self.project.root, config,
+                min(policy.call_timeout_seconds, remaining),
+                lambda: self.store.cancelled(state.spec.id),
+                result_model=model,
+                runtime_options=dict(variant.options),
+            ))
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - start
