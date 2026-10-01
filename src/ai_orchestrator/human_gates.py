@@ -292,6 +292,7 @@ class HumanGateBroker:
             if kind == "execution":
                 if state_object.status != "awaiting_approval" or state_object.phase != "execute":
                     raise OrchestratorError("task is not awaiting execution approval")
+                engine.validate_provider_permission_grants(state_object)
                 kernel_scope = engine.approval_scope(state_object)
                 payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths,
                            "capability_requirements": state_object.capability_requirements,
