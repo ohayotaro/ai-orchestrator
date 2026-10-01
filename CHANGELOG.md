@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.9 — alpha
+
+- Render HumanGate forms as compact, operation-specific summaries instead of
+  dumping the complete bound preview JSON into the client UI.
+- Keep the full preview, task state, evidence and control snapshots unchanged in
+  the persisted gate and scope revalidation; only presentation is compacted.
+- Make high-risk AGY provider-permission forms show the dangerous flag, scoped
+  task/attempt/provider nodes, broad auto-approval effect, remaining controller
+  protections, and the fact that execution approval is still separate.
+- Keep provider-change before/after adapter, resulting trusted profile digest,
+  binding-cleanup exact IDs/no-rollback semantics, start workflow/ownership, and
+  execution/acceptance essentials visible without client-side expansion.
+- Limit one binding-cleanup confirmation to 12 exact IDs so no target is hidden
+  behind UI folding; larger cleanups must be confirmed in batches.
+
+
 ## 0.8.8 — alpha
 
 - Add content-free provider tool telemetry for Antigravity stream-json calls.
