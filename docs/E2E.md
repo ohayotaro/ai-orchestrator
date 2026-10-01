@@ -297,25 +297,132 @@ presence. It does not establish OS-level isolation against a hostile same-user
 process, failure/cancellation recovery under real providers, conflict behavior
 under live concurrent edits, or performance/scaling beyond this two-worker run.
 
-## v0.8 verification status
+## Owner-reported live v0.8 completion E2E (2026-10-01)
 
-The v0.8 offline suite covers Supervisor-authored task-scoped DAGs, Start
-HumanGate preview/scope binding, full execution through existing validator/review
-paths, authority rejection, isolated ownership validation, conversational
-revision with stale-proposal supersession, profile-fingerprint compatibility and
-evidence-backed template promotion/versioning.
+The owner completed the v0.8 live series from Claude Code against the calculator
+fixture through v0.8.10. Together with the offline suite, these runs close the
+v0.8 milestone for the intended trusted-local alpha scope. The observations
+below are owner-reported host runs; host elicitation remains client-mediated and
+does not cryptographically authenticate human presence.
 
-A live v0.8 frontend/provider run has not yet been claimed. The first live smoke
-test should intentionally omit `workflow_ref` and ask for work whose files can
-be split into independent implementation branches. Expected evidence is a
-Supervisor-selected trusted template or an explicit
-`workflow_source=supervisor_proposed`, a Start form showing the exact ephemeral
-DAG, TaskState v5 only for the latter case, normal execution/acceptance gates,
-deterministic integrated validation/review and final `succeeded`. The run
-should also confirm that `.orchestrator/config.yaml` and profile trust are
-unchanged unless the operator separately executes `workflow-save`.
+### Adaptive orchestration and isolated execution
 
-Persistent-template E2E should be treated as a separate operator action: inspect
-the candidate, save with the exact scope, observe the profile digest change and
-required re-trust, then verify the new template appears in the trusted registry.
-Task completion alone must never save it.
+The v0.8 series preserved the v0.7 isolated-workspace/write-ownership baseline
+while moving workflow/provider decisions behind the conversational control
+plane. The user did not need to edit `config.yaml`, select DAG mechanics, or
+manually start workers for normal tasks. Start, execution and acceptance remained
+separate HumanGates, deterministic pytest validation ran after integration, and
+a separate provider family performed review.
+
+The live series also exercised provider changes conversationally rather than by
+direct config editing. Stale active bindings initially blocked provider
+authority changes. v0.8.7 added a dedicated cleanup HumanGate; the owner then
+abandoned `add-multiply-v4` and `add-multiply-v5` and withdrew intake
+`I-3e3228409722` without rolling back workspace files or deleting history.
+After cleanup, the engineering adapter changed from AGY to Codex through its own
+provider-change HumanGate and the exact resulting profile digest was trusted.
+
+### AGY headless authority and guarded writes
+
+AGY 1.2.14 exposed two distinct live behaviors. Without extra authority,
+headless tool operations such as `write_file`, replacement edits and commands
+were denied even though AGY's terminal envelope could report `SUCCESS`.
+v0.8.5 made non-empty `denied_actions` terminal failures rather than accepting
+that ambiguous success.
+
+The owner then explicitly authorized
+`agy_dangerously_skip_permissions` for one task/attempt through the dedicated
+provider-permission HumanGate. That grant did not include execution approval; a
+separate execution HumanGate was still required. Task
+`add-is-positive-or-zero-20261001b` subsequently completed through AGY guarded
+write, pytest (**9 passed**), independent review and acceptance.
+
+The v0.8.8 content-free telemetry was live-verified on that same task. Event
+sequence 872 recorded 11 successful AGY tool calls:
+
+- `view_file`: 6;
+- `replace_file_content`: 4;
+- `run_command`: 1;
+- tool errors: 0.
+
+The telemetry contained tool names and aggregate states/counts but no command
+body, target path, file contents, prompt, tool output or provider response.
+The same run recorded `workflow.guarded_write.finished`,
+`validation.finished passed=true` and final `task.accepted`.
+
+A separate AGY happy-path task, `add-is-odd-agy`, also demonstrated guarded
+private-worktree execution with exact ownership: only `calculator.py` and
+`tests/test_calculator.py` changed, the verified patch was integrated, pytest
+passed, Claude review approved and acceptance reached `succeeded`.
+
+### HumanGate presentation
+
+Claude Code was observed folding long elicitation payloads while Codex could
+display them expanded. v0.8.9 changed only the presentation layer: full exact
+preview/state/snapshots remain scope-bound in the controller, while the host form
+shows a compact operation-specific summary. A subsequent live Claude Code form
+showed the compact operation/task summary and an explicit client expansion
+control rather than making authority details depend on an inaccessible folded
+JSON dump.
+
+High-risk AGY permission forms now put the dangerous flag, scoped
+task/attempt/provider, broad native-tool auto-approval effect, retained
+controller protections and the separate-execution-gate requirement in the
+bounded summary. Binding-cleanup forms are capped so exact target IDs remain
+visible.
+
+### Atomic provider swap
+
+The final live finding was a provider-swap authority gap. From
+`reasoning=Claude / engineering=AGY`, the requested final arrangement
+`reasoning=AGY / engineering=Claude` was policy-valid, but either sequential
+half-swap temporarily collapsed implementer/reviewer onto the same provider
+family and was correctly rejected.
+
+v0.8.10 added atomic provider change-sets. After upgrade, the owner issued only
+the natural-language request to make Claude the implementer and AGY the
+Supervisor/planner/reviewer. The frontend used one change-set preview and one
+HumanGate to apply both changes:
+
+```text
+engineering: AGY    -> Claude
+reasoning:   Claude -> AGY
+```
+
+No intermediate provider profile was materialized. The final combined profile
+was validated, config was replaced atomically, and only the resulting digest was
+trusted. The frontend reported the requested final role assignment with no
+binding cleanup required because no unfinished task/intake bindings were active.
+
+### v0.8 completion boundary
+
+The v0.8 live series therefore provides evidence for the intended alpha
+milestone:
+
+- single-terminal host-mediated start/execution/acceptance;
+- conversational Supervisor task proposals and trusted/task-scoped workflows;
+- DAG and isolated writable-parallel execution inherited from the verified v0.7
+  baseline;
+- capability/provider resolution with independent-family review policy;
+- guarded private worktrees, exact write ownership and deterministic integration;
+- validator + independent review + explicit final acceptance;
+- conversational persistent provider switching without direct config editing;
+- explicit stale-binding abandonment/withdrawal with no implicit rollback;
+- scoped AGY broad-permission authority separate from execution approval;
+- fail-closed AGY denied-action and structured-output handling;
+- content-free provider tool telemetry;
+- compact HumanGate presentation that preserves full controller scope binding;
+- atomic multi-slot provider swaps with final-profile-only validation and
+  resulting-digest trust.
+
+This completion claim is intentionally limited. It does not claim cryptographic
+proof of a human click, OS-level isolation against a hostile same-user process,
+support for arbitrary agent-authored policy/config edits, unrestricted provider
+permissions, production multi-host durability, or stable v1.0 APIs. One Claude
+Code auto-mode run also temporarily blocked `wait_job` as "Create Unsafe
+Agents"; the durable worker continued and a later explicit result check
+succeeded. That frontend heuristic is recorded as a client UX limitation rather
+than an Orchestrator authority failure.
+
+With those boundaries, v0.8 is recorded as complete. Further work belongs to the
+post-v0.8 roadmap rather than being required to substantiate this milestone.
