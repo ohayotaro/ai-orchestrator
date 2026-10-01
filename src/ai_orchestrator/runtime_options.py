@@ -175,6 +175,23 @@ class ModelVariantResolver:
             )
         return value
 
+    def validate_override(
+        self,
+        adapter: Any,
+        config: ProviderConfig,
+        workspace: Path,
+        override: RuntimeOverride,
+    ) -> RuntimeOverride:
+        descriptor = self.describe(adapter, config, workspace)
+        self._validate_selected("model", override.model, descriptor.model)
+        self._validate_selected("effort", override.effort, descriptor.effort)
+        for name, value in override.options.items():
+            domain = descriptor.options.get(name)
+            if domain is None:
+                raise OrchestratorError(f"adapter does not advertise runtime option: {name}")
+            self._validate_selected(name, value, domain)
+        return override
+
     @staticmethod
     def _select(
         kind: str,
