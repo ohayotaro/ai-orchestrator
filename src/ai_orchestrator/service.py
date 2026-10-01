@@ -185,11 +185,13 @@ class ApplicationService:
                         "trusted": engine.store.trusted(engine.profile_digest),
                         "roles": {name: {"provider": role.provider, "capabilities": role.capabilities, "candidates": role.candidates} for name, role in engine.profile.roles.items()},
                         "capabilities": engine.capability_report(),
+                        "runtime_options": engine.runtime_option_report(),
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
                         "adaptive_orchestration": {
                             "task_scoped_workflow_proposals": True,
                             "conversational_revision": True,
+                            "model_variant_resolution": "provider-local model/effort resolved after Provider Resolution and frozen into task/node provenance",
                             "persistent_template_save": "operator-only after successful evidence-backed execution",
                             "profile_mutation_by_agent": "bounded provider-adapter changes only through dedicated HumanGate",
                         },
