@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.0 — alpha
+
+- Add a versioned adapter runtime-option registry and a separate Model Variant
+  Resolution stage after deterministic Provider Resolution.
+- Resolve provider-local model/effort with explicit precedence:
+  task/node override > trusted profile setting > adapter default.
+- Freeze exact model/effort/runtime-option provenance per workflow node and in
+  TaskState v6, approval scope, provider probes and call-start audit events.
+- Add explicit task/node-scoped runtime overrides without mutating persistent
+  project profile authority. HumanGate start/execution summaries show requested
+  overrides and the exact resolved provider/model/effort before execution.
+- Fail closed when an enumerated adapter rejects a requested model/effort or when
+  frozen runtime-option metadata changes after task binding.
+- Let adapters report enumerated, unsupported or honest pass-through selection.
+  Built-in Claude, Codex and Antigravity adapters do not fabricate vendor model
+  catalogs; they expose controllable model/effort pass-through with limitations.
+- Expose runtime-option and Model Variant schemas through the CLI and include
+  runtime-option inspection in the MCP project report.
+- Keep model identity and effort out of semantic capabilities, preserve no
+  implicit fallback, and keep persistent profile model/effort changes under the
+  existing trust/authority boundary.
+
+
 ## 0.8.10 — alpha
 
 - Add atomic multi-slot provider adapter change-sets for conversational swaps.
