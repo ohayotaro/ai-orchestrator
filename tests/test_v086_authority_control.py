@@ -166,7 +166,11 @@ def test_provider_change_preview_reports_active_task_blocker(workspace):
 
 
 def test_provider_change_preview_reports_unconsumed_intake_blocker(workspace):
-    providers = {"claude": IntakeAdapter("anthropic"), "codex": IntakeAdapter("openai")}
+    providers = {
+        "claude": IntakeAdapter("anthropic"),
+        "codex": IntakeAdapter("openai"),
+        "agy": IntakeAdapter("google"),
+    }
     engine = Engine(workspace, providers)
     try:
         engine.trust("operator")
