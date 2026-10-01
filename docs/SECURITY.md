@@ -267,3 +267,34 @@ then explicitly trust/select that provider. Until such permission is present,
 AGY is suitable for read-only/plan use but a writable headless turn will fail
 closed. Guarded worktree isolation still guarantees that a failed writable turn
 does not mutate the project worktree.
+
+
+## v0.8.6 authority-control boundaries
+
+Provider switching is no longer implemented as arbitrary model-driven YAML
+editing. The agent-facing preview accepts only an existing provider slot and an
+installed adapter ID. The resulting profile is fully validated before a
+HumanGate can be prepared. The gate scope binds the current trusted profile,
+exact before/after provider configuration, resulting profile digest, project
+snapshot, protected snapshot and orchestration-control snapshot. Approval writes
+only that provider slot, clears adapter-specific executable/model/effort
+overrides, verifies the resulting digest and then records trust for exactly that
+digest. A crash after config replacement but before trust leaves the new profile
+untrusted.
+
+Provider adapter changes are rejected while nonterminal tasks or unconsumed
+intakes exist so frozen task/intake authority cannot be silently invalidated.
+
+AGY `--dangerously-skip-permissions` is a distinct high-risk authority. It is
+never inferred from execution approval, provider choice, a failed permission
+request, or a model statement. A dedicated HumanGate stores a grant bound to the
+task ID, attempt, resolved AGY node set, profile digest, pre-permission execution
+scope and exact project snapshot. The normal execution HumanGate must then be
+confirmed separately. Repair clears grants. Worktree drift makes a grant stale.
+
+Even with this broad AGY permission, the controller retains `--sandbox`,
+guarded private worktrees, exact allowed-path ownership, deterministic patch
+integration, validators, cross-provider review and final acceptance. These
+controls do not turn `--dangerously-skip-permissions` into a narrow file-write
+permission; the provider may auto-approve all of its native tools during that
+scoped session, which is why the separate gate is mandatory.
