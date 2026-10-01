@@ -61,13 +61,23 @@ operator-only action (`workflow-candidate` / `workflow-save` in the local
 CLI). Do not invoke it through shell or edit config yourself. Saving changes the
 trusted profile and requires explicit operator inspection/re-trust.
 
-If the user explicitly asks to switch an existing configured provider adapter
+If the user explicitly asks to switch one existing configured provider adapter
 (for example "switch AGY back to Codex"), do not edit config.yaml. Call
 `preview_provider_change` with the existing provider slot and requested installed
 adapter. If `ready=true`, show the exact before/after change and call
 `request_provider_change`.
 
-If the preview returns `ready=false`, use its structured `blocked_by.task_ids`
+If the user requests a provider swap or multiple provider-slot changes (for
+example "implementation Claude, the other roles AGY"), do NOT attempt sequential
+single-slot changes. Resolve the requested final mapping and call
+`preview_provider_change_set` once with all affected provider slots, e.g.
+`{"changes":{"reasoning":"agy","engineering":"claude"}}`. The controller
+validates only the final combined profile. If valid and ready, show all exact
+before/after adapter changes together and call `request_provider_change_set`.
+One HumanGate applies the complete set atomically and trusts only the resulting
+profile digest; no intermediate same-family profile is created.
+
+If either preview returns `ready=false`, use its structured `blocked_by.task_ids`
 and `blocked_by.intake_ids`. Call `preview_binding_cleanup` for only the
 unfinished bindings relevant to the requested provider change, explain that
 cleanup marks tasks `abandoned` and intakes `withdrawn` WITHOUT rolling back
