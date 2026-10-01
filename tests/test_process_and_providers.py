@@ -8,13 +8,21 @@ import pytest
 
 from ai_orchestrator.models import AgentResult, OrchestratorError, ProviderConfig
 from ai_orchestrator.process import ProcessResult, redact, run_process, validator_environment
-from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter, RunRequest
+from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter, RunRequest, default_registry
 
 
 def request(tmp_path, phase="review", command=None):
     return RunRequest(phase, "PRIVATE_PROMPT_NOT_IN_ARGV", tmp_path, ProviderConfig(adapter="fixture", executable=command), 5, lambda: False)
 
 
+
+
+def test_default_registry_includes_antigravity_adapter():
+    registry = default_registry()
+    assert isinstance(registry["agy"], AgyAdapter)
+    assert registry["agy"].family == "google"
+    assert "code_edit" in registry["agy"].semantic_capabilities
+    assert "native_sandbox" in registry["agy"].capabilities
 
 
 def test_agy_argv_uses_stdin_stream_json_and_sandbox(tmp_path):
