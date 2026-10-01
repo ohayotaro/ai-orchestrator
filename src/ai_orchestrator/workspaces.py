@@ -157,11 +157,9 @@ class WorkspaceManager:
         after_manifest = node_project.manifest()
         changed = changed_paths(self.seed_manifest, after_manifest)
         violations = [item for item in changed if item not in set(owned_paths)]
-        if violations:
-            raise OrchestratorError(
-                f"workflow node {node_id}: isolated worker changed paths outside write_paths: "
-                + ", ".join(violations[:20])
-            )
+        # Always return ownership evidence. The controller decides whether a
+        # violating patch may proceed (it never integrates one) and can persist
+        # a hash-verified rejected write_set before failing the task.
         _git(path, "add", "-A", "--", *owned_paths)
         patch = _git(path, "diff", "--cached", "--binary", self.seed_sha, "--", *owned_paths).stdout
         patch_path = self.patch_dir / f"{node_id}.patch"
