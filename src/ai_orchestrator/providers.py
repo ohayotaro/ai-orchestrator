@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -26,6 +26,7 @@ class RunRequest:
     cancel: Callable[[], bool]
     result_model: type[Contract] = AgentResult
     provider_permissions: frozenset[str] = frozenset()
+    runtime_options: dict[str, str] = field(default_factory=dict)
     telemetry_sink: Callable[[dict[str, object]], None] | None = None
 
 
