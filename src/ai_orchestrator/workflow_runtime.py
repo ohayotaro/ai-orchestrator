@@ -111,7 +111,10 @@ class WorkflowExecutor:
     def _resolve_variant(self, state: TaskState, node: WorkflowNodeSpec, resolution: ProviderResolution):
         node_state = state.workflow_nodes[node.id]
         frozen = node_state.model_variant_resolution
-        adapter, config, variant = self.engine._resolve_variant(resolution, frozen=frozen)
+        override = self.engine.runtime_override_for(state, node.role, node_id=node.id)
+        adapter, config, variant = self.engine._resolve_variant(
+            resolution, frozen=frozen, override=override
+        )
         if frozen is None:
             node_state.model_variant_resolution = variant.model_dump()
         return adapter, config, variant
@@ -300,7 +303,9 @@ class WorkflowExecutor:
         resolution = self._resolution_for_execution(state, node)
         node_state = state.workflow_nodes[node.id]
         adapter, config, variant = engine._resolve_variant(
-            resolution, frozen=node_state.model_variant_resolution
+            resolution,
+            frozen=node_state.model_variant_resolution,
+            override=engine.runtime_override_for(state, node.role, node_id=node.id),
         )
 
         before_files = engine.project.manifest()
@@ -456,7 +461,9 @@ class WorkflowExecutor:
                 resolution = self._resolution_for_execution(state, node)
                 node_state = state.workflow_nodes[node.id]
                 adapter, config, variant = engine._resolve_variant(
-                    resolution, frozen=node_state.model_variant_resolution
+                    resolution,
+                    frozen=node_state.model_variant_resolution,
+                    override=engine.runtime_override_for(state, node.role, node_id=node.id),
                 )
                 workspace = workspaces[node.id]
                 workspace_project = Project(workspace)
