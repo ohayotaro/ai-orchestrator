@@ -129,6 +129,10 @@ class Project:
                     node.pop("write_paths", None)
         if not effective["workflows"]:
             del effective["workflows"]
+        # v0.9.1 named execution classes are optional profile authority. Empty
+        # configuration preserves the pre-v0.9.1 profile digest.
+        if not effective["execution_classes"]:
+            del effective["execution_classes"]
         return digest({"profile": effective, "context": context})
 
     def load(self) -> tuple[Profile, str, dict[str, str]]:
