@@ -380,3 +380,31 @@ revalidates the final profile, atomically replaces `.orchestrator/config.yaml`,
 verifies the resulting digest and records trust only for that digest. A crash
 between filesystem replacement and trust remains fail-closed because the new
 profile is left untrusted.
+
+
+## v0.9.0 model/effort authority boundary
+
+A model or effort label is execution policy, not a semantic capability and not
+provider authority. Model Variant Resolution runs only after Provider Resolution;
+a task override cannot select a different provider or grant a capability,
+permission, executable, validator, external effect or persistent policy change.
+
+Task/node runtime overrides are ephemeral and scope-bound. The Supervisor is told
+to emit them only when the user explicitly requests model/effort/execution
+intensity and never to raise cost/effort autonomously. Start confirmation shows
+the requested override; execution confirmation shows the exact resolved
+provider/adapter/model/effort. The full state remains bound even when the compact
+form omits verbose provenance.
+
+Enumerated runtime-option domains are validated fail-closed. Pass-through domains
+are intentionally weaker: they mean the adapter can place the provider-local
+value on a controlled invocation but cannot prove a complete set of valid model
+IDs or effort values. A pass-through descriptor must disclose that limitation,
+and a provider CLI may still reject the value before work completes. The kernel
+does not convert that failure into an implicit downgrade or fallback.
+
+The descriptor itself is provenance. Once a task binds a node, its descriptor
+digest and resolved settings are frozen. Adapter metadata drift, profile drift or
+runtime override drift requires fresh task/approval authority rather than silent
+continuation. This consistency mechanism still does not defend against a hostile
+same-OS-user actor rewriting installed controller/provider code.
