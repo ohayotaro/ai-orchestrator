@@ -5,7 +5,7 @@ import yaml
 import pytest
 
 from ai_orchestrator.engine import Engine
-from ai_orchestrator.human_gates import HumanGateBroker, ProfileChangeRequest, ProviderPermissionRequest
+from ai_orchestrator.human_gates import HumanGateBroker, ProfileChangeRequest, ProfileChangeSetRequest, ProviderPermissionRequest
 from ai_orchestrator.models import OrchestratorError
 from ai_orchestrator.project import Project
 from ai_orchestrator.service import ApplicationService
@@ -224,6 +224,124 @@ def test_provider_change_works_through_single_terminal_mcp(workspace):
     try:
         assert check.profile.providers["engineering"].adapter == "agy"
         assert check.store.trusted(check.profile_digest)
+    finally:
+        check.close()
+
+
+def test_atomic_provider_swap_validates_final_profile_not_intermediate_states(workspace):
+    # Start from the exact live E2E shape: reasoning=Claude, engineering=AGY.
+    edit_profile(workspace, lambda data: data["providers"]["engineering"].update(adapter="agy"))
+    registry = {
+        "claude": FakeAdapter("anthropic"),
+        "agy": FakeAdapter("google"),
+        "codex": FakeAdapter("openai"),
+    }
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+        old_digest = engine.profile_digest
+
+        # Either single-slot half-swap violates cross-provider review.
+        with pytest.raises(OrchestratorError):
+            from ai_orchestrator.authority import provider_change_preview
+            provider_change_preview(engine, "engineering", "claude")
+        with pytest.raises(OrchestratorError):
+            provider_change_preview(engine, "reasoning", "agy")
+
+        from ai_orchestrator.authority import provider_change_set_preview
+        preview = provider_change_set_preview(
+            engine,
+            {"reasoning": "agy", "engineering": "claude"},
+        )
+        assert preview["ready"] is True
+        assert [(x["provider"], x["before"]["adapter"], x["after"]["adapter"]) for x in preview["changes"]] == [
+            ("engineering", "agy", "claude"),
+            ("reasoning", "claude", "agy"),
+        ]
+        assert preview["change_set"]["current_profile_digest"] == old_digest
+        assert preview["change_set"]["proposed_profile_digest"] != old_digest
+        assert preview["resolution_after"]["roles"]["implementer"]["family"] == "anthropic"
+        assert preview["resolution_after"]["roles"]["reviewer"]["family"] == "google"
+    finally:
+        engine.close()
+
+
+def test_atomic_provider_swap_humangate_applies_both_slots_and_trusts_final_digest(workspace):
+    edit_profile(workspace, lambda data: data["providers"]["engineering"].update(adapter="agy"))
+    registry = {
+        "claude": FakeAdapter("anthropic"),
+        "agy": FakeAdapter("google"),
+        "codex": FakeAdapter("openai"),
+    }
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+        old_digest = engine.profile_digest
+    finally:
+        engine.close()
+
+    service = ApplicationService(workspace)
+    # ApplicationService uses the installed default adapter registry; no provider
+    # process is invoked while validating this authority change.
+    broker = HumanGateBroker(service, "swap-session", {"name": "test", "version": "1"})
+    try:
+        gate = broker.prepare_provider_change_set(
+            ProfileChangeSetRequest(
+                changes={"reasoning": "agy", "engineering": "claude"},
+                request_id="provider-swap-1",
+            )
+        )
+        assert gate.kind == "profile_change_set"
+        message = broker.form(gate)["message"]
+        assert "engineering: agy -> claude" in message
+        assert "reasoning: claude -> agy" in message
+        assert "no intermediate provider state exists" in message
+        result = confirm(broker, gate)
+        assert result["gate_status"] == "applied"
+        assert len(result["result"]["changes"]) == 2
+        new_digest = result["result"]["trusted_profile"]
+        assert new_digest != old_digest
+    finally:
+        broker.close()
+
+    check = Engine(workspace)
+    try:
+        assert check.profile.providers["engineering"].adapter == "claude"
+        assert check.profile.providers["reasoning"].adapter == "agy"
+        assert check.store.trusted(check.profile_digest)
+        assert not check.store.trusted(old_digest)
+        kinds = [e["kind"] for e in check.store.events() if e["task_id"] is None]
+        assert "profile_change_set.intent" in kinds
+        assert "profile_change_set.applied" in kinds
+    finally:
+        check.close()
+
+
+def test_provider_change_set_decline_is_noop(workspace):
+    edit_profile(workspace, lambda data: data["providers"]["engineering"].update(adapter="agy"))
+    engine = Engine(workspace)
+    try:
+        engine.trust("operator")
+        old_digest = engine.profile_digest
+    finally:
+        engine.close()
+    broker = HumanGateBroker(ApplicationService(workspace), "swap-session", {"name": "test", "version": "1"})
+    try:
+        gate = broker.prepare_provider_change_set(
+            ProfileChangeSetRequest(
+                changes={"reasoning": "agy", "engineering": "claude"},
+                request_id="provider-swap-decline",
+            )
+        )
+        result = broker.resolve(gate, {"action": "accept", "content": {"decision": "no"}})
+        assert result["gate_status"] == "declined"
+    finally:
+        broker.close()
+    check = Engine(workspace)
+    try:
+        assert check.profile.providers["engineering"].adapter == "agy"
+        assert check.profile.providers["reasoning"].adapter == "claude"
+        assert check.profile_digest == old_digest
     finally:
         check.close()
 
