@@ -316,7 +316,12 @@ the Orchestrator release cycle.
 
 ### v0.9.0 — Runtime option registry and Model Variant Resolution
 
-Establish the adapter/runtime contract before adding cost-based policy.
+**Implementation status: completed in the v0.9.0 alpha baseline.**
+
+Establish the adapter/runtime contract before adding cost-based policy. The
+implemented baseline also carries explicit raw task/node model and effort
+overrides through Supervisor intake and HumanGate scope; named execution classes
+and broader policy ergonomics remain follow-on work.
 
 Goals:
 
@@ -337,10 +342,11 @@ Adapters must only advertise runtime choices they can actually control or
 verify. If a CLI does not expose a reliable model list, the adapter may report
 that limitation rather than fabricating discovery.
 
-### v0.9.1 — Task/node-scoped execution policy and authority UX
+### v0.9.1 — Named execution policy and authority UX
 
-Allow users to express execution intent without editing provider configuration
-for every task.
+Build on the v0.9.0 raw task/node model/effort override contract so users can
+express reusable execution intent without editing provider configuration for
+every task.
 
 Examples of intended conversational requests:
 
@@ -353,10 +359,10 @@ Examples of intended conversational requests:
 
 Goals:
 
-- task/node-scoped model and effort overrides;
-- abstract execution-policy/class requests resolved deterministically;
-- Start/execution HumanGate summaries that show the exact resolved
-  provider/model/effort for affected nodes;
+- retain the v0.9.0 task/node-scoped model and effort override contract;
+- add abstract execution-policy/class requests resolved deterministically;
+- extend the v0.9.0 Start/execution HumanGate summaries and exact resolved
+  provider/model/effort provenance for named policy classes;
 - changing model, effort or material runtime options after approval invalidates
   the scope;
 - persistent model/effort policy changes use bounded authority-control rather
