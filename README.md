@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.8 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.9 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.8
+.venv/bin/orchestrator --version  # 0.8.9
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -432,3 +432,21 @@ Telemetry is observational only. It does not authorize tools and does not change
 the AGY denied-action or structured-output fail-closed rules. For isolated
 parallel/guarded execution, worker threads write only to per-call in-memory
 collectors; the controller persists telemetry after futures return.
+
+
+## v0.8.9 compact HumanGate previews
+
+HumanGate authority is unchanged, but confirmation forms now render a short
+operation-specific summary rather than the complete bound preview JSON. This
+avoids relying on client-specific expand/collapse behavior for critical approval
+details.
+
+The controller still stores and revalidates the full exact preview and snapshots.
+Compact display includes the fields a user needs to decide: task/attempt, allowed
+paths, workflow and write ownership, provider/permission override, changed paths,
+validation/review outcome, provider adapter before/after, or exact cleanup IDs.
+
+AGY `--dangerously-skip-permissions` forms explicitly state that all AGY-native
+tool permission prompts are auto-approved for that scoped session, list retained
+controller protections, and state that a separate execution confirmation is
+still required.
