@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from .capabilities import CAPABILITIES, CapabilityResolver, ProviderResolution, validate_requirements
 from .contracts import ReviewResult, result_contract
-from .models import AgentResult, Contract, OrchestratorError, TaskSpec, TaskState, WorkflowSpec
+from .models import AgentResult, Contract, OrchestratorError, ProviderPermissionGrant, TaskSpec, TaskState, WorkflowSpec
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
@@ -309,6 +309,9 @@ class Engine:
             payload["provider_resolutions"] = state.provider_resolutions
         if state.schema_version >= 4:
             payload["task_capability_requirements"] = state.task_capability_requirements
+            payload["provider_permission_grants"] = {
+                key: value.model_dump() for key, value in state.provider_permission_grants.items()
+            }
             payload["workflow"] = {
                 "id": state.workflow_id,
                 "digest": state.workflow_digest,
@@ -329,6 +332,114 @@ class Engine:
                     ],
                 }
         return digest(payload)
+
+    def provider_permission_context(
+        self, state: TaskState, permission: str = "agy_dangerously_skip_permissions"
+    ) -> dict[str, Any]:
+        self._check(state)
+        if permission != "agy_dangerously_skip_permissions":
+            raise OrchestratorError("unsupported provider permission")
+        if state.schema_version < 4 or state.status != "awaiting_approval" or state.phase != "execute":
+            raise OrchestratorError("provider permission requires a Workflow Schema task awaiting execution approval")
+        workflow = self.workflow_gate_context(state)
+        batch = list(workflow.get("execution_batch") or [])
+        if batch:
+            candidates = batch
+        else:
+            current = workflow.get("current_node")
+            spec = workflow.get("current_node_spec") or {}
+            node_state = (workflow.get("nodes") or {}).get(current, {}) if current else {}
+            if (
+                not current
+                or spec.get("kind") != "agent"
+                or spec.get("role") != "implementer"
+                or spec.get("writes") != "task_allowed_paths"
+            ):
+                raise OrchestratorError("provider permission is available only for a writable implementer node")
+            candidates = [{
+                "node": current,
+                "workspace": spec.get("workspace", "shared"),
+                "write_paths": spec.get("write_paths") or state.allowed_paths or [],
+                "provider_resolution": node_state.get("provider_resolution"),
+            }]
+
+        nodes: list[dict[str, Any]] = []
+        for item in candidates:
+            resolution = item.get("provider_resolution") or {}
+            if resolution.get("adapter") != "agy":
+                continue
+            nodes.append({
+                "node": item["node"],
+                "provider": resolution.get("provider"),
+                "adapter": resolution.get("adapter"),
+                "family": resolution.get("family"),
+                "workspace": "guarded_private_worktree",
+                "write_paths": list(item.get("write_paths") or state.allowed_paths or []),
+            })
+        if not nodes:
+            raise OrchestratorError("current writable execution has no Antigravity provider node")
+
+        execution_scope = self.approval_scope(state)
+        payload = {
+            "permission": permission,
+            "task_id": state.spec.id,
+            "attempt": state.attempt,
+            "profile_digest": state.profile_digest,
+            "execution_scope_before_permission": execution_scope,
+            "workspace_snapshot": self.project.snapshot(),
+            "nodes": nodes,
+        }
+        scope = digest(payload)
+        return {
+            **payload,
+            "scope": scope,
+            "risk": (
+                "AGY --dangerously-skip-permissions auto-approves all provider-native tool permission requests "
+                "for these provider sessions. Orchestrator still uses private worktrees, exact allowed_paths, "
+                "validators and review, but this is broader than file-write permission."
+            ),
+        }
+
+    def authorize_provider_permission(
+        self, task_id: str, permission: str, scope: str, actor: str,
+        *, precondition: Callable[[], None] | None = None,
+    ) -> TaskState:
+        with self.project.lock():
+            state = self.store.get(task_id)
+            context = self.provider_permission_context(state, permission)
+            if scope != context["scope"]:
+                raise OrchestratorError("provider-permission scope changed; request a fresh confirmation")
+            if precondition is not None:
+                precondition()
+            grant = ProviderPermissionGrant(
+                permission=permission,
+                scope=scope,
+                attempt=state.attempt,
+                profile_digest=state.profile_digest,
+                execution_scope=context["execution_scope_before_permission"],
+                nodes=[item["node"] for item in context["nodes"]],
+                actor=actor,
+            )
+            state.provider_permission_grants[permission] = grant
+            self.store.authorize_provider_permission(state, scope, actor, permission)
+            return state
+
+    def provider_permissions_for_node(
+        self, state: TaskState, node_id: str, resolution: ProviderResolution
+    ) -> frozenset[str]:
+        if resolution.adapter != "agy":
+            return frozenset()
+        permission = "agy_dangerously_skip_permissions"
+        grant = state.provider_permission_grants.get(permission)
+        if (
+            grant is None
+            or grant.attempt != state.attempt
+            or grant.profile_digest != state.profile_digest
+            or node_id not in grant.nodes
+            or not self.store.approved(state.spec.id, grant.scope)
+        ):
+            return frozenset()
+        return frozenset({permission})
 
     def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         with self.project.lock():
@@ -472,6 +583,7 @@ class Engine:
         if state.attempt >= self.profile.policy.max_attempts:
             raise OrchestratorError("review/validation retry limit reached; user intervention required")
         state.attempt += 1
+        state.provider_permission_grants = {}
         state.phase = "execute"
         state.status = "ready"
         state.feedback = redact(feedback[:12000])
