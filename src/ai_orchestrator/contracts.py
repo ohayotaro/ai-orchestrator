@@ -59,6 +59,7 @@ class TaskDraftScoped(TaskDraft):
     workflow_ref: str | None = Field(description="Trusted workflow ID advertised by the controller, or null when the Supervisor should use the default or propose a task-scoped workflow.")
     workflow: WorkflowSpec | None = Field(default=None, description="Optional task-scoped Workflow Schema v1 proposal. It is never installed or trusted automatically.")
     runtime_overrides: dict[str, RuntimeOverride] = Field(default_factory=dict, description="Explicit task-scoped provider-local model/effort overrides keyed by planner/implementer/reviewer role or exact workflow node ID. Use only when the user explicitly requests execution intensity/model selection.")
+    execution_classes: dict[str, str] = Field(default_factory=dict, description="Trusted named execution class selections keyed by planner/implementer/reviewer role or exact workflow node ID.")
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
 
     @field_validator("runtime_overrides")
@@ -67,6 +68,11 @@ class TaskDraftScoped(TaskDraft):
         for key in values:
             identifier(key)
         return values
+
+    @field_validator("execution_classes")
+    @classmethod
+    def valid_execution_classes(cls, values: dict[str, str]) -> dict[str, str]:
+        return {identifier(key): identifier(value) for key, value in values.items()}
 
     @field_validator("workflow_ref")
     @classmethod
@@ -146,6 +152,7 @@ class IntakeState(Contract):
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
     runtime_overrides: dict[str, dict[str, object]] | None = None
+    execution_classes: dict[str, str] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
