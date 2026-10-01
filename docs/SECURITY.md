@@ -354,3 +354,29 @@ Binding-cleanup forms are limited to 12 exact IDs per confirmation so every
 abandoned/withdrawn target can remain visible. High-risk provider-permission
 forms must display the broad AGY permission effect and separate-execution-gate
 requirement explicitly.
+
+
+## v0.8.10 atomic provider change-set boundary
+
+A provider change-set is still a bounded authority mutation, not arbitrary
+configuration editing. The agent may supply only a mapping from existing provider
+slot IDs to installed adapter IDs. The controller rejects empty sets, unknown
+provider slots, unknown adapters and no-op entries, and resets vendor-specific
+`executable`, `model` and `effort` fields on every changed slot.
+
+All requested adapter changes are applied to an in-memory profile copy first.
+Capability resolution, workflow compilation and cross-provider review separation
+are evaluated only on that final combined profile. Intermediate single-slot
+profiles are never written, trusted or treated as authority.
+
+The dedicated HumanGate binds the exact change-set, current trusted profile,
+resulting profile digest, project/worktree snapshot, protected paths and
+orchestration controls. Active task/intake bindings block the change-set just as
+they block a single provider change. Binding retirement requires its own separate
+HumanGate.
+
+On confirmation the controller re-previews the exact set under the project lock,
+revalidates the final profile, atomically replaces `.orchestrator/config.yaml`,
+verifies the resulting digest and records trust only for that digest. A crash
+between filesystem replacement and trust remains fail-closed because the new
+profile is left untrusted.
