@@ -85,6 +85,42 @@ def test_agy_adapter_parses_terminal_structured_output(tmp_path, monkeypatch):
     assert sent == {"event": "user", "message": {"content": "PRIVATE_PROMPT_NOT_IN_ARGV"}}
 
 
+def test_agy_adapter_accepts_schema_valid_json_response_when_structured_output_is_omitted(tmp_path, monkeypatch):
+    expected = AgentResult(outcome="completed", summary="implemented", findings=[], evidence=[])
+    envelope = {
+        "event": "result",
+        "result": {
+            "status": "SUCCESS",
+            "response": expected.model_dump_json() + "\n",
+        },
+    }
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, json.dumps(envelope) + "\n", "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    assert adapter.execute(request(tmp_path, "execute")) == expected
+
+
+@pytest.mark.parametrize("response", [
+    "implementation completed",
+    '{"outcome":"completed","summary":123}',
+    '{"outcome":"unexpected","summary":"bad","findings":[],"evidence":[]}',
+    '[]',
+])
+def test_agy_response_fallback_rejects_noncontract_output(tmp_path, monkeypatch, response):
+    envelope = {"event": "result", "result": {"status": "SUCCESS", "response": response}}
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, json.dumps(envelope) + "\n", "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    with pytest.raises(OrchestratorError):
+        adapter.execute(request(tmp_path, "execute"))
+
+
 @pytest.mark.parametrize(
     "returncode,status,structured",
     [
