@@ -79,6 +79,12 @@ def test_binding_cleanup_humangate_terminalizes_without_rollback(workspace):
         )
         assert gate.kind == "binding_cleanup"
         assert "does NOT roll back" in gate.preview["operation"]
+        message = broker.form(gate)["message"]
+        assert "Abandon task(s): unfinished-task" in message
+        assert f"Withdraw intake(s): {intake.id}" in message
+        assert "Workspace rollback: NO" in message
+        assert "Provider change: NOT included" in message
+        assert len(message.splitlines()) < 16
         result = confirm(broker, gate)
         assert result["gate_status"] == "applied"
         assert result["result"]["abandoned_tasks"] == [task.spec.id]
