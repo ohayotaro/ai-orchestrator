@@ -135,44 +135,77 @@ class Store:
                 {"scope": scope, "actor": actor, "permission": permission, "attempt": state.attempt},
             )
 
-    def abandon_task(self, task_id: str, actor: str, reason: str) -> TaskState:
-        state = self.get(task_id)
+    def cleanup_bindings(
+        self, task_ids: list[str], intake_ids: list[str], actor: str, reason: str
+    ) -> dict[str, list[str]]:
         if not actor.strip():
             raise OrchestratorError("an approval actor is required")
-        if state.status == "running":
-            raise OrchestratorError("running tasks cannot be abandoned; stop/recover the active execution first")
-        if state.status in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
-            raise OrchestratorError(f"task is already terminal: {state.status}")
-        state.status = "abandoned"
-        state.provider_permission_grants = {}
-        state.error = reason[:4000]
-        with self.db:
-            self.db.execute("UPDATE tasks SET data=? WHERE id=?", (state.model_dump_json(), task_id))
-            self._event(
-                task_id,
-                "task.abandoned",
-                {"actor": actor, "reason": reason[:2000], "phase": state.phase, "attempt": state.attempt},
-            )
-        return state
+        tasks = [self.get(task_id) for task_id in task_ids]
+        intakes = [self.get_intake(intake_id) for intake_id in intake_ids]
+        for state in tasks:
+            if state.status == "running":
+                raise OrchestratorError(
+                    f"running task cannot be abandoned: {state.spec.id}; stop/recover active execution first"
+                )
+            if state.status in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
+                raise OrchestratorError(f"task is already terminal: {state.spec.id} ({state.status})")
+        for intake in intakes:
+            if intake.status == "running":
+                raise OrchestratorError(
+                    f"running intake cannot be withdrawn: {intake.id}; wait for Supervisor execution to finish"
+                )
+            if intake.status not in ("proposed", "needs_clarification"):
+                raise OrchestratorError(
+                    f"intake cannot be withdrawn: {intake.id} ({intake.status})"
+                )
 
-    def withdraw_intake(self, intake_id: str, actor: str, reason: str) -> IntakeState:
-        intake = self.get_intake(intake_id)
-        if not actor.strip():
-            raise OrchestratorError("an approval actor is required")
-        if intake.status == "running":
-            raise OrchestratorError("running intakes cannot be withdrawn; wait for the active Supervisor call to finish")
-        if intake.status not in ("proposed", "needs_clarification"):
-            raise OrchestratorError(f"intake cannot be withdrawn from status: {intake.status}")
-        intake.status = "withdrawn"
-        intake.error = reason[:4000]
         with self.db:
-            self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake_id))
+            for state in tasks:
+                state.status = "abandoned"
+                state.provider_permission_grants = {}
+                state.error = reason[:4000]
+                self.db.execute(
+                    "UPDATE tasks SET data=? WHERE id=?",
+                    (state.model_dump_json(), state.spec.id),
+                )
+                self._event(
+                    state.spec.id,
+                    "task.abandoned",
+                    {
+                        "actor": actor,
+                        "reason": reason[:2000],
+                        "phase": state.phase,
+                        "attempt": state.attempt,
+                        "workspace_rollback": False,
+                    },
+                )
+            for intake in intakes:
+                intake.status = "withdrawn"
+                intake.error = reason[:4000]
+                self.db.execute(
+                    "UPDATE intakes SET data=? WHERE id=?",
+                    (intake.model_dump_json(), intake.id),
+                )
+                self._event(
+                    None,
+                    "intake.withdrawn",
+                    {
+                        "intake_id": intake.id,
+                        "actor": actor,
+                        "reason": reason[:2000],
+                    },
+                )
             self._event(
                 None,
-                "intake.withdrawn",
-                {"intake_id": intake_id, "actor": actor, "reason": reason[:2000]},
+                "binding_cleanup.applied",
+                {
+                    "task_ids": task_ids,
+                    "intake_ids": intake_ids,
+                    "actor": actor,
+                    "workspace_rollback": False,
+                },
             )
-        return intake
+        return {"task_ids": task_ids, "intake_ids": intake_ids}
 
     def request_cancel(self, task_id: str) -> None:
         state = self.get(task_id)
