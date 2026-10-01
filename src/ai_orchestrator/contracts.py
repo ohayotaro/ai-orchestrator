@@ -131,7 +131,7 @@ class IntakeState(Contract):
     advisory: StrictBool = False
     reply_to: str | None = None
     round: int = Field(default=1, ge=1, le=3, strict=True)
-    status: Literal["running", "proposed", "needs_clarification", "blocked", "failed", "cancelled", "consumed", "superseded"] = "running"
+    status: Literal["running", "proposed", "needs_clarification", "blocked", "failed", "cancelled", "consumed", "superseded", "withdrawn"] = "running"
     result: SupervisorResult | None = None
     task: TaskSpec | None = None
     allowed_paths: list[str] | None = None
