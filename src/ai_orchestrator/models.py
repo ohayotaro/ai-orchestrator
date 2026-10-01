@@ -351,6 +351,24 @@ class Artifact(Contract):
     attempt: int = Field(ge=0)
 
 
+class ProviderPermissionGrant(Contract):
+    permission: Literal["agy_dangerously_skip_permissions"]
+    scope: str = Field(pattern=r"^[a-f0-9]{64}$")
+    attempt: int = Field(ge=1, strict=True)
+    profile_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    execution_scope: str = Field(pattern=r"^[a-f0-9]{64}$")
+    nodes: list[str]
+    actor: str = Field(min_length=1, max_length=256)
+
+    @field_validator("nodes")
+    @classmethod
+    def valid_nodes(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if not normalized or len(normalized) != len(set(normalized)):
+            raise ValueError("provider permission grant requires unique workflow nodes")
+        return normalized
+
+
 class TaskState(Contract):
     # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows.
     schema_version: Literal[1, 2, 3, 4, 5] = 1
@@ -367,6 +385,7 @@ class TaskState(Contract):
     workflow_order: list[str] | None = None
     workflow_current: str | None = None
     workflow_nodes: dict[str, WorkflowNodeState] | None = None
+    provider_permission_grants: dict[str, ProviderPermissionGrant] = Field(default_factory=dict)
     spec: TaskSpec
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
