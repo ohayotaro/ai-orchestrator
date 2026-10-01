@@ -298,3 +298,22 @@ integration, validators, cross-provider review and final acceptance. These
 controls do not turn `--dangerously-skip-permissions` into a narrow file-write
 permission; the provider may auto-approve all of its native tools during that
 scoped session, which is why the separate gate is mandatory.
+
+
+## v0.8.7 binding cleanup boundary
+
+Binding cleanup is an authority-state transition, not a filesystem rollback.
+The read-only preview enumerates exact selected unfinished task/intake IDs and
+hashes their current persisted state. The dedicated HumanGate binds those states,
+the current trusted profile, project snapshot, protected snapshot and control
+snapshot. Any drift makes the form stale.
+
+On confirmation, all selected rows are revalidated and updated in one SQLite
+transaction. Tasks become `abandoned`; proposed/clarification intakes become
+`withdrawn`. Audit events are retained. Task files, artifacts, accepted or
+unaccepted workspace edits and Git state are not deleted or restored.
+
+Running bindings and already-terminal bindings are rejected. Cleanup never
+implicitly changes provider configuration or grants execution/provider
+permissions. Provider-change confirmation must be requested separately after
+the blocker set is empty.
