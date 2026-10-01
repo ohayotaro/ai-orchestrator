@@ -1,7 +1,8 @@
 # Provider Resolution and Model Variant Resolution
 
-Status: **v0.5.x design boundary retained; implementation is now targeted for
-v0.9.0-v0.9.2.**
+Status: **v0.9.0 runtime-option registry, explicit task/node overrides and Model
+Variant Resolution are implemented. Named execution classes, broader budget
+policy and optimization remain later v0.9 work.**
 
 This document fixes the boundary that the workflow/DAG and v0.9 runtime-policy
 implementation depend on.
@@ -75,40 +76,35 @@ task/node approval scope. A persistent default is project profile authority and
 must use the bounded profile-change/trust path rather than arbitrary config
 editing.
 
-Conceptual configuration:
+The v0.9.0 persistent profile surface reuses the existing provider-local
+`model` and `effort` fields:
 
 ```yaml
 providers:
   engineering:
     adapter: codex
-    capabilities: [repository_analysis, planning, code_edit, test_authoring, review]
-
-    variants:
-      default:
-        model: null
-        effort: null
-
-      fast:
-        model: <operator-configured-model>
-        effort: medium
-
-      deep:
-        model: <operator-configured-model>
-        effort: high
+    model: <operator-configured-model>
+    effort: high
 ```
 
-The concrete schema is intentionally not implemented/frozen yet. The invariant
-is that a variant resolves only **after** provider selection.
+A task can additionally carry ephemeral `runtime_overrides` keyed by an agent
+role or exact workflow-node ID. Exact node overrides take precedence over role
+overrides. Neither form changes the provider selected by Provider Resolution.
 
-A Model Variant Resolution result should identify at least:
+Named classes such as `fast`, `balanced` and `deep` remain a policy-layer
+extension; v0.9.0 deliberately does not hard-code those names or vendor model
+catalogs into the kernel.
 
-- provider-local variant ID or explicit override;
-- concrete model value passed to the adapter;
+The v0.9.0 Model Variant Resolution result identifies:
+
+- provider and adapter selected by the prior Provider Resolution stage;
+- concrete provider-local model value passed to the adapter, or adapter default;
 - effort/reasoning setting where the adapter supports one;
-- resolution source/policy;
-- fallback decision, if any;
-- adapter execution options relevant to the approved scope;
-- runtime-option discovery/provenance source.
+- a source for each resolved dimension (`explicit_override`,
+  `trusted_profile`, or `adapter_default`);
+- named adapter execution options when advertised;
+- the versioned runtime-option descriptor digest and disclosed limitations;
+- an explicit no-fallback decision.
 
 ### Adapter runtime-option discovery
 
@@ -197,8 +193,9 @@ reproducibility or policy reasons.
 
 ## Operator-controlled policy first
 
-Initial variant routing is deterministic trusted policy plus explicit
-task/node overrides, not autonomous quality ranking. For example:
+Variant routing is deterministic trusted policy plus explicit task/node
+overrides, not autonomous quality ranking. A future named execution-class layer
+could map operator-defined classes to provider-local settings. For example:
 
 ```yaml
 variant_policies:
@@ -211,7 +208,7 @@ variant_policies:
     allow_fallback: false
 ```
 
-This is illustrative, not a committed configuration schema.
+This remains illustrative, not the v0.9.0 configuration schema.
 
 The Supervisor must not silently decide that a task is "hard" and increase model
 cost/effort outside approved policy. It may propose a trusted execution class or
@@ -272,9 +269,10 @@ The intended separation is:
 | How much may it consume? | budget policy |
 
 Time/token/cost budgets therefore remain separate from capabilities and model
-variants. v0.9.0 establishes runtime-option/variant provenance, v0.9.1 adds
-task/node execution-policy authority, and v0.9.2 layers reliable usage/cost
-telemetry and budgets on top of those frozen choices.
+variants. v0.9.0 establishes runtime-option/variant provenance plus raw
+task/node model/effort overrides. Later v0.9 work may add named execution classes,
+persistent bounded policy UX, and reliable usage/cost budgets on top of those
+frozen choices.
 
 ## Frontends such as Cursor, OpenCode and Devin
 
