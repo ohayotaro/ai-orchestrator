@@ -382,6 +382,7 @@ class TaskState(Contract):
     task_capability_requirements: dict[str, list[str]] | None = None
     provider_resolutions: dict[str, dict[str, object]] | None = None
     model_variant_resolutions: dict[str, dict[str, object]] | None = None
+    runtime_overrides: dict[str, dict[str, object]] | None = None
     workflow_id: str | None = None
     workflow_digest: str | None = None
     workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor", "supervisor_proposed"] | None = None
