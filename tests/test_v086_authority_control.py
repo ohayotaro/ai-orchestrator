@@ -346,6 +346,58 @@ def test_provider_change_set_decline_is_noop(workspace):
         check.close()
 
 
+def test_provider_change_set_works_through_single_terminal_mcp(workspace):
+    edit_profile(workspace, lambda data: data["providers"]["engineering"].update(adapter="agy"))
+    engine = Engine(workspace)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    from ai_orchestrator.mcp_server import StdioServer
+    manager = RecordingWorker()
+    server = StdioServer(ApplicationService(workspace), single_terminal=True, auto_worker=manager)
+    try:
+        initialize(server)
+        preview = tool(
+            server,
+            "preview_provider_change_set",
+            {"changes": {"reasoning": "agy", "engineering": "claude"}},
+            id="preview-swap",
+        )
+        structured = preview["result"]["structuredContent"]
+        assert structured["ready"] is True
+        assert len(structured["changes"]) == 2
+
+        prompt = tool(
+            server,
+            "request_provider_change_set",
+            {
+                "changes": {"reasoning": "agy", "engineering": "claude"},
+                "request_id": "swap-mcp-1",
+            },
+            id="swap-call",
+        )
+        assert prompt["method"] == "elicitation/create"
+        assert "engineering: agy -> claude" in prompt["params"]["message"]
+        assert "reasoning: claude -> agy" in prompt["params"]["message"]
+        final = rpc_confirm(server, prompt)
+        payload = final["result"]["structuredContent"]
+        assert payload["gate_status"] == "applied"
+        assert len(payload["result"]["changes"]) == 2
+        assert manager.kicks == 0
+    finally:
+        server.close()
+
+    check = Engine(workspace)
+    try:
+        assert check.profile.providers["engineering"].adapter == "claude"
+        assert check.profile.providers["reasoning"].adapter == "agy"
+        assert check.store.trusted(check.profile_digest)
+    finally:
+        check.close()
+
+
 def agy_task_setup(workspace):
     edit_profile(workspace, lambda data: data["providers"]["engineering"].update(adapter="agy"))
     reasoning = PermissionAdapter("anthropic")
