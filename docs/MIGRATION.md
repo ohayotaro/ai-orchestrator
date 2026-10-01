@@ -259,3 +259,14 @@ are unchanged; new provider calls may append `provider.tool_telemetry` events.
 Historical provider calls cannot be retroactively reconstructed because raw AGY
 tool traces were intentionally not persisted. Re-run a safe E2E after upgrading
 when tool-level provenance is needed.
+
+
+## v0.8.8 to v0.8.9
+
+No profile, task, event database or trust migration is required. HumanGate scope
+semantics are unchanged. Only the client-facing confirmation message becomes
+compact and operation-specific.
+
+Large binding cleanups that previously fit one form may now need multiple
+confirmations because v0.8.9 caps one cleanup form at 12 exact IDs to keep all
+targets visible.

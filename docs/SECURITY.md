@@ -336,3 +336,21 @@ Telemetry is emitted for both successful and failed calls but has no authority
 semantics. Denied actions remain terminal failures, broad AGY permission still
 requires its dedicated HumanGate, and guarded worktree/write-set enforcement is
 unchanged.
+
+
+## v0.8.9 confirmation presentation
+
+HumanGate display is no longer a serialization of the entire authority-bound
+preview. The persisted gate still contains the complete preview and the scope
+still binds exact task/intake state, kernel scope, trusted profile, worktree,
+protected paths and orchestration controls. Before applying a Yes response the
+controller recomputes those values exactly as before.
+
+The client-facing form is a bounded summary intended to keep decision-critical
+facts visible even in clients that collapse long elicitation messages. Compact
+presentation must never be interpreted as reduced authority binding.
+
+Binding-cleanup forms are limited to 12 exact IDs per confirmation so every
+abandoned/withdrawn target can remain visible. High-risk provider-permission
+forms must display the broad AGY permission effect and separate-execution-gate
+requirement explicitly.

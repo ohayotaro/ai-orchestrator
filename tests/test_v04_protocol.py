@@ -67,14 +67,22 @@ def test_native_start_response_is_not_model_tool_permission(server_setup):
 def test_native_whole_flow_has_three_independent_confirmations(server_setup):
     server, manager, intake, engine, broker, providers = server_setup
     prompt = tool(server, "request_start", {"intake_id": intake.id, "request_id": "native-1"})
+    assert "Workflow:" in prompt["params"]["message"]
+    assert "Workflow nodes:" in prompt["params"]["message"]
+    assert "Allowed paths:" in prompt["params"]["message"]
+    assert len(prompt["params"]["message"].splitlines()) < 22
     confirm(server, prompt)
     run_queued(broker, providers)
     prompt = tool(server, "request_execution", {"task_id": "host-task", "request_id": "native-2"})
-    assert "implementation attempt" in prompt["params"]["message"]
+    assert "Attempt:" in prompt["params"]["message"]
+    assert "Allowed paths:" in prompt["params"]["message"]
+    assert "Provider permission override(s):" in prompt["params"]["message"]
     confirm(server, prompt)
     run_queued(broker, providers)
     prompt = tool(server, "request_acceptance", {"task_id": "host-task", "request_id": "native-3"})
-    assert "validation" in prompt["params"]["message"] and "reviewed_snapshot" in prompt["params"]["message"]
+    assert "Validation passed:" in prompt["params"]["message"]
+    assert "Review outcome:" in prompt["params"]["message"]
+    assert "Not authorized: commit, push" in prompt["params"]["message"]
     assert engine.store.get("host-task").status == "awaiting_acceptance"
     confirm(server, prompt)
     assert engine.store.get("host-task").status == "succeeded"

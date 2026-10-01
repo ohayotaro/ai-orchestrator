@@ -63,6 +63,10 @@ def test_provider_change_preview_and_humangate_apply_and_trust(workspace):
         )
         assert gate.kind == "profile_change"
         assert "trust only the resulting profile digest" in gate.preview["operation"]
+        message = broker.form(gate)["message"]
+        assert "Adapter: codex -> agy" in message
+        assert "New trusted profile:" in message
+        assert len(message.splitlines()) < 16
         result = confirm(broker, gate)
         assert result["gate_status"] == "applied"
         applied = result["result"]
@@ -264,6 +268,11 @@ def test_dedicated_permission_gate_then_execution_passes_flag_only_for_attempt(w
         )
         assert permission_gate.kind == "provider_permission"
         assert "auto-approves all AGY-native tool permission requests" in permission_gate.preview["operation"]
+        message = broker.form(permission_gate)["message"]
+        assert "Permission: AGY --dangerously-skip-permissions" in message
+        assert "Execution approval: NOT included" in message
+        assert "Still enforced:" in message
+        assert len(message.splitlines()) < 20
         permission_result = confirm(broker, permission_gate)
         assert permission_result["gate_status"] == "applied"
         assert permission_result["result"]["task_status"] == "awaiting_approval"
