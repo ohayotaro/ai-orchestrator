@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.6 — alpha
+
+- Add bounded authority-control for provider adapter changes in single-terminal
+  mode. Agents may preview one existing provider slot's adapter change, but only
+  a dedicated HumanGate may apply the exact diff and trust the resulting profile
+  digest.
+- Reset adapter-specific executable/model/effort overrides during an adapter
+  switch and validate provider capabilities, role resolution, workflow authority,
+  current profile trust, and absence of active task/intake bindings before the
+  confirmation can be prepared.
+- Add a separate task/attempt-scoped HumanGate for explicit AGY
+  `--dangerously-skip-permissions`. Execution approval never implies this
+  provider-native broad permission.
+- Bind broad permission grants to task ID, attempt, resolved AGY workflow nodes,
+  profile digest, execution scope, and exact worktree snapshot. A worktree change
+  or repair invalidates the grant and requires a fresh permission confirmation.
+- Pass the dangerous AGY flag only when the persisted grant and approval record
+  match the executing node. Continue using sandbox + guarded private worktrees,
+  exact write ownership, validators, review, and final acceptance.
+- Keep arbitrary config/policy edits, direct trust, validator registration and
+  other authority changes outside the agent-facing mutation surface.
+
+
 ## 0.8.5 — alpha
 
 - Treat a non-empty Antigravity terminal `denied_actions` list as an explicit
