@@ -9,8 +9,11 @@ from ai_orchestrator.human_gates import HumanGateBroker, ProfileChangeRequest, P
 from ai_orchestrator.models import OrchestratorError
 from ai_orchestrator.project import Project
 from ai_orchestrator.service import ApplicationService
+from ai_orchestrator.supervisor import Supervisor
 from ai_orchestrator.worker import process_one
 from conftest import FakeAdapter, spec
+from test_v04_gates import IntakeAdapter
+from test_v04_protocol import RecordingWorker, confirm as rpc_confirm, initialize, tool
 
 
 class PermissionAdapter(FakeAdapter):
@@ -159,6 +162,60 @@ def test_provider_change_rejected_while_task_is_active(workspace):
             provider_change_preview(engine, "engineering", "agy")
     finally:
         engine.close()
+
+
+def test_provider_change_rejected_while_intake_is_unconsumed(workspace):
+    providers = {"claude": IntakeAdapter("anthropic"), "codex": IntakeAdapter("openai")}
+    engine = Engine(workspace, providers)
+    try:
+        engine.trust("operator")
+        intake = Supervisor(engine).ask("Add a result", task_id="pending-intake")
+        assert intake.status == "proposed"
+        from ai_orchestrator.authority import provider_change_preview
+        with pytest.raises(OrchestratorError, match="bindings are active"):
+            provider_change_preview(engine, "engineering", "agy")
+    finally:
+        engine.close()
+
+
+def test_provider_change_works_through_single_terminal_mcp(workspace):
+    engine = Engine(workspace)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+    manager = RecordingWorker()
+    from ai_orchestrator.mcp_server import StdioServer
+    server = StdioServer(ApplicationService(workspace), single_terminal=True, auto_worker=manager)
+    try:
+        initialize(server)
+        preview = tool(
+            server,
+            "preview_provider_change",
+            {"provider": "engineering", "adapter": "agy"},
+            id="preview-provider",
+        )
+        assert preview["result"]["structuredContent"]["change"]["after"]["adapter"] == "agy"
+        prompt = tool(
+            server,
+            "request_provider_change",
+            {"provider": "engineering", "adapter": "agy", "request_id": "mcp-provider-change"},
+            id="provider-change-call",
+        )
+        assert prompt["method"] == "elicitation/create"
+        final = rpc_confirm(server, prompt)
+        payload = final["result"]["structuredContent"]
+        assert payload["gate_status"] == "applied"
+        assert payload["result"]["adapter"] == "agy"
+        assert manager.kicks == 0
+    finally:
+        server.close()
+    check = Engine(workspace)
+    try:
+        assert check.profile.providers["engineering"].adapter == "agy"
+        assert check.store.trusted(check.profile_digest)
+    finally:
+        check.close()
 
 
 def agy_task_setup(workspace):
