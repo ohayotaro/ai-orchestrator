@@ -282,3 +282,27 @@ Clients that want provider swaps or multiple simultaneous changes should use
 `preview_provider_change_set` and `request_provider_change_set` rather than
 issuing sequential single-slot changes. This avoids transient policy failures and
 ensures the user approves the complete final provider mapping in one HumanGate.
+
+
+## v0.8.10 to v0.9.0
+
+No runtime database migration or automatic profile rewrite is required solely for
+this upgrade. Existing persisted TaskState versions 1-5 remain readable; newly
+created tasks use TaskState v6 and freeze model/effort/runtime-option provenance.
+
+Existing trusted profiles keep their ordinary profile-digest semantics. A profile
+that already sets provider `model` or `effort` now has those values resolved
+through the adapter runtime-option contract before provider execution. Built-in
+adapters use honest pass-through metadata when they cannot enumerate a complete
+vendor catalog, so upgrading does not require pinning a kernel-owned model list.
+
+New task-scoped runtime overrides are ephemeral task authority. They are persisted
+in the task/intake state and HumanGate scope, not written back to project config.
+Changing a persistent provider model/effort remains a normal profile-authority
+change and requires the existing inspect/re-trust path.
+
+Provider Adapter v2 implementations that do not yet implement
+`describe_runtime_options` remain usable only when no explicit model/effort is
+requested through the new resolver; their runtime-option status is reported as
+unsupported rather than guessed. Adapter authors should implement the versioned
+descriptor before advertising explicit model/effort selection.

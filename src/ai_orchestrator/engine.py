@@ -8,10 +8,11 @@ from typing import Any, Callable
 
 from .capabilities import CAPABILITIES, CapabilityResolver, ProviderResolution, validate_requirements
 from .contracts import ReviewResult, result_contract
-from .models import AgentResult, Contract, OrchestratorError, ProviderPermissionGrant, TaskSpec, TaskState, WorkflowSpec
+from .models import AgentResult, Contract, OrchestratorError, ProviderPermissionGrant, TaskSpec, TaskState, WorkflowSpec, identifier
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
+from .runtime_options import ModelVariantResolution, ModelVariantResolver, RuntimeOverride, config_for_variant
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import compile_workflow, workflow_registry, workflow_registry_report
@@ -25,6 +26,7 @@ class Engine:
         self.profile, self.profile_digest, self.context = self.project.load()
         self.registry = registry if registry is not None else default_registry()
         self.capability_resolver = CapabilityResolver(self.profile, self.registry)
+        self.variant_resolver = ModelVariantResolver()
         self.store = Store(self.project, cancel_check)
         self.workflow_registry = workflow_registry(self.profile)
         self.compiled_workflow = self.workflow_registry[self.profile.workflow]
@@ -107,7 +109,8 @@ class Engine:
         return executor
 
     def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
-               workflow_ref: str | None = None) -> TaskState:
+               workflow_ref: str | None = None,
+               runtime_overrides: dict[str, dict[str, object]] | None = None) -> TaskState:
         with self.project.lock():
             missing = set(spec.validators) - self.profile.validators.keys()
             if missing:
@@ -120,15 +123,33 @@ class Engine:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
             requested = validate_requirements(capability_requirements)
-            state = TaskState(schema_version=4, spec=spec, profile_digest=self.profile_digest,
-                              capability_requirements=requested or None)
+            normalized_runtime: dict[str, dict[str, object]] = {}
+            for key, value in (runtime_overrides or {}).items():
+                identifier(key)
+                normalized_runtime[key] = RuntimeOverride.model_validate(value).model_dump()
+            state = TaskState(schema_version=6, spec=spec, profile_digest=self.profile_digest,
+                              capability_requirements=requested or None,
+                              runtime_overrides=normalized_runtime or None)
             executor = self.bind_workflow(
                 state, workflow_ref,
                 source="task" if workflow_ref is not None else "profile_default",
             )
+            valid_runtime_keys = {
+                value
+                for node in executor.workflow.spec.nodes
+                if node.kind == "agent"
+                for value in (node.id, node.role)
+            }
+            unknown_runtime_keys = set(normalized_runtime) - valid_runtime_keys
+            if unknown_runtime_keys:
+                raise OrchestratorError(
+                    "runtime override targets are not present in the selected workflow: "
+                    + ", ".join(sorted(unknown_runtime_keys))
+                )
             self.store.save(state, "task.created", {
                 "risk": spec.risk, "profile_digest": self.profile_digest,
                 "capability_requirements": requested,
+                "runtime_overrides": normalized_runtime,
                 "workflow_id": state.workflow_id, "workflow_digest": state.workflow_digest,
                 "workflow_selection_source": state.workflow_selection_source,
             }, create=True)
@@ -193,7 +214,41 @@ class Engine:
                 self.store.save(state, "capabilities.resolved", {"requirements": effective, "resolutions": resolutions})
         return resolved
 
-    def _binding(self, role: str, state: TaskState | None = None) -> tuple[ProviderAdapter, Any, ProviderResolution]:
+    def runtime_override_for(
+        self,
+        state: TaskState,
+        role: str,
+        *,
+        node_id: str | None = None,
+    ) -> RuntimeOverride | None:
+        values = state.runtime_overrides or {}
+        raw = values.get(node_id) if node_id is not None and node_id in values else values.get(role)
+        return RuntimeOverride.model_validate(raw) if raw is not None else None
+
+    def _resolve_variant(
+        self,
+        resolution: ProviderResolution,
+        *,
+        frozen: dict[str, object] | None = None,
+        override: RuntimeOverride | None = None,
+    ) -> tuple[ProviderAdapter, Any, ModelVariantResolution]:
+        config = self.profile.providers[resolution.provider]
+        adapter = self.registry.get(config.adapter)
+        if adapter is None:
+            raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
+        if frozen is None:
+            variant = self.variant_resolver.resolve(
+                resolution, config, adapter, self.project.root, override=override
+            )
+        else:
+            variant = self.variant_resolver.validate_frozen(
+                frozen, resolution, config, adapter, self.project.root, override=override
+            )
+        return adapter, config_for_variant(config, variant), variant
+
+    def _binding(
+        self, role: str, state: TaskState | None = None
+    ) -> tuple[ProviderAdapter, Any, ProviderResolution, ModelVariantResolution]:
         if state is not None and state.provider_resolutions and role in state.provider_resolutions:
             provider = state.provider_resolutions[role].get("provider")
             if not isinstance(provider, str):
@@ -207,11 +262,48 @@ class Engine:
             resolution = self.capability_resolver.resolve(role, required=extra, exclude_families=exclude, force_provider=provider)
         else:
             resolution = self.capability_resolver.resolve(role)
-        config = self.profile.providers[resolution.provider]
-        adapter = self.registry.get(config.adapter)
-        if adapter is None:
-            raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
-        return adapter, config, resolution
+        frozen = None
+        if state is not None and state.model_variant_resolutions:
+            frozen = state.model_variant_resolutions.get(role)
+        override = self.runtime_override_for(state, role) if state is not None else None
+        adapter, config, variant = self._resolve_variant(resolution, frozen=frozen, override=override)
+        return adapter, config, resolution, variant
+
+    def runtime_option_report(self) -> dict[str, Any]:
+        providers: dict[str, Any] = {}
+        for name, config in sorted(self.profile.providers.items()):
+            adapter = self.registry.get(config.adapter)
+            if adapter is None:
+                providers[name] = {"provider": name, "adapter": config.adapter, "error": "adapter is not installed"}
+                continue
+            try:
+                descriptor = self.variant_resolver.describe(adapter, config, self.project.root)
+                providers[name] = {
+                    "provider": name,
+                    "adapter": config.adapter,
+                    "runtime_options": descriptor.model_dump(),
+                }
+            except OrchestratorError as exc:
+                providers[name] = {"provider": name, "adapter": config.adapter, "error": str(exc)}
+
+        roles: dict[str, Any] = {}
+        implementer_family: str | None = None
+        for role in ["supervisor", "planner", "implementer", "reviewer"]:
+            if role != "supervisor" and role not in self.profile.roles:
+                continue
+            try:
+                exclude = {implementer_family} if role == "reviewer" and self.profile.policy.cross_provider_review and implementer_family else None
+                provider = self.capability_resolver.resolve(role, exclude_families=exclude)
+                _, _, variant = self._resolve_variant(provider)
+                roles[role] = {
+                    "provider_resolution": provider.model_dump(),
+                    "model_variant_resolution": variant.model_dump(),
+                }
+                if role == "implementer":
+                    implementer_family = provider.family
+            except OrchestratorError as exc:
+                roles[role] = {"role": role, "error": str(exc)}
+        return {"schema_version": 1, "providers": providers, "roles": roles}
 
     def capability_report(self) -> dict[str, Any]:
         report = self.capability_resolver.report()
@@ -253,8 +345,13 @@ class Engine:
         reports: dict[str, Any] = {}
         for role in ([] if validators_only else sorted(set(self.profile.roles) | {"supervisor"})):
             try:
-                adapter, config, resolution = self._binding(role)
-                reports[role] = {"ok": True, "resolution": resolution.model_dump(), **adapter.doctor(config, self.project.root)}
+                adapter, config, resolution, variant = self._binding(role)
+                reports[role] = {
+                    "ok": True,
+                    "resolution": resolution.model_dump(),
+                    "model_variant_resolution": variant.model_dump(),
+                    **adapter.doctor(config, self.project.root),
+                }
             except OrchestratorError as exc:
                 reports[role] = {"ok": False, "error": str(exc)}
         for name in self.profile.validators:
@@ -307,6 +404,9 @@ class Engine:
         if state.schema_version >= 3:
             payload["capability_requirements"] = state.capability_requirements
             payload["provider_resolutions"] = state.provider_resolutions
+        if state.schema_version >= 6:
+            payload["model_variant_resolutions"] = state.model_variant_resolutions
+            payload["runtime_overrides"] = state.runtime_overrides
         if state.schema_version >= 4:
             payload["task_capability_requirements"] = state.task_capability_requirements
             payload["provider_permission_grants"] = {
@@ -508,7 +608,7 @@ class Engine:
         remaining = policy.task_timeout_seconds - state.elapsed_seconds
         if remaining <= 0:
             raise OrchestratorError("task execution-time budget exhausted")
-        adapter, config, resolution = self._binding(role, state)
+        adapter, config, resolution, variant = self._binding(role, state)
         before_files = self.project.manifest()
         before = self.project.snapshot()
         protected = self.project.protected_snapshot(self.profile)
@@ -517,7 +617,9 @@ class Engine:
         state.status = "running"
         state.calls += 1
         self.store.save(state, "call.started", {"role": role, "provider": resolution.provider,
-                                                "family": resolution.family, "model": config.model,
+                                                "family": resolution.family, "model": variant.model,
+                                                "effort": variant.effort,
+                                                "model_variant_resolution": variant.model_dump(),
                                                 "required_capabilities": resolution.required_capabilities,
                                                 "adapter_api_version": resolution.adapter_api_version,
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})

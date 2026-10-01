@@ -238,6 +238,7 @@ class Supervisor:
                 "available_capabilities": CAPABILITIES,
                 "base_role_capabilities": {role: list(values) for role, values in DEFAULT_ROLE_CAPABILITIES.items() if role != "supervisor"},
                 "available_workflows": self.engine.workflow_registry_report(),
+                "available_runtime_options": self.engine.runtime_option_report(),
                 "default_workflow": self.engine.profile.workflow,
                 "requested_workflow_ref": workflow_ref,
                 "advisory": advisory,
@@ -255,7 +256,9 @@ class Supervisor:
                     "Always look for a suitable ID in available_workflows first. workflow_ref may name only one of those trusted IDs.",
                     "If requested_workflow_ref is set, echo exactly that trusted ID and leave workflow null.",
                     "For non-advisory work only, when no listed trusted workflow suitably expresses the task structure, you may leave workflow_ref null and propose one task-scoped Workflow Schema v1 object in workflow. It is only a proposal for this task and is never installed or trusted automatically.",
-                    "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, models, policies or permissions.",
+                    "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, policies or permissions.",
+                    "runtime_overrides are task-scoped only. Set them only when the user explicitly asks for a specific model, effort/reasoning level, or execution intensity; otherwise leave them empty. Never raise effort/cost on your own.",
+                    "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
                     "Do not set template_version/provenance in a proposed workflow. Keep it at most 16 nodes and within the stated task. Every isolated write_path must be one of task.allowed_paths; independent isolated writers must own disjoint files.",
                     "Use isolated parallel writers only when the task can actually be split by exact file ownership. Otherwise prefer a simpler sequential DAG.",
                 ],
@@ -270,7 +273,7 @@ class Supervisor:
             self.store.save_intake(intake, "intake.created", create=True)
             start = None
             try:
-                adapter, config, resolution = self.engine._binding("supervisor")
+                adapter, config, resolution, variant = self.engine._binding("supervisor")
                 adapter.doctor(config, self.project.root)
                 controls = self.project.control_snapshot()
                 protected = self.project.protected_snapshot(self.engine.profile)
@@ -294,6 +297,7 @@ class Supervisor:
                 raw_requirements = task_result.pop("capabilities") if task_result is not None else None
                 proposed_workflow_ref = task_result.pop("workflow_ref") if task_result is not None else None
                 proposed_workflow_raw = task_result.pop("workflow") if task_result is not None else None
+                raw_runtime_overrides = task_result.pop("runtime_overrides") if task_result is not None else None
                 proposed_workflow = WorkflowSpec.model_validate(proposed_workflow_raw) if proposed_workflow_raw is not None else None
                 intake.capability_requirements = validate_requirements(raw_requirements) or None
                 if task_result is not None:
@@ -325,6 +329,21 @@ class Supervisor:
                         intake.workflow_spec = None
                         intake.workflow_digest = compiled_workflow.digest
                         intake.workflow_source = "profile_default"
+
+                    overrides = raw_runtime_overrides or {}
+                    valid_runtime_keys = {
+                        value
+                        for node in compiled_workflow.spec.nodes
+                        if node.kind == "agent"
+                        for value in (node.id, node.role)
+                    }
+                    unknown_runtime_keys = set(overrides) - valid_runtime_keys
+                    if unknown_runtime_keys:
+                        raise OrchestratorError(
+                            "runtime override targets are not present in the selected workflow: "
+                            + ", ".join(sorted(unknown_runtime_keys))
+                        )
+                    intake.runtime_overrides = overrides or None
                 intake.result = SupervisorResult.model_validate(raw_result)
                 intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
@@ -367,10 +386,11 @@ class Supervisor:
             compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=5 if intake.workflow_spec is not None else 4,
+            state = TaskState(schema_version=6,
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
+                              runtime_overrides=intake.runtime_overrides,
                               calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
             if intake.workflow_spec is not None:
                 executor = self.engine.bind_proposed_workflow(state, intake.workflow_spec)

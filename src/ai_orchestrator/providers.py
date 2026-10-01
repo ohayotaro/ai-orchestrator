@@ -13,6 +13,7 @@ from typing import Callable, Protocol
 from .models import AgentResult, Contract, OrchestratorError, ProviderConfig
 from .process import run_process
 from .project import encode, read_text
+from .runtime_options import RuntimeOptionsDescriptor, RuntimeValueDescriptor
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class ProviderAdapter(Protocol):
     semantic_capabilities: frozenset[str]
 
     def doctor(self, config: ProviderConfig, workspace: Path) -> dict[str, str]: ...
+    def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor: ...
     def execute(self, request: RunRequest) -> Contract: ...
 
 
@@ -54,6 +56,25 @@ class CLIAdapter:
     help_flags: tuple[str, ...] = ()
     capabilities = frozenset({"read_files", "write_files", "fresh_session", "structured_output"})
     semantic_capabilities = frozenset({"repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"})
+    model_selection_mode = "unsupported"
+    effort_selection_mode = "unsupported"
+    runtime_option_limitations: tuple[str, ...] = ()
+
+    def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor:
+        def domain(kind: str, mode: str) -> RuntimeValueDescriptor:
+            limitations = []
+            if mode == "passthrough":
+                limitations.append(
+                    f"{self.command} exposes explicit {kind} selection but does not provide a complete reliable catalog; "
+                    "the provider runtime validates the provider-local value"
+                )
+            return RuntimeValueDescriptor(mode=mode, limitations=limitations)
+
+        return RuntimeOptionsDescriptor(
+            model=domain("model", self.model_selection_mode),
+            effort=domain("effort", self.effort_selection_mode),
+            limitations=list(self.runtime_option_limitations),
+        )
 
     def executable(self, config: ProviderConfig) -> str:
         name = config.executable or self.command
@@ -83,6 +104,11 @@ class CodexAdapter(CLIAdapter):
     command = "codex"
     family = "openai"
     capabilities = CLIAdapter.capabilities | {"shell", "native_sandbox"}
+    model_selection_mode = "passthrough"
+    effort_selection_mode = "passthrough"
+    runtime_option_limitations = (
+        "Codex model identifiers and reasoning-effort values are provider/model dependent; the adapter records pass-through provenance instead of fabricating a catalog.",
+    )
     help_flags = ("--output-schema", "--output-last-message", "--sandbox", "--ephemeral")
 
     def command_line(self, request: RunRequest, schema: Path, output: Path) -> list[str]:
@@ -117,6 +143,11 @@ class AgyAdapter(CLIAdapter):
     command = "agy"
     family = "google"
     capabilities = CLIAdapter.capabilities | {"native_sandbox"}
+    model_selection_mode = "passthrough"
+    effort_selection_mode = "passthrough"
+    runtime_option_limitations = (
+        "Antigravity model and effort catalogs are not assumed complete; configured values are passed through and attributed to this adapter contract.",
+    )
     help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode")
 
     def command_line(self, request: RunRequest, schema: Path) -> list[str]:
@@ -334,6 +365,11 @@ class ClaudeAdapter(CLIAdapter):
     command = "claude"
     family = "anthropic"
     # File tools only: shell is deliberately not advertised, even for implementation.
+    model_selection_mode = "passthrough"
+    effort_selection_mode = "passthrough"
+    runtime_option_limitations = (
+        "Claude model and effort catalogs are provider/model dependent; the adapter records pass-through provenance instead of maintaining a kernel-global list.",
+    )
     help_flags = ("--json-schema", "--no-session-persistence", "--permission-mode", "--tools", "--strict-mcp-config", "--setting-sources", "--disable-slash-commands")
 
     def command_line(self, request: RunRequest, mcp: Path) -> list[str]:

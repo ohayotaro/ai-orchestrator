@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from .models import AgentResult, Artifact, Contract, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
+from .runtime_options import RuntimeOverride
 
 
 class PlanResult(Contract):
@@ -57,7 +58,15 @@ class TaskDraftScoped(TaskDraft):
     capabilities: dict[str, list[str]] = Field(description="Additional semantic capabilities required per planner/implementer/reviewer role. Use only names advertised by the controller.")
     workflow_ref: str | None = Field(description="Trusted workflow ID advertised by the controller, or null when the Supervisor should use the default or propose a task-scoped workflow.")
     workflow: WorkflowSpec | None = Field(default=None, description="Optional task-scoped Workflow Schema v1 proposal. It is never installed or trusted automatically.")
+    runtime_overrides: dict[str, RuntimeOverride] = Field(default_factory=dict, description="Explicit task-scoped provider-local model/effort overrides keyed by planner/implementer/reviewer role or exact workflow node ID. Use only when the user explicitly requests execution intensity/model selection.")
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
+
+    @field_validator("runtime_overrides")
+    @classmethod
+    def valid_runtime_override_keys(cls, values: dict[str, RuntimeOverride]) -> dict[str, RuntimeOverride]:
+        for key in values:
+            identifier(key)
+        return values
 
     @field_validator("workflow_ref")
     @classmethod
@@ -136,6 +145,7 @@ class IntakeState(Contract):
     task: TaskSpec | None = None
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
+    runtime_overrides: dict[str, dict[str, object]] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
