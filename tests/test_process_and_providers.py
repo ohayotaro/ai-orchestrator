@@ -17,6 +17,27 @@ def request(tmp_path, phase="review", command=None):
 
 
 
+def test_agy_doctor_accepts_help_flags_written_to_stderr(tmp_path, monkeypatch):
+    adapter = AgyAdapter()
+    calls = []
+
+    def fake_process(argv, **kwargs):
+        calls.append(argv)
+        if "--version" in argv:
+            return ProcessResult(0, "1.2.14\n", "", 0.01)
+        help_text = "Usage of agy:\n" + "\n".join(
+            f"  {flag}  supported" for flag in adapter.help_flags
+        )
+        return ProcessResult(0, "", help_text, 0.01)
+
+    monkeypatch.setattr("ai_orchestrator.providers.run_process", fake_process)
+    monkeypatch.setattr(adapter, "executable", lambda config: "/opt/homebrew/bin/agy")
+    result = adapter.doctor(ProviderConfig(adapter="agy"), tmp_path)
+    assert result["version"] == "1.2.14"
+    assert result["family"] == "google"
+    assert calls[-1] == ["/opt/homebrew/bin/agy", "--help"]
+
+
 def test_default_registry_includes_antigravity_adapter():
     registry = default_registry()
     assert isinstance(registry["agy"], AgyAdapter)

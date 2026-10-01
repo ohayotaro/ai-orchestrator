@@ -59,7 +59,11 @@ class CLIAdapter:
         help_result = run_process(help_args, cwd=workspace, timeout=15)
         if version.returncode or help_result.returncode:
             raise OrchestratorError(f"{self.command} version/help probe failed")
-        missing = [flag for flag in self.help_flags if flag not in help_result.stdout]
+        # CLIs are inconsistent about which stream receives help text.
+        # Antigravity 1.2.x writes --help to stderr even on success; probe the
+        # complete diagnostic output rather than assuming stdout.
+        help_text = help_result.stdout + "\n" + help_result.stderr
+        missing = [flag for flag in self.help_flags if flag not in help_text]
         if missing:
             raise OrchestratorError(f"{self.command} CLI lacks required flags: {', '.join(missing)}")
         return {"executable": executable, "version": version.stdout.strip(), "family": self.family, "authentication": "not checked"}
