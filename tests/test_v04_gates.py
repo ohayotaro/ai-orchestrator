@@ -193,7 +193,16 @@ def test_precondition_is_inside_workspace_lock(gate_setup):
 @pytest.mark.parametrize("injected", ["approved", "decision", "confirm", "actor", "scope", "project"])
 def test_model_cannot_supply_authority_fields(tool, injected):
     model = GATE_TOOLS[tool][0]
-    data = {"request_id": "request-1", "intake_id" if tool == "request_start" else "task_id": "target", injected: True}
+    data = {"request_id": "request-1"}
+    if tool == "request_start":
+        data["intake_id"] = "target"
+    elif tool == "request_provider_change":
+        data.update(provider="engineering", adapter="codex")
+    elif tool == "request_provider_permission":
+        data.update(task_id="target", permission="agy_dangerously_skip_permissions")
+    else:
+        data["task_id"] = "target"
+    data[injected] = True
     with pytest.raises(ValidationError):
         model.model_validate(data)
 

@@ -213,3 +213,22 @@ re-trust solely for the software upgrade. Legacy/manual tasks without exact
 A failed task from v0.8.3 or earlier that may already have mutated the project
 must not be replayed. Inspect/restore that project to the desired baseline first,
 then create a fresh task after upgrading.
+
+
+## v0.8.5 to v0.8.6
+
+No runtime database migration or profile re-trust is required solely for the
+software upgrade. Existing task rows load with an empty provider-permission grant
+map.
+
+Single-terminal mode gains bounded provider authority controls. A provider
+adapter change performed through its HumanGate intentionally changes the project
+profile and, within the same confirmed operation, records trust only for the
+newly verified digest. Direct/manual profile edits continue to invalidate trust
+normally.
+
+Task-scoped AGY broad-permission grants are new task-state metadata. They are not
+persistent profile settings and are never inferred for existing tasks. A task
+must already be awaiting execution approval, the user must explicitly confirm
+the provider-permission form, and a separate execution confirmation remains
+required afterwards.

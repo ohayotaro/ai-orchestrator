@@ -97,6 +97,44 @@ class Store:
         row = self.db.execute("SELECT cancel_requested FROM tasks WHERE id=?", (task_id,)).fetchone()
         return bool(row and row[0])
 
+    def active_intake_ids(self) -> list[str]:
+        rows = self.db.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
+        active: list[str] = []
+        for intake_id, data in rows:
+            intake = IntakeState.model_validate_json(data)
+            if intake.status in ("proposed", "needs_clarification"):
+                active.append(intake_id)
+        return active
+
+    def active_task_ids(self) -> list[str]:
+        rows = self.db.execute("SELECT id,data FROM tasks ORDER BY id").fetchall()
+        active: list[str] = []
+        for task_id, data in rows:
+            state = TaskState.model_validate_json(data)
+            if state.status not in ("succeeded", "blocked", "failed", "cancelled"):
+                active.append(task_id)
+        return active
+
+    def authorize_provider_permission(
+        self, state: TaskState, scope: str, actor: str, permission: str
+    ) -> None:
+        if not actor.strip():
+            raise OrchestratorError("an approval actor is required")
+        with self.db:
+            self.db.execute(
+                "UPDATE tasks SET data=? WHERE id=?",
+                (state.model_dump_json(), state.spec.id),
+            )
+            self.db.execute(
+                "INSERT OR REPLACE INTO approvals VALUES (?,?,?,?)",
+                (state.spec.id, scope, actor, now()),
+            )
+            self._event(
+                state.spec.id,
+                "provider_permission.approved",
+                {"scope": scope, "actor": actor, "permission": permission, "attempt": state.attempt},
+            )
+
     def request_cancel(self, task_id: str) -> None:
         state = self.get(task_id)
         if state.status == "succeeded":

@@ -8,6 +8,7 @@ from typing import Any, Iterator
 
 from pydantic import Field, StrictBool, field_validator
 
+from . import authority
 from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
@@ -64,6 +65,13 @@ class AskInput(Contract):
         return value
 
 
+class ProviderChangeInput(Contract):
+    provider: str
+    adapter: str
+
+    _ids = field_validator("provider", "adapter")(identifier)
+
+
 class RunInput(TaskInput):
     request_id: str
 
@@ -79,6 +87,7 @@ class ArtifactInput(TaskInput):
 # Immutable dispatch definitions; additional fields are rejected, not ignored.
 TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "inspect_project": (Empty, "Inspect the fixed project's profile and validator diagnostics. Does not execute validators or check model authentication.", True),
+    "preview_provider_change": (ProviderChangeInput, "Preview one bounded persistent provider-adapter change. This does not edit config or grant trust. Use request_provider_change in single-terminal mode for the exact confirmed change.", True),
     "propose_task": (AskInput, "Queue a natural-language Supervisor request. workflow_ref may select an already-trusted workflow from inspect_project; it never installs/trusts one. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
     "get_job": (JobInput, "Read a queued job immediately. Prefer wait_job for active work instead of repeated polling.", True),
     "wait_job": (WaitJobInput, "Wait up to a bounded timeout for one job; in MCP single-terminal mode the server can emit progress notifications. Timeout never cancels the job.", True),
@@ -151,11 +160,21 @@ class ApplicationService:
                             "task_scoped_workflow_proposals": True,
                             "conversational_revision": True,
                             "persistent_template_save": "operator-only after successful evidence-backed execution",
-                            "profile_mutation_by_agent": False,
+                            "profile_mutation_by_agent": "bounded provider-adapter changes only through dedicated HumanGate",
+                        },
+                        "authority_control": {
+                            "provider_adapter_change": "preview_provider_change -> request_provider_change HumanGate; applies exact diff and trusts resulting digest",
+                            "agy_broad_permission": "task/attempt-scoped request_provider_permission HumanGate; separate from execution approval",
+                            "arbitrary_config_edit": False,
+                            "arbitrary_policy_change": False,
                         },
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
-                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover"]}
+                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover", "arbitrary config/policy changes"],
+                        "human_gate_authority": ["start", "execution", "acceptance", "bounded provider adapter change", "task-scoped AGY broad permission"],
+                        "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
+            if name == "preview_provider_change":
+                return authority.provider_change_preview(engine, params.provider, params.adapter)
             if name == "get_intake":
                 return Supervisor(engine).describe(params.intake_id)
             if name == "get_task":

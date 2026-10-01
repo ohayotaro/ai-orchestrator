@@ -92,28 +92,9 @@ class Project:
         self.control = confined(self.root, ".orchestrator")
         self.runtime = confined(self.root, ".orchestrator/runtime")
 
-    def load(self) -> tuple[Profile, str, dict[str, str]]:
-        config = confined(self.root, ".orchestrator/config.yaml")
-        if not config.is_file():
-            raise OrchestratorError("project not initialized; run orchestrator init")
-        profile = Profile.model_validate(load_yaml(config))
-        context: dict[str, str] = {}
-        for directory in ("policies", "skills", "knowledge/accepted"):
-            base = confined(self.root, f".orchestrator/{directory}")
-            if not base.exists():
-                continue
-            for path in sorted(base.rglob("*")):
-                if path.name == ".DS_Store":
-                    continue
-                relative = path.relative_to(self.root).as_posix()
-                confined(self.root, relative)
-                if path.is_file():
-                    if path.suffix != ".md":
-                        raise OrchestratorError(f"active context must be Markdown: {relative}")
-                    context[relative] = read_text(path)
-        if len(encode(context).encode()) > MAX_CONTEXT_BYTES:
-            raise OrchestratorError("active project context exceeds 64 KiB; curate it before running")
-        # Preserve v0.1 digests when newly introduced optional settings are empty.
+    @staticmethod
+    def fingerprint(profile: Profile, context: dict[str, str]) -> str:
+        # Preserve historical digests when newly introduced optional settings are empty.
         effective = profile.model_dump()
         for validator in effective["validators"].values():
             for key in ("env", "generated_paths"):
@@ -148,7 +129,30 @@ class Project:
                     node.pop("write_paths", None)
         if not effective["workflows"]:
             del effective["workflows"]
-        return profile, digest({"profile": effective, "context": context}), context
+        return digest({"profile": effective, "context": context})
+
+    def load(self) -> tuple[Profile, str, dict[str, str]]:
+        config = confined(self.root, ".orchestrator/config.yaml")
+        if not config.is_file():
+            raise OrchestratorError("project not initialized; run orchestrator init")
+        profile = Profile.model_validate(load_yaml(config))
+        context: dict[str, str] = {}
+        for directory in ("policies", "skills", "knowledge/accepted"):
+            base = confined(self.root, f".orchestrator/{directory}")
+            if not base.exists():
+                continue
+            for path in sorted(base.rglob("*")):
+                if path.name == ".DS_Store":
+                    continue
+                relative = path.relative_to(self.root).as_posix()
+                confined(self.root, relative)
+                if path.is_file():
+                    if path.suffix != ".md":
+                        raise OrchestratorError(f"active context must be Markdown: {relative}")
+                    context[relative] = read_text(path)
+        if len(encode(context).encode()) > MAX_CONTEXT_BYTES:
+            raise OrchestratorError("active project context exceeds 64 KiB; curate it before running")
+        return profile, self.fingerprint(profile, context), context
 
     @contextlib.contextmanager
     def lock(self) -> Iterator[None]:

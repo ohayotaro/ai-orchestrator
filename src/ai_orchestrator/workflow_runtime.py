@@ -479,6 +479,9 @@ class WorkflowExecutor:
                         "execute", self._prompt(state, node, resolution), workspace, config,
                         min(policy.call_timeout_seconds, remaining), cancel_event.is_set,
                         result_model=model,
+                        provider_permissions=engine.provider_permissions_for_node(
+                            state, node.id, resolution
+                        ),
                     ),
                 }
 
@@ -731,6 +734,7 @@ class WorkflowExecutor:
         if state.attempt >= self.engine.profile.policy.max_attempts:
             raise OrchestratorError("review/validation retry limit reached; user intervention required")
         state.attempt += 1
+        state.provider_permission_grants = {}
         state.feedback = redact(feedback[:12000])
         reset = {spec.repair_from, *self.workflow.descendants[spec.repair_from]}
         active = set(self.active_ids(state))

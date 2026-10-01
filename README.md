@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.4 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.6 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.4
+.venv/bin/orchestrator --version  # 0.8.6
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -374,3 +374,29 @@ isolated parallel workflows continue to use the same underlying integration path
 Legacy/manual tasks without an exact `allowed_paths` contract retain their
 historical behavior.
 
+
+
+## v0.8.6 bounded authority-control
+
+Single-terminal conversations can now handle two previously operator-manual
+authority cases without exposing arbitrary config editing.
+
+A user can ask to switch an existing provider slot, for example "switch
+engineering from AGY back to Codex". The agent first calls
+`preview_provider_change`, which returns the exact before/after provider
+configuration and proposed profile digest. Only `request_provider_change`
+can present the dedicated host HumanGate. Yes applies exactly that adapter
+change, clears vendor-specific executable/model/effort overrides, validates
+the resulting profile, and trusts only the resulting digest. Active tasks or
+unconsumed task proposals block the change.
+
+AGY broad native permission is separate. If the user explicitly asks to allow
+`--dangerously-skip-permissions` for a task attempt, the agent must call
+`request_provider_permission` before `request_execution`. The permission
+gate does not start execution. The grant is bound to the task, attempt, AGY
+workflow node(s), profile digest and worktree snapshot; repair or workspace
+drift requires a fresh permission gate.
+
+Ordinary execution approval never implies broad provider permission. Arbitrary
+policy/config mutation, validator registration and direct trust remain outside
+the agent-facing mutation surface.

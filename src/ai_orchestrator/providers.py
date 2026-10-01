@@ -24,6 +24,7 @@ class RunRequest:
     timeout: float
     cancel: Callable[[], bool]
     result_model: type[Contract] = AgentResult
+    provider_permissions: frozenset[str] = frozenset()
 
 
 class ProviderExecutionError(OrchestratorError):
@@ -128,6 +129,8 @@ class AgyAdapter(CLIAdapter):
             "--mode=accept-edits" if request.phase == "execute" else "--mode=plan",
             "--print-timeout", f"{timeout_seconds}s",
         ]
+        if "agy_dangerously_skip_permissions" in request.provider_permissions:
+            args += ["--dangerously-skip-permissions"]
         if request.config.model:
             args += ["--model", request.config.model]
         if request.config.effort:
