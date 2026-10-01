@@ -109,7 +109,7 @@ class CodexAdapter(CLIAdapter):
     runtime_option_limitations = (
         "Codex model identifiers and reasoning-effort values are provider/model dependent; the adapter records pass-through provenance instead of fabricating a catalog.",
     )
-    help_flags = ("--output-schema", "--output-last-message", "--sandbox", "--ephemeral", "--model")
+    help_flags = ("--output-schema", "--output-last-message", "--sandbox", "--ephemeral")
 
     def command_line(self, request: RunRequest, schema: Path, output: Path) -> list[str]:
         args = [request.config.executable or self.command, "exec", "--ephemeral", "--sandbox", "workspace-write" if request.phase == "execute" else "read-only", "-c", 'approval_policy="never"', "-c", 'web_search="disabled"', "-c", "sandbox_workspace_write.network_access=false", "--output-schema", str(schema), "--output-last-message", str(output), "--color", "never"]
@@ -148,7 +148,7 @@ class AgyAdapter(CLIAdapter):
     runtime_option_limitations = (
         "Antigravity model and effort catalogs are not assumed complete; configured values are passed through and attributed to this adapter contract.",
     )
-    help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode", "--model", "--effort")
+    help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode")
 
     def command_line(self, request: RunRequest, schema: Path) -> list[str]:
         timeout_seconds = max(1, int(request.timeout))
@@ -370,7 +370,7 @@ class ClaudeAdapter(CLIAdapter):
     runtime_option_limitations = (
         "Claude model and effort catalogs are provider/model dependent; the adapter records pass-through provenance instead of maintaining a kernel-global list.",
     )
-    help_flags = ("--json-schema", "--no-session-persistence", "--permission-mode", "--tools", "--strict-mcp-config", "--setting-sources", "--disable-slash-commands", "--model", "--effort")
+    help_flags = ("--json-schema", "--no-session-persistence", "--permission-mode", "--tools", "--strict-mcp-config", "--setting-sources", "--disable-slash-commands")
 
     def command_line(self, request: RunRequest, mcp: Path) -> list[str]:
         tools = "Read,Glob,Grep,Edit,Write" if request.phase == "execute" else "Read,Glob,Grep"
