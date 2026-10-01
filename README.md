@@ -266,7 +266,9 @@ replayed.
 The current v0.8 baseline combines deterministic capability/provider resolution,
 declarative workflows, isolated parallel execution and adaptive task-scoped DAG
 proposal behind the existing HumanGate/evidence boundaries. The next development
-phase is observability, budgets and recovery hardening.
+phase first separates provider-local model/effort/runtime-option resolution from
+provider identity, then layers usage observability, budgets and recovery
+hardening on top of that provenance.
 
 See **[ROADMAP.md](ROADMAP.md)** for the planned path from completed v0.5 provider resolution and v0.6 workflow DAGs, isolated parallel execution,
 adaptive/user-defined orchestration, observability and stable v1.0 contracts.

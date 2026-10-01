@@ -1,9 +1,10 @@
 # Provider Resolution and Model Variant Resolution
 
-Status: **v0.5.x design decision; implementation of general variant routing is
-deferred.**
+Status: **v0.5.x design boundary retained; implementation is now targeted for
+v0.9.0-v0.9.2.**
 
-This document fixes the boundary that v0.6 workflow/DAG design should depend on.
+This document fixes the boundary that the workflow/DAG and v0.9 runtime-policy
+implementation depend on.
 
 ## Decision
 
@@ -55,8 +56,24 @@ score or silently rank model quality.
 
 ## Model Variant Resolution: how
 
-A provider can eventually expose multiple execution variants. A variant is
-provider-local configuration, not a semantic capability.
+A provider may expose multiple execution variants. A variant is provider-local
+configuration, not a semantic capability. v0.9 implements this resolution layer
+after Provider Resolution.
+
+The intended precedence is:
+
+```text
+task/node explicit override
+        >
+trusted profile variant/runtime policy
+        >
+adapter default
+```
+
+An explicit task override is ephemeral task authority and must be frozen into the
+task/node approval scope. A persistent default is project profile authority and
+must use the bounded profile-change/trust path rather than arbitrary config
+editing.
 
 Conceptual configuration:
 
@@ -83,14 +100,38 @@ providers:
 The concrete schema is intentionally not implemented/frozen yet. The invariant
 is that a variant resolves only **after** provider selection.
 
-A future Model Variant Resolution result should identify at least:
+A Model Variant Resolution result should identify at least:
 
-- provider-local variant ID;
+- provider-local variant ID or explicit override;
 - concrete model value passed to the adapter;
 - effort/reasoning setting where the adapter supports one;
 - resolution source/policy;
 - fallback decision, if any;
-- adapter execution options relevant to the approved scope.
+- adapter execution options relevant to the approved scope;
+- runtime-option discovery/provenance source.
+
+### Adapter runtime-option discovery
+
+v0.9 must not maintain a kernel-global list of vendor model names or effort
+values. Each Provider Adapter is responsible for describing the runtime choices
+it can reliably control or verify.
+
+Conceptually:
+
+```text
+adapter.describe_runtime_options()
+  -> model IDs / selection mode
+  -> supported effort values
+  -> named execution-option dimensions
+  -> discovery source / limitations
+```
+
+Discovery may come from a reliable provider CLI/API, a tested adapter contract,
+or explicit trusted operator configuration. If a provider does not expose a
+reliable list, the adapter must report that limitation rather than claim a
+complete catalog. Pass-through model identifiers may be supported only when the
+adapter can still validate the invocation contract and record provenance
+honestly.
 
 ## Capability is not execution intensity
 
@@ -156,7 +197,8 @@ reproducibility or policy reasons.
 
 ## Operator-controlled policy first
 
-Initial variant routing must be deterministic operator policy, for example:
+Initial variant routing is deterministic trusted policy plus explicit
+task/node overrides, not autonomous quality ranking. For example:
 
 ```yaml
 variant_policies:
@@ -172,8 +214,11 @@ variant_policies:
 This is illustrative, not a committed configuration schema.
 
 The Supervisor must not silently decide that a task is "hard" and increase model
-cost/effort outside approved policy. Difficulty estimation, historical
-performance routing and learned selection are later adaptive features.
+cost/effort outside approved policy. It may propose a trusted execution class or
+task-scoped override when the user asks for quality/cost behavior, but the exact
+resolved model/effort must be visible in authority provenance. Difficulty
+estimation, historical performance routing and learned selection remain later
+adaptive features.
 
 ## Fallback and fail-closed behavior
 
@@ -227,8 +272,9 @@ The intended separation is:
 | How much may it consume? | budget policy |
 
 Time/token/cost budgets therefore remain separate from capabilities and model
-variants. v0.9 is the roadmap milestone for broader budget/observability work,
-although earlier workflow schemas may reserve a clean place for budget policy.
+variants. v0.9.0 establishes runtime-option/variant provenance, v0.9.1 adds
+task/node execution-policy authority, and v0.9.2 layers reliable usage/cost
+telemetry and budgets on top of those frozen choices.
 
 ## Frontends such as Cursor, OpenCode and Devin
 
@@ -258,17 +304,18 @@ can select and report it reliably.
 This distinction preserves the core rule: Orchestrator only records model-level
 provenance that its adapter can actually control or verify.
 
-## Non-goals for v0.5.x
+## v0.9 non-goals retained from the original decision
 
-This decision does not add:
+Implementing Model Variant Resolution does **not** imply:
 
 - automatic model-quality ranking;
-- task-difficulty scoring;
-- cost optimization;
-- model benchmarking;
-- arbitrary DAG execution;
-- parallel workers;
+- opaque task-difficulty scoring;
+- learned routing that silently changes model/effort;
 - implicit provider/model fallback;
-- vendor-specific model names in the Capability Registry.
+- vendor-specific model names in the Capability Registry;
+- treating `high`/`xhigh`/similar effort labels as universal kernel enums when
+  an adapter does not support them;
+- inventing token/cost numbers when a provider cannot attribute them reliably.
 
-Those remain later work.
+Any later optimization policy must build on explicit provenance and budgets
+rather than replacing them.
