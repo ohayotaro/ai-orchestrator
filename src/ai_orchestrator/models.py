@@ -391,7 +391,7 @@ class TaskState(Contract):
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
     profile_digest: str
-    status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled"] = "ready"
+    status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled", "abandoned"] = "ready"
     phase: Literal["plan", "execute", "validate", "review", "accept"] = "plan"
     attempt: int = 0
     calls: int = 0
