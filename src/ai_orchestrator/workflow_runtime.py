@@ -347,6 +347,7 @@ class WorkflowExecutor:
                     min(policy.call_timeout_seconds, remaining),
                     lambda: engine.store.cancelled(state.spec.id),
                     result_model=model,
+                    runtime_options=dict(variant.options),
                     telemetry_sink=telemetry.update,
                 )
             )
@@ -512,6 +513,7 @@ class WorkflowExecutor:
                         provider_permissions=engine.provider_permissions_for_node(
                             state, node.id, resolution
                         ),
+                        runtime_options=dict(variant.options),
                         telemetry_sink=telemetry.update,
                     ),
                 }
