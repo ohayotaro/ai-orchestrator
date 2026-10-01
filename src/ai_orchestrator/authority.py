@@ -347,6 +347,20 @@ def apply_provider_change(
     actor: str,
 ) -> dict[str, Any]:
     """Backward-compatible single-slot wrapper around atomic change-sets."""
+    preview = provider_change_preview(engine, provider, adapter)
+    with engine.store.db:
+        engine.store._event(
+            None,
+            "profile_change.intent",
+            {
+                "change_id": preview["change_id"],
+                "provider": provider,
+                "adapter": adapter,
+                "from_digest": expected_current_digest,
+                "to_digest": expected_proposed_digest,
+                "actor": actor,
+            },
+        )
     result = apply_provider_change_set(
         engine,
         {provider: adapter},
@@ -354,6 +368,19 @@ def apply_provider_change(
         expected_proposed_digest,
         actor,
     )
+    with engine.store.db:
+        engine.store._event(
+            None,
+            "profile_change.applied",
+            {
+                "change_id": preview["change_id"],
+                "provider": provider,
+                "adapter": adapter,
+                "from_digest": expected_current_digest,
+                "to_digest": expected_proposed_digest,
+                "actor": actor,
+            },
+        )
     return {
         **result,
         "provider": provider,
