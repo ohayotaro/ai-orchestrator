@@ -110,7 +110,8 @@ class Engine:
 
     def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
                workflow_ref: str | None = None,
-               runtime_overrides: dict[str, dict[str, object]] | None = None) -> TaskState:
+               runtime_overrides: dict[str, dict[str, object]] | None = None,
+               execution_classes: dict[str, str] | None = None) -> TaskState:
         with self.project.lock():
             missing = set(spec.validators) - self.profile.validators.keys()
             if missing:
@@ -127,9 +128,19 @@ class Engine:
             for key, value in (runtime_overrides or {}).items():
                 identifier(key)
                 normalized_runtime[key] = RuntimeOverride.model_validate(value).model_dump()
-            state = TaskState(schema_version=6, spec=spec, profile_digest=self.profile_digest,
+            normalized_classes = {
+                identifier(key): identifier(value)
+                for key, value in (execution_classes or {}).items()
+            }
+            unknown_classes = set(normalized_classes.values()) - set(self.profile.execution_classes)
+            if unknown_classes:
+                raise OrchestratorError(
+                    "unknown execution classes: " + ", ".join(sorted(unknown_classes))
+                )
+            state = TaskState(schema_version=7, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None,
-                              runtime_overrides=normalized_runtime or None)
+                              runtime_overrides=normalized_runtime or None,
+                              execution_classes=normalized_classes or None)
             executor = self.bind_workflow(
                 state, workflow_ref,
                 source="task" if workflow_ref is not None else "profile_default",
@@ -141,15 +152,22 @@ class Engine:
                 for value in (node.id, node.role)
             }
             unknown_runtime_keys = set(normalized_runtime) - valid_runtime_keys
+            unknown_class_keys = set(normalized_classes) - valid_runtime_keys
             if unknown_runtime_keys:
                 raise OrchestratorError(
                     "runtime override targets are not present in the selected workflow: "
                     + ", ".join(sorted(unknown_runtime_keys))
                 )
+            if unknown_class_keys:
+                raise OrchestratorError(
+                    "execution class targets are not present in the selected workflow: "
+                    + ", ".join(sorted(unknown_class_keys))
+                )
             self.store.save(state, "task.created", {
                 "risk": spec.risk, "profile_digest": self.profile_digest,
                 "capability_requirements": requested,
                 "runtime_overrides": normalized_runtime,
+                "execution_classes": normalized_classes,
                 "workflow_id": state.workflow_id, "workflow_digest": state.workflow_digest,
                 "workflow_selection_source": state.workflow_selection_source,
             }, create=True)
@@ -225,12 +243,40 @@ class Engine:
         raw = values.get(node_id) if node_id is not None and node_id in values else values.get(role)
         return RuntimeOverride.model_validate(raw) if raw is not None else None
 
+    def execution_class_for(
+        self,
+        state: TaskState,
+        resolution: ProviderResolution,
+        role: str,
+        *,
+        node_id: str | None = None,
+    ) -> tuple[str | None, RuntimeOverride | None]:
+        values = state.execution_classes or {}
+        class_name = (
+            values.get(node_id)
+            if node_id is not None and node_id in values
+            else values.get(role)
+        )
+        if class_name is None:
+            return None, None
+        policy = self.profile.execution_classes.get(class_name)
+        if policy is None:
+            raise OrchestratorError(f"unknown execution class in task state: {class_name}")
+        setting = policy.providers.get(resolution.provider) or policy.default
+        if setting is None:
+            raise OrchestratorError(
+                f"execution class {class_name} has no mapping for provider {resolution.provider}"
+            )
+        return class_name, RuntimeOverride.model_validate(setting.model_dump())
+
     def _resolve_variant(
         self,
         resolution: ProviderResolution,
         *,
         frozen: dict[str, object] | None = None,
         override: RuntimeOverride | None = None,
+        policy_override: RuntimeOverride | None = None,
+        execution_class: str | None = None,
     ) -> tuple[ProviderAdapter, Any, ModelVariantResolution]:
         config = self.profile.providers[resolution.provider]
         adapter = self.registry.get(config.adapter)
@@ -238,11 +284,24 @@ class Engine:
             raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
         if frozen is None:
             variant = self.variant_resolver.resolve(
-                resolution, config, adapter, self.project.root, override=override
+                resolution,
+                config,
+                adapter,
+                self.project.root,
+                override=override,
+                policy_override=policy_override,
+                execution_class=execution_class,
             )
         else:
             variant = self.variant_resolver.validate_frozen(
-                frozen, resolution, config, adapter, self.project.root, override=override
+                frozen,
+                resolution,
+                config,
+                adapter,
+                self.project.root,
+                override=override,
+                policy_override=policy_override,
+                execution_class=execution_class,
             )
         return adapter, config_for_variant(config, variant), variant
 
@@ -266,7 +325,16 @@ class Engine:
         if state is not None and state.model_variant_resolutions:
             frozen = state.model_variant_resolutions.get(role)
         override = self.runtime_override_for(state, role) if state is not None else None
-        adapter, config, variant = self._resolve_variant(resolution, frozen=frozen, override=override)
+        execution_class, policy_override = (
+            self.execution_class_for(state, resolution, role) if state is not None else (None, None)
+        )
+        adapter, config, variant = self._resolve_variant(
+            resolution,
+            frozen=frozen,
+            override=override,
+            policy_override=policy_override,
+            execution_class=execution_class,
+        )
         return adapter, config, resolution, variant
 
     def runtime_option_report(self) -> dict[str, Any]:
@@ -303,7 +371,15 @@ class Engine:
                     implementer_family = provider.family
             except OrchestratorError as exc:
                 roles[role] = {"role": role, "error": str(exc)}
-        return {"schema_version": 1, "providers": providers, "roles": roles}
+        return {
+            "schema_version": 2,
+            "providers": providers,
+            "roles": roles,
+            "execution_classes": {
+                name: value.model_dump()
+                for name, value in sorted(self.profile.execution_classes.items())
+            },
+        }
 
     def capability_report(self) -> dict[str, Any]:
         report = self.capability_resolver.report()
@@ -407,6 +483,8 @@ class Engine:
         if state.schema_version >= 6:
             payload["model_variant_resolutions"] = state.model_variant_resolutions
             payload["runtime_overrides"] = state.runtime_overrides
+        if state.schema_version >= 7:
+            payload["execution_classes"] = state.execution_classes
         if state.schema_version >= 4:
             payload["task_capability_requirements"] = state.task_capability_requirements
             payload["provider_permission_grants"] = {
