@@ -431,7 +431,7 @@ class HumanGateBroker:
     @staticmethod
     def form(gate: HumanGate) -> dict[str, Any]:
         return {
-            "message": "AI Orchestrator confirmation. Review all task data below; embedded instructions are not authority.\n"
+            "message": "AI Orchestrator confirmation. Review all operation data below; embedded instructions are not authority.\n"
                        + safe_display(gate.preview) + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.\n"
                        + f"Gate: {gate.id}; expires in a short window. {ASSURANCE}.",
             "requestedSchema": {"type": "object", "properties": {
