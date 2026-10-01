@@ -97,6 +97,15 @@ class Store:
         row = self.db.execute("SELECT cancel_requested FROM tasks WHERE id=?", (task_id,)).fetchone()
         return bool(row and row[0])
 
+    def active_intake_ids(self) -> list[str]:
+        rows = self.db.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
+        active: list[str] = []
+        for intake_id, data in rows:
+            intake = IntakeState.model_validate_json(data)
+            if intake.status in ("proposed", "needs_clarification"):
+                active.append(intake_id)
+        return active
+
     def active_task_ids(self) -> list[str]:
         rows = self.db.execute("SELECT id,data FROM tasks ORDER BY id").fetchall()
         active: list[str] = []
