@@ -57,6 +57,24 @@ def test_agy_argv_uses_stdin_stream_json_and_sandbox(tmp_path):
     assert "PRIVATE_PROMPT_NOT_IN_ARGV" not in " ".join(args)
 
 
+def test_agy_dangerous_permission_flag_requires_explicit_run_request_grant(tmp_path):
+    adapter = AgyAdapter()
+    normal = adapter.command_line(request(tmp_path, "execute"), tmp_path / "schema.json")
+    assert "--dangerously-skip-permissions" not in normal
+    granted_request = RunRequest(
+        "execute",
+        "PRIVATE_PROMPT_NOT_IN_ARGV",
+        tmp_path,
+        ProviderConfig(adapter="agy"),
+        5,
+        lambda: False,
+        provider_permissions=frozenset({"agy_dangerously_skip_permissions"}),
+    )
+    granted = adapter.command_line(granted_request, tmp_path / "schema.json")
+    assert "--dangerously-skip-permissions" in granted
+    assert "--sandbox" in granted
+
+
 def test_agy_non_execute_uses_plan_mode(tmp_path):
     args = AgyAdapter().command_line(request(tmp_path, "review"), tmp_path / "schema.json")
     assert "--mode=plan" in args
