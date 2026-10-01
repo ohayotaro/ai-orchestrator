@@ -12,7 +12,7 @@ from .models import AgentResult, Contract, OrchestratorError, ProviderPermission
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
-from .runtime_options import ModelVariantResolution, ModelVariantResolver, config_for_variant
+from .runtime_options import ModelVariantResolution, ModelVariantResolver, RuntimeOverride, config_for_variant
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import compile_workflow, workflow_registry, workflow_registry_report
@@ -195,11 +195,23 @@ class Engine:
                 self.store.save(state, "capabilities.resolved", {"requirements": effective, "resolutions": resolutions})
         return resolved
 
+    def runtime_override_for(
+        self,
+        state: TaskState,
+        role: str,
+        *,
+        node_id: str | None = None,
+    ) -> RuntimeOverride | None:
+        values = state.runtime_overrides or {}
+        raw = values.get(node_id) if node_id is not None and node_id in values else values.get(role)
+        return RuntimeOverride.model_validate(raw) if raw is not None else None
+
     def _resolve_variant(
         self,
         resolution: ProviderResolution,
         *,
         frozen: dict[str, object] | None = None,
+        override: RuntimeOverride | None = None,
     ) -> tuple[ProviderAdapter, Any, ModelVariantResolution]:
         config = self.profile.providers[resolution.provider]
         adapter = self.registry.get(config.adapter)
@@ -207,11 +219,11 @@ class Engine:
             raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
         if frozen is None:
             variant = self.variant_resolver.resolve(
-                resolution, config, adapter, self.project.root
+                resolution, config, adapter, self.project.root, override=override
             )
         else:
             variant = self.variant_resolver.validate_frozen(
-                frozen, resolution, config, adapter, self.project.root
+                frozen, resolution, config, adapter, self.project.root, override=override
             )
         return adapter, config_for_variant(config, variant), variant
 
@@ -234,7 +246,8 @@ class Engine:
         frozen = None
         if state is not None and state.model_variant_resolutions:
             frozen = state.model_variant_resolutions.get(role)
-        adapter, config, variant = self._resolve_variant(resolution, frozen=frozen)
+        override = self.runtime_override_for(state, role) if state is not None else None
+        adapter, config, variant = self._resolve_variant(resolution, frozen=frozen, override=override)
         return adapter, config, resolution, variant
 
     def runtime_option_report(self) -> dict[str, Any]:
@@ -374,6 +387,7 @@ class Engine:
             payload["provider_resolutions"] = state.provider_resolutions
         if state.schema_version >= 6:
             payload["model_variant_resolutions"] = state.model_variant_resolutions
+            payload["runtime_overrides"] = state.runtime_overrides
         if state.schema_version >= 4:
             payload["task_capability_requirements"] = state.task_capability_requirements
             payload["provider_permission_grants"] = {
