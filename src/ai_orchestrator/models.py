@@ -278,6 +278,7 @@ class WorkflowNodeState(Contract):
     attempt: int = Field(default=0, ge=0, strict=True)
     required_capabilities: list[str] = Field(default_factory=list)
     provider_resolution: dict[str, object] | None = None
+    model_variant_resolution: dict[str, object] | None = None
     artifact_kinds: list[str] = Field(default_factory=list)
     error: str | None = None
 
@@ -371,14 +372,16 @@ class ProviderPermissionGrant(Contract):
 
 
 class TaskState(Contract):
-    # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows.
-    schema_version: Literal[1, 2, 3, 4, 5] = 1
+    # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows,
+    # v6 freezes provider-local model/effort/runtime-option provenance.
+    schema_version: Literal[1, 2, 3, 4, 5, 6] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
     task_capability_requirements: dict[str, list[str]] | None = None
     provider_resolutions: dict[str, dict[str, object]] | None = None
+    model_variant_resolutions: dict[str, dict[str, object]] | None = None
     workflow_id: str | None = None
     workflow_digest: str | None = None
     workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor", "supervisor_proposed"] | None = None
