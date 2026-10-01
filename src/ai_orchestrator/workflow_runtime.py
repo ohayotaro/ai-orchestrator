@@ -545,6 +545,37 @@ class WorkflowExecutor:
                 if result.outcome != "completed":
                     raise OrchestratorError(f"workflow node {node.id} must return completed or blocked")
                 record = manager.finalize_node(node.id, node.write_paths)
+                if record["violations"]:
+                    write_name = self._output_name(node, "write_set")
+                    rejected = {key: value for key, value in record.items() if key != "patch_path"}
+                    rejected.update({
+                        "enforced": True,
+                        "allowed_paths": state.allowed_paths,
+                        "integrated_snapshot": None,
+                        "aggregate_patch_sha256": None,
+                    })
+                    engine.store.artifact(state, write_name, rejected)
+                    state.workflow_nodes[node.id].artifact_kinds = [write_name]
+                    engine.store.save(
+                        state, "write_set.checked",
+                        {
+                            "node": node.id, "workspace": "isolated",
+                            "changed_paths": record["changed_paths"],
+                            "violations": record["violations"],
+                            "owned_paths": node.write_paths,
+                            "integrated": False,
+                        },
+                    )
+                    engine.store.save(
+                        state, "workspace.patch.rejected",
+                        {key: value for key, value in record.items() if key != "patch_path"},
+                    )
+                    contract = "allowed_paths" if execution_kind == "guarded_write" else "write_paths"
+                    raise OrchestratorError(
+                        f"implementation changed paths outside {contract}: "
+                        + ", ".join(record["violations"][:20])
+                        + "; isolated changes were discarded"
+                    )
                 patches.append(record)
                 cleaned_results[node.id] = result
                 engine.store.save(
