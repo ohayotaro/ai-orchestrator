@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.5 — alpha
+
+- Treat a non-empty Antigravity terminal `denied_actions` list as an explicit
+  provider permission failure even when AGY reports `status=SUCCESS` and exits
+  zero.
+- Record only denied action types/counts in safe diagnostics; never persist tool
+  parameters, target paths, prompts or provider response content.
+- Do not auto-enable `--dangerously-skip-permissions`. Current AGY headless
+  permission policy requires native pre-authorization for writable tools, and
+  the CLI does not expose a verified per-run scoped settings file that the
+  Orchestrator can safely synthesize.
+
+
 ## 0.8.4 — alpha
 
 - Guard every Workflow Schema writable implementer with exact task

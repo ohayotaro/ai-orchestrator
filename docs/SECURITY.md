@@ -246,3 +246,24 @@ their prior shared-worktree semantics.
 Provider failure diagnostics stored in events are intentionally content-free:
 status, envelope field names, value types, JSON field names and byte counts only.
 Raw prompts and provider response bodies are never copied into diagnostic events.
+
+
+## v0.8.5 Antigravity headless permission limitation
+
+Live AGY 1.2.14 testing confirmed that `--mode=accept-edits` does not itself
+authorize `write_file` in headless mode. A denied write can still produce
+process exit 0 and terminal `status=SUCCESS`, with the actual denial reported
+only through `denied_actions`. The adapter therefore treats any non-empty
+`denied_actions` list as terminal failure before considering structured output.
+
+The controller does not add `--dangerously-skip-permissions`: that switch
+auto-approves every AGY tool category, not merely writes inside the private
+worktree. AGY's documented persistent `permissions.allow` lives in provider
+settings rather than a verified per-run settings path, so ai-orchestrator does
+not rewrite that user-global authority automatically.
+
+Operators may configure Antigravity's native scoped permissions themselves and
+then explicitly trust/select that provider. Until such permission is present,
+AGY is suitable for read-only/plan use but a writable headless turn will fail
+closed. Guarded worktree isolation still guarantees that a failed writable turn
+does not mutate the project worktree.

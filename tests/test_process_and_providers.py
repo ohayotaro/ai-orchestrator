@@ -120,6 +120,32 @@ def test_agy_response_fallback_allows_only_known_presentation_metadata(tmp_path,
     assert adapter.execute(request(tmp_path, "execute")) == expected
 
 
+def test_agy_success_with_denied_actions_is_permission_failure(tmp_path, monkeypatch):
+    envelope = {
+        "event": "result",
+        "result": {
+            "status": "SUCCESS",
+            "response": "",
+            "denied_actions": [
+                {"action": "write_file", "display_name": "WriteToFile"},
+                {"action": "write_file", "display_name": "WriteToFile"},
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(0, json.dumps(envelope) + "\n", "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    with pytest.raises(ProviderExecutionError, match="permission-denied for write_file") as captured:
+        adapter.execute(request(tmp_path, "execute"))
+    assert captured.value.diagnostics["terminal_status"] == "SUCCESS"
+    assert captured.value.diagnostics["denied_action_count"] == 2
+    assert captured.value.diagnostics["denied_action_types"] == ["write_file"]
+    assert "WriteToFile" not in json.dumps(captured.value.diagnostics)
+
+
 def test_agy_failure_exposes_safe_shape_diagnostics_without_response_content(tmp_path, monkeypatch):
     secret = "PRIVATE_PROVIDER_RESPONSE_CONTENT"
     envelope = {
