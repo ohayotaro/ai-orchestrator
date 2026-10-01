@@ -390,6 +390,7 @@ class Supervisor:
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
+                              runtime_overrides=intake.runtime_overrides,
                               calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
             if intake.workflow_spec is not None:
                 executor = self.engine.bind_proposed_workflow(state, intake.workflow_spec)
