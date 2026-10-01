@@ -70,11 +70,15 @@ def test_native_whole_flow_has_three_independent_confirmations(server_setup):
     confirm(server, prompt)
     run_queued(broker, providers)
     prompt = tool(server, "request_execution", {"task_id": "host-task", "request_id": "native-2"})
-    assert "implementation attempt" in prompt["params"]["message"]
+    assert "Attempt:" in prompt["params"]["message"]
+    assert "Allowed paths:" in prompt["params"]["message"]
+    assert "Provider permission override(s):" in prompt["params"]["message"]
     confirm(server, prompt)
     run_queued(broker, providers)
     prompt = tool(server, "request_acceptance", {"task_id": "host-task", "request_id": "native-3"})
-    assert "validation" in prompt["params"]["message"] and "reviewed_snapshot" in prompt["params"]["message"]
+    assert "Validation passed:" in prompt["params"]["message"]
+    assert "Review outcome:" in prompt["params"]["message"]
+    assert "Not authorized: commit, push" in prompt["params"]["message"]
     assert engine.store.get("host-task").status == "awaiting_acceptance"
     confirm(server, prompt)
     assert engine.store.get("host-task").status == "succeeded"
