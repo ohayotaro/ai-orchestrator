@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.2 — alpha
+
+- Fix provider doctor/preflight compatibility with CLIs that emit successful
+  `--help` text on stderr rather than stdout.
+- Specifically fixes Antigravity CLI 1.2.14 being incorrectly reported as
+  missing all required headless flags even though the flags are present.
+- Add a regression reproducing AGY 1.2.x help-on-stderr behavior.
+
+
 ## 0.8.1 — alpha
 
 - Add a built-in Provider Adapter v2 for Google Antigravity CLI (`agy`).
