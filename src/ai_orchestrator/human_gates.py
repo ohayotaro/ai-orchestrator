@@ -49,6 +49,25 @@ class ProfileChangeRequest(Contract):
     _ids = field_validator("provider", "adapter", "request_id")(identifier)
 
 
+class ProfileChangeSetRequest(Contract):
+    changes: dict[str, str] = Field(min_length=1, max_length=16)
+    request_id: str
+
+    _request = field_validator("request_id")(identifier)
+
+    @field_validator("changes")
+    @classmethod
+    def valid_changes(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for provider, adapter in value.items():
+            provider_id = identifier(provider)
+            adapter_id = identifier(adapter)
+            if provider_id in normalized:
+                raise ValueError("provider change-set contains duplicate provider slots")
+            normalized[provider_id] = adapter_id
+        return normalized
+
+
 class ProviderPermissionRequest(Contract):
     task_id: str
     request_id: str
@@ -78,6 +97,7 @@ GATE_TOOLS = {
     "request_execution": (TaskRequest, "Ask the host for scoped implementation approval. After explicit confirmation, approve the exact current plan/attempt and queue it. Every repair needs a fresh request.", False),
     "request_acceptance": (TaskRequest, "Ask the host to confirm acceptance of the exact reviewed result. Only explicit confirmation can mark it succeeded. This never commits/pushes/deploys.", False),
     "request_provider_change": (ProfileChangeRequest, "Ask the host to confirm one exact persistent provider-adapter change. On Yes, the controller atomically edits only that provider slot, resets adapter-specific executable/model/effort overrides, validates the resulting profile, and trusts only its resulting digest.", False),
+    "request_provider_change_set": (ProfileChangeSetRequest, "Ask the host to confirm one exact atomic provider-adapter change-set across multiple existing provider slots. Only the final combined profile is validated/applied; no intermediate profile exists.", False),
     "request_binding_cleanup": (BindingCleanupRequest, "Ask the host to abandon exact unfinished tasks and withdraw exact unconsumed intakes. This terminalizes bindings only; it never deletes history or rolls back workspace files.", False),
     "request_provider_permission": (ProviderPermissionRequest, "Ask the host for a separate high-risk provider permission gate. The only supported permission is AGY --dangerously-skip-permissions for this exact task attempt; it does not approve execution itself.", False),
 }
@@ -91,7 +111,7 @@ class HumanGate(Contract):
     actor: str
     client: dict[str, str]
     request_id: str
-    kind: Literal["start", "execution", "acceptance", "profile_change", "binding_cleanup", "provider_permission"]
+    kind: Literal["start", "execution", "acceptance", "profile_change", "profile_change_set", "binding_cleanup", "provider_permission"]
     subject: str
     task_id: str | None = None
     scope: str
@@ -157,6 +177,27 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             "Effect: all AGY-native tool permission prompts are auto-approved for this scoped provider session.",
             "Still enforced: AGY sandbox; guarded private worktree; allowed_paths/write ownership; validators; review.",
             "Execution approval: NOT included — a separate execution confirmation is still required.",
+        ]
+    elif gate.kind == "profile_change_set":
+        changes = p.get("changes") or []
+        lines.append("Provider adapter changes (atomic):")
+        for item in changes:
+            if not isinstance(item, dict):
+                continue
+            before = item.get("before") or {}
+            after = item.get("after") or {}
+            lines.append(
+                "  "
+                + _clean_inline(item.get("provider", "-"), 60)
+                + ": "
+                + _clean_inline(before.get("adapter", "-"), 60)
+                + " -> "
+                + _clean_inline(after.get("adapter", item.get("adapter", "-")), 60)
+            )
+        lines += [
+            f"New trusted profile: {_clean_inline((p.get('change_set') or {}).get('proposed_profile_digest', '-'), 72)}",
+            "Atomicity: only the final combined profile is validated/applied; no intermediate provider state exists.",
+            "Task effect: no task is executed or accepted by this confirmation.",
         ]
     elif gate.kind == "profile_change":
         change = p.get("change") or {}
@@ -380,6 +421,40 @@ class HumanGateBroker:
                 raise OrchestratorError("confirmation preview exceeds 32 KiB; no binding cleanup was prepared")
             return {"task_id": None, "kernel_scope": kernel_scope, "scope": scope, "preview": preview}
 
+        if kind == "profile_change_set":
+            request = ProfileChangeSetRequest.model_validate(authority_request or {})
+            proposed = authority.provider_change_set_preview(engine, request.changes)
+            if not proposed["ready"]:
+                blockers = proposed["blocked_by"]
+                raise OrchestratorError(
+                    "provider change-set is blocked by unfinished bindings; use preview_binding_cleanup "
+                    "and request_binding_cleanup first: "
+                    f"tasks={','.join(blockers['task_ids']) or '-'}; "
+                    f"intakes={','.join(blockers['intake_ids']) or '-'}"
+                )
+            change_set = proposed["change_set"]
+            kernel_scope = change_set["proposed_profile_digest"]
+            state = {"authority_request": request.model_dump(), "change_set": change_set}
+            scope = digest({
+                "kind": kind, "subject": subject, "state": state, "kernel_scope": kernel_scope,
+                "profile": current, "workspace": project.snapshot(),
+                "protected": project.protected_snapshot(engine.profile),
+                "controls": project.control_snapshot(),
+            })
+            preview = {
+                "operation": (
+                    "Atomically persist this exact provider-adapter change-set and trust only the resulting profile digest. "
+                    "Only the final combined profile is validated; no intermediate provider configuration is applied."
+                ),
+                "project": str(project.root),
+                "subject": subject,
+                "scope": scope,
+                **proposed,
+            }
+            if len(safe_display(preview).encode()) > MAX_PREVIEW_BYTES:
+                raise OrchestratorError("confirmation preview exceeds 32 KiB; no authority change-set was prepared")
+            return {"task_id": None, "kernel_scope": kernel_scope, "scope": scope, "preview": preview}
+
         if kind == "profile_change":
             request = ProfileChangeRequest.model_validate(authority_request or {})
             proposed = authority.provider_change_preview(engine, request.provider, request.adapter)
@@ -557,6 +632,13 @@ class HumanGateBroker:
             request.model_dump(),
         )
 
+    def prepare_provider_change_set(self, request: ProfileChangeSetRequest) -> HumanGate:
+        subject = "PCS-" + digest({"changes": dict(sorted(request.changes.items()))})[:32]
+        return self.prepare(
+            "profile_change_set", subject, request.request_id,
+            request.model_dump(),
+        )
+
     def prepare_provider_change(self, request: ProfileChangeRequest) -> HumanGate:
         subject = "PC-" + digest({"provider": request.provider, "adapter": request.adapter})[:32]
         return self.prepare(
@@ -651,6 +733,18 @@ class HumanGateBroker:
                             engine,
                             request.task_ids,
                             request.intake_ids,
+                            gate.kernel_scope,
+                            gate.actor,
+                        )
+                    event_task_id = None
+                elif gate.kind == "profile_change_set":
+                    request = ProfileChangeSetRequest.model_validate(gate.authority_request or {})
+                    with engine.project.lock():
+                        check()
+                        result = authority.apply_provider_change_set(
+                            engine,
+                            request.changes,
+                            gate.preview["change_set"]["current_profile_digest"],
                             gate.kernel_scope,
                             gate.actor,
                         )
