@@ -298,3 +298,44 @@ profile is materialized or trusted.
 The historical single-slot API is implemented as a one-entry change-set wrapper
 and retains its legacy audit events for compatibility. Multi-slot operations use
 `profile_change_set.intent` / `profile_change_set.applied` provenance.
+
+
+## v0.9.0 runtime-option registry and Model Variant Resolution
+
+Execution now has two independent deterministic routing stages:
+
+```text
+semantic requirements
+  -> CapabilityResolver / ProviderResolution
+  -> ModelVariantResolver / ModelVariantResolution
+  -> resolved ProviderConfig
+  -> ProviderAdapter.execute
+```
+
+`ProviderResolution` continues to bind provider, adapter, family and semantic
+capabilities. `ModelVariantResolution` binds the provider-local model, effort
+and named runtime options plus a source per dimension, a digest of the adapter's
+runtime-option descriptor, limitations and an explicit no-fallback decision.
+
+Each adapter exposes a versioned `RuntimeOptionsDescriptor`. A dimension may be
+`enumerated` (complete list, controller validates), `passthrough` (the adapter
+can set the value but does not claim a complete catalog), or `unsupported`.
+This metadata is adapter data, not Capability Registry data.
+
+Resolution precedence is exact task/node override, then trusted
+`ProviderConfig.model/effort`, then adapter default. Workflow preflight resolves
+and freezes the result on each active agent node before relevant billable/effectful
+work. Role-level compatibility views are also retained when one node owns that
+role. Repeated preflight recomputes the descriptor and resolution; any drift in
+the frozen result fails closed.
+
+TaskState v6 stores both `runtime_overrides` and
+`model_variant_resolutions`. WorkflowNodeState stores the exact node
+`model_variant_resolution`. Approval scope serializes these fields together
+with the existing provider resolution and workflow state, so a material runtime
+change cannot reuse a prior execution approval.
+
+The Supervisor sees controller-generated runtime-option metadata and may emit
+runtime overrides only as task-scoped intent. Overrides are validated against
+actual agent roles/node IDs in the selected workflow and never mutate the trusted
+project profile. Persistent defaults remain project authority.
