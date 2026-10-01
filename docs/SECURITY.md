@@ -221,3 +221,28 @@ Accordingly, AGY remains inside the project's trusted-local provider boundary.
 Use conservative Antigravity permissions for orchestrated workers, keep terminal
 sandboxing available, and do not treat the Orchestrator prompt rule against
 external effects as a substitute for provider-native permission policy.
+
+
+## v0.8.4 guarded shared writes
+
+For Workflow Schema tasks with an exact `allowed_paths` contract, a writable
+implementer declared as `workspace: shared` is now executed in a private
+runtime worktree. The provider never receives the user's project worktree as its
+writable cwd. Its structured result is validated first, then changed paths are
+checked against the exact allowed set, then a deterministic binary patch is
+prepared/integrated and finally applied to the project only if root/control/
+protected snapshots are still unchanged.
+
+Consequently, provider result parsing failure, blocked output, cancellation, or
+write ownership violations do not leave provider edits in the user's project.
+Temporary runtime worktrees are removed on both success and ordinary failure.
+Interrupted running tasks remain recoverable through the existing conservative
+worktree cleanup path.
+
+This guarantee applies to scoped Workflow Schema execution. Legacy persisted
+manual/state-machine tasks without exact `allowed_paths` remain compatible with
+their prior shared-worktree semantics.
+
+Provider failure diagnostics stored in events are intentionally content-free:
+status, envelope field names, value types, JSON field names and byte counts only.
+Raw prompts and provider response bodies are never copied into diagnostic events.

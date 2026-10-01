@@ -12,7 +12,7 @@ from .contracts import ReviewResult, result_contract
 from .models import Contract, OrchestratorError, TaskState, WorkflowNodeSpec, WorkflowNodeState
 from .process import redact
 from .project import Project, encode
-from .providers import RunRequest
+from .providers import ProviderExecutionError, RunRequest
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import CompiledWorkflow
 from .workspaces import WorkspaceManager
@@ -255,6 +255,27 @@ class WorkflowExecutor:
 
     def _execute_agent(self, state: TaskState, node: WorkflowNodeSpec):
         engine = self.engine
+        # New scoped writable tasks already carry an exact effect contract.
+        # Execute a shared writable node in a private worktree and integrate only
+        # after provider result validation + ownership checks. Legacy/manual
+        # tasks with no allowed_paths retain their historical shared behavior.
+        if (
+            node.role == "implementer"
+            and node.writes == "task_allowed_paths"
+            and node.workspace == "shared"
+            and state.allowed_paths is not None
+        ):
+            guarded = node.model_copy(update={
+                "workspace": "isolated",
+                "write_paths": list(state.allowed_paths),
+            })
+            self._execute_isolated_batch(state, [guarded], execution_kind="guarded_write")
+            value = engine.store.latest(state, self._output_name(node, "implementation"))
+            if value is None:
+                raise OrchestratorError("guarded implementation completed without its implementation artifact")
+            return result_contract("execute", 2).model_validate(value)
+
+        engine = self.engine
         engine._check(state)
         policy = engine.profile.policy
         if state.calls >= policy.max_agent_calls:
@@ -367,7 +388,10 @@ class WorkflowExecutor:
         )
         return result
 
-    def _execute_isolated_batch(self, state: TaskState, nodes: list[WorkflowNodeSpec]) -> None:
+    def _execute_isolated_batch(
+        self, state: TaskState, nodes: list[WorkflowNodeSpec], *,
+        execution_kind: str = "parallel",
+    ) -> None:
         engine = self.engine
         engine._check(state)
         policy = engine.profile.policy
@@ -382,6 +406,7 @@ class WorkflowExecutor:
         root_protected = engine.project.protected_snapshot(engine.profile)
         root_controls = engine.project.control_snapshot()
         manager = WorkspaceManager(engine.project, engine.profile, state.spec.id, state.attempt)
+        event_prefix = "workflow.guarded_write" if execution_kind == "guarded_write" else "workflow.parallel"
         cancel_event = threading.Event()
         prepared: dict[str, dict[str, Any]] = {}
         completed = False
@@ -393,8 +418,8 @@ class WorkflowExecutor:
             state.phase = "execute"
             state.status = "running"
             engine.store.save(
-                state, "workflow.parallel.preparing",
-                {"nodes": [node.id for node in nodes], "attempt": state.attempt},
+                state, event_prefix + ".preparing",
+                {"nodes": [node.id for node in nodes], "attempt": state.attempt, "execution_kind": execution_kind},
             )
             workspaces = manager.prepare([node.id for node in nodes])
             engine.store.save(
@@ -404,6 +429,7 @@ class WorkflowExecutor:
                     "seed_sha": manager.seed_sha,
                     "seed_snapshot": manager.seed_snapshot,
                     "nodes": {node.id: {"workspace": "isolated", "write_paths": node.write_paths} for node in nodes},
+                    "execution_kind": execution_kind,
                 },
             )
             for node in nodes:
@@ -457,11 +483,12 @@ class WorkflowExecutor:
                 }
 
             engine.store.save(
-                state, "workflow.parallel.started",
+                state, event_prefix + ".started",
                 {
                     "nodes": [node.id for node in nodes],
-                    "max_parallel_workers": policy.max_parallel_workers,
+                    "max_parallel_workers": min(policy.max_parallel_workers, len(nodes)),
                     "seed_snapshot": manager.seed_snapshot,
+                    "execution_kind": execution_kind,
                 },
             )
 
@@ -491,7 +518,12 @@ class WorkflowExecutor:
                 raise OrchestratorError("execution cancelled")
             if errors:
                 node_id = next(node.id for node in nodes if node.id in errors)
-                raise OrchestratorError(f"workflow node {node_id}: isolated provider failed: {errors[node_id]}")
+                provider_error = errors[node_id]
+                if isinstance(provider_error, ProviderExecutionError):
+                    raise provider_error
+                raise OrchestratorError(
+                    f"workflow node {node_id}: isolated provider failed: {provider_error}"
+                ) from provider_error
             if state.elapsed_seconds > policy.task_timeout_seconds:
                 raise OrchestratorError("task execution-time budget exhausted")
 
@@ -513,6 +545,37 @@ class WorkflowExecutor:
                 if result.outcome != "completed":
                     raise OrchestratorError(f"workflow node {node.id} must return completed or blocked")
                 record = manager.finalize_node(node.id, node.write_paths)
+                if record["violations"]:
+                    write_name = self._output_name(node, "write_set")
+                    rejected = {key: value for key, value in record.items() if key != "patch_path"}
+                    rejected.update({
+                        "enforced": True,
+                        "allowed_paths": state.allowed_paths,
+                        "integrated_snapshot": None,
+                        "aggregate_patch_sha256": None,
+                    })
+                    engine.store.artifact(state, write_name, rejected)
+                    state.workflow_nodes[node.id].artifact_kinds = [write_name]
+                    engine.store.save(
+                        state, "write_set.checked",
+                        {
+                            "node": node.id, "workspace": "isolated",
+                            "changed_paths": record["changed_paths"],
+                            "violations": record["violations"],
+                            "owned_paths": node.write_paths,
+                            "integrated": False,
+                        },
+                    )
+                    engine.store.save(
+                        state, "workspace.patch.rejected",
+                        {key: value for key, value in record.items() if key != "patch_path"},
+                    )
+                    contract = "allowed_paths" if execution_kind == "guarded_write" else "write_paths"
+                    raise OrchestratorError(
+                        f"implementation changed paths outside {contract}: "
+                        + ", ".join(record["violations"][:20])
+                        + "; isolated changes were discarded"
+                    )
                 patches.append(record)
                 cleaned_results[node.id] = result
                 engine.store.save(
@@ -582,18 +645,27 @@ class WorkflowExecutor:
                     },
                 )
             engine.store.save(
-                state, "workflow.parallel.finished",
-                {"nodes": [node.id for node in nodes], "integrated_snapshot": integrated_snapshot},
+                state, event_prefix + ".finished",
+                {
+                    "nodes": [node.id for node in nodes],
+                    "integrated_snapshot": integrated_snapshot,
+                    "execution_kind": execution_kind,
+                },
             )
             completed = True
         except Exception as exc:
             cancel_event.set()
-            for node in nodes:
-                if state.workflow_nodes[node.id].status != "succeeded":
-                    self._mark_failure(state, node.id, exc)
+            if execution_kind != "guarded_write":
+                for node in nodes:
+                    if state.workflow_nodes[node.id].status != "succeeded":
+                        self._mark_failure(state, node.id, exc)
             engine.store.save(
-                state, "workflow.parallel.failed",
-                {"nodes": [node.id for node in nodes], "error": redact(str(exc))[:2000]},
+                state, event_prefix + ".failed",
+                {
+                    "nodes": [node.id for node in nodes],
+                    "error": redact(str(exc))[:2000],
+                    "execution_kind": execution_kind,
+                },
             )
             raise
         finally:
@@ -681,6 +753,14 @@ class WorkflowExecutor:
         node_state = state.workflow_nodes[node_id]
         node_state.status = "failed"
         node_state.error = redact(str(exc))[:2000]
+        diagnostics = getattr(exc, "diagnostics", None)
+        if isinstance(diagnostics, dict) and diagnostics:
+            # Provider diagnostics contain shapes/types/lengths only, never raw
+            # prompts or response content.
+            self.engine.store.save(
+                state, "provider.execution.failed",
+                {"node": node_id, "diagnostics": diagnostics},
+            )
         self.engine.store.save(state, "workflow.node.failed", {"node": node_id, "error": node_state.error})
 
     def _ready_nodes(self, state: TaskState) -> list[WorkflowNodeSpec]:

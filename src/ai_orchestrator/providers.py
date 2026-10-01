@@ -26,6 +26,14 @@ class RunRequest:
     result_model: type[Contract] = AgentResult
 
 
+class ProviderExecutionError(OrchestratorError):
+    """Provider failure with safe, non-content diagnostics for audit events."""
+
+    def __init__(self, message: str, diagnostics: dict[str, object] | None = None):
+        super().__init__(message)
+        self.diagnostics = diagnostics or {}
+
+
 class ProviderAdapter(Protocol):
     # Adapter v1 exposed only runtime capabilities. v2 adds semantic capabilities.
     api_version: int
@@ -147,6 +155,32 @@ class AgyAdapter(CLIAdapter):
             raise OrchestratorError("Antigravity returned no terminal result event")
         return terminal
 
+    @staticmethod
+    def _safe_diagnostics(result, envelope: dict) -> dict[str, object]:
+        response = envelope.get("response")
+        structured = envelope.get("structured_output")
+        diagnostics: dict[str, object] = {
+            "provider": "agy",
+            "process_returncode": result.returncode,
+            "terminal_status": envelope.get("status"),
+            "terminal_keys": sorted(str(key) for key in envelope),
+            "structured_output_type": type(structured).__name__,
+            "response_type": type(response).__name__,
+        }
+        if isinstance(structured, dict):
+            diagnostics["structured_output_keys"] = sorted(str(key) for key in structured)
+        if isinstance(response, str):
+            diagnostics["response_bytes"] = len(response.encode("utf-8", "replace"))
+            try:
+                decoded = json.loads(response)
+            except json.JSONDecodeError:
+                diagnostics["response_json_type"] = "invalid"
+            else:
+                diagnostics["response_json_type"] = type(decoded).__name__
+                if isinstance(decoded, dict):
+                    diagnostics["response_json_keys"] = sorted(str(key) for key in decoded)
+        return diagnostics
+
     def execute(self, request: RunRequest) -> Contract:
         with tempfile.TemporaryDirectory(prefix="orchestrator-agy-") as directory:
             schema = Path(directory) / "schema.json"
@@ -159,21 +193,29 @@ class AgyAdapter(CLIAdapter):
                 timeout=request.timeout, cancel=request.cancel,
             )
             envelope = self._result_envelope(result.stdout)
+            diagnostics = self._safe_diagnostics(result, envelope)
             if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                raise OrchestratorError(
+                raise ProviderExecutionError(
                     f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect CLI authentication/quota/permissions, then create a new task"
+                    "inspect CLI authentication/quota/permissions, then create a new task",
+                    diagnostics,
                 )
+
             structured = envelope.get("structured_output")
             if isinstance(structured, dict):
-                return request.result_model.model_validate(structured)
+                try:
+                    return request.result_model.model_validate(structured)
+                except Exception as exc:
+                    raise ProviderExecutionError(
+                        "Antigravity structured_output did not match the requested result contract",
+                        diagnostics,
+                    ) from exc
 
             # AGY 1.2.14 has been observed in live headless execution to omit
-            # structured_output even with --json-schema while returning the
-            # schema-shaped payload in response. Official AGY documentation
-            # defines response as the same structured payload serialized as a
-            # string. Accept that compatibility path only when it is strict JSON
-            # and validates against the exact requested controller contract.
+            # structured_output even with --json-schema. Its response may still
+            # contain the requested JSON object plus AGY presentation metadata
+            # (toolAction/toolSummary), as confirmed by a live protocol probe.
+            # Ignore only those known provider-owned presentation keys.
             response = envelope.get("response")
             if isinstance(response, str):
                 try:
@@ -181,14 +223,27 @@ class AgyAdapter(CLIAdapter):
                 except json.JSONDecodeError:
                     decoded = None
                 if isinstance(decoded, dict):
+                    model_fields = set(request.result_model.model_fields)
+                    extras = set(decoded) - model_fields
+                    if extras <= {"toolAction", "toolSummary"}:
+                        candidate = {key: decoded[key] for key in model_fields if key in decoded}
+                        try:
+                            return request.result_model.model_validate(candidate)
+                        except Exception as exc:
+                            raise ProviderExecutionError(
+                                "Antigravity omitted structured_output and projected response JSON did not match the requested contract",
+                                diagnostics,
+                            ) from exc
                     try:
                         return request.result_model.model_validate(decoded)
                     except Exception as exc:
-                        raise OrchestratorError(
-                            "Antigravity omitted structured_output and response JSON did not match the requested contract"
+                        raise ProviderExecutionError(
+                            "Antigravity omitted structured_output and response JSON did not match the requested contract",
+                            diagnostics,
                         ) from exc
-            raise OrchestratorError(
-                "Antigravity returned SUCCESS without a schema-valid structured_output or JSON response"
+            raise ProviderExecutionError(
+                "Antigravity returned SUCCESS without a schema-valid structured_output or JSON response",
+                diagnostics,
             )
 
 

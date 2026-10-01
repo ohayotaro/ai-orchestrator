@@ -197,3 +197,19 @@ It does not auto-login, modify Antigravity settings, or use the
 After changing a provider, run `orchestrator doctor` and
 `orchestrator capabilities` before live E2E. Existing tasks retain their frozen
 provider resolution and should not be silently rerouted.
+
+
+## v0.8.3 to v0.8.4
+
+No runtime database or profile migration is required. Exact-scope Workflow
+Schema write tasks gain stronger execution isolation automatically: shared
+implementers run in temporary runtime worktrees and are integrated only after
+provider result and ownership checks succeed.
+
+This does not change the project profile fingerprint and does not require
+re-trust solely for the software upgrade. Legacy/manual tasks without exact
+`allowed_paths` retain previous shared-worktree semantics.
+
+A failed task from v0.8.3 or earlier that may already have mutated the project
+must not be replayed. Inspect/restore that project to the desired baseline first,
+then create a fresh task after upgrading.

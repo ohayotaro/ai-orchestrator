@@ -60,14 +60,9 @@ class WorkspaceManager:
         self.seed_manifest: dict[str, tuple[str, int]] | None = None
         self.node_paths: dict[str, Path] = {}
 
-    def _assert_head(self) -> str:
+    def _head(self) -> str | None:
         result = _git(self.project.root, "rev-parse", "--verify", "HEAD", check=False)
-        if result.returncode:
-            raise OrchestratorError(
-                "isolated parallel execution requires at least one Git commit; "
-                "commit the repository baseline before using isolated workflow nodes"
-            )
-        return result.stdout.decode().strip()
+        return result.stdout.decode().strip() if result.returncode == 0 else None
 
     def _sync_project_state(self, source_project: Project, destination: Path) -> None:
         manifest = source_project.manifest()
@@ -96,21 +91,26 @@ class WorkspaceManager:
                 "stale isolated workspaces exist for this task attempt; "
                 "use recover after inspection instead of replaying interrupted effects"
             )
-        self._assert_head()
+        head = self._head()
         self.task_dir.mkdir(parents=True, exist_ok=False)
         self.patch_dir.mkdir()
         try:
-            # Use a disposable local clone as the worktree owner. --shared reads
-            # existing project objects through alternates but all new seed/blob
-            # objects and worktree metadata stay under runtime and are deleted
-            # on cleanup; the user's .git directory is not mutated.
-            _git(
-                self.project.root, "clone", "--shared", "--no-checkout", "--quiet",
-                str(self.project.root), str(self.integration),
-            )
-            _git(self.integration, "remote", "remove", "origin", check=False)
-            # --no-checkout plus direct manifest materialization avoids invoking
-            # repository/global smudge filters while constructing the seed.
+            # Use a disposable local repository as the worktree owner. When the
+            # project already has HEAD, --shared reuses existing objects through
+            # alternates while keeping new seed/worktree metadata under runtime.
+            # For a newly initialized repository with no commits, initialize an
+            # empty disposable repository instead and seed it from the manifest.
+            if head is not None:
+                _git(
+                    self.project.root, "clone", "--shared", "--no-checkout", "--quiet",
+                    str(self.project.root), str(self.integration),
+                )
+                _git(self.integration, "remote", "remove", "origin", check=False)
+            else:
+                self.integration.mkdir(parents=True, exist_ok=False)
+                _git(self.integration, "init", "--quiet")
+            # Direct manifest materialization avoids invoking repository/global
+            # checkout filters while constructing the approved seed.
             self._sync_project_state(self.project, self.integration)
             integration_project = Project(self.integration)
             _git(self.integration, "add", "-A")
@@ -157,11 +157,9 @@ class WorkspaceManager:
         after_manifest = node_project.manifest()
         changed = changed_paths(self.seed_manifest, after_manifest)
         violations = [item for item in changed if item not in set(owned_paths)]
-        if violations:
-            raise OrchestratorError(
-                f"workflow node {node_id}: isolated worker changed paths outside write_paths: "
-                + ", ".join(violations[:20])
-            )
+        # Always return ownership evidence. The controller decides whether a
+        # violating patch may proceed (it never integrates one) and can persist
+        # a hash-verified rejected write_set before failing the task.
         _git(path, "add", "-A", "--", *owned_paths)
         patch = _git(path, "diff", "--cached", "--binary", self.seed_sha, "--", *owned_paths).stdout
         patch_path = self.patch_dir / f"{node_id}.patch"

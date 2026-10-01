@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.4 — alpha
+
+- Guard every Workflow Schema writable implementer with exact task
+  `allowed_paths` in a private runtime worktree, even when the workflow declares
+  `workspace: shared`. Provider edits are integrated into the project only
+  after result-contract and write-ownership validation succeeds.
+- On provider failure, blocked output, malformed structured output, or ownership
+  violation, discard the private workspace so project files are not partially
+  mutated by the failed attempt.
+- Reuse the v0.7 deterministic patch/integration path for single guarded writers;
+  legacy/manual tasks without an exact allowed-path contract retain historical
+  shared-worktree behavior.
+- Extend isolated workspace seeding to Git repositories without an existing HEAD,
+  so the safety upgrade does not require a first commit for exact-scope tasks.
+- Record provider execution failure diagnostics as content-free shape metadata
+  (status, envelope keys, types, JSON keys and byte counts), never raw prompts or
+  provider response content.
+- For AGY 1.2.14 response fallback, allow only the observed provider-owned
+  presentation keys `toolAction` and `toolSummary` to be discarded before
+  validating the exact requested result contract.
+
+
 ## 0.8.3 — alpha
 
 - Add a fail-closed compatibility path for Antigravity CLI 1.2.14 live

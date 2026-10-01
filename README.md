@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.1 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.4 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.1
+.venv/bin/orchestrator --version  # 0.8.4
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -357,4 +357,20 @@ Authenticate AGY interactively once before headless use:
 agy
 agy --version
 ```
+
+
+
+## v0.8.4 guarded writable execution
+
+Exact-scope writable tasks no longer let a provider edit the user's project
+worktree before its structured result is accepted. A shared Workflow Schema
+implementer with task `allowed_paths` is executed in a private runtime worktree,
+validated there, converted to a verified patch, and only then integrated into the
+project. Provider/result failure discards the private workspace.
+
+This is a safety hardening, not new authority, so existing workflow definitions
+and approval scopes do not need provider-specific DAG changes. Explicit v0.7
+isolated parallel workflows continue to use the same underlying integration path.
+Legacy/manual tasks without an exact `allowed_paths` contract retain their
+historical behavior.
 
