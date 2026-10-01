@@ -126,6 +126,50 @@ class ValidatorConfig(Contract):
         return value
 
 
+def _runtime_policy_value(value: str) -> str:
+    if not value or value != value.strip() or len(value) > 256:
+        raise ValueError("runtime policy values must be nonempty, trimmed, and at most 256 characters")
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError("runtime policy values must not contain control characters")
+    return value
+
+
+class RuntimePolicySetting(Contract):
+    model: str | None = None
+    effort: str | None = None
+    options: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("model", "effort")
+    @classmethod
+    def valid_primary_values(cls, value: str | None) -> str | None:
+        return _runtime_policy_value(value) if value is not None else None
+
+    @field_validator("options")
+    @classmethod
+    def valid_options(cls, values: dict[str, str]) -> dict[str, str]:
+        return {identifier(key): _runtime_policy_value(value) for key, value in values.items()}
+
+
+class ExecutionClassConfig(Contract):
+    """Trusted mapping from an abstract execution class to provider-local settings."""
+
+    providers: dict[str, RuntimePolicySetting] = Field(default_factory=dict)
+    default: RuntimePolicySetting | None = None
+
+    @field_validator("providers")
+    @classmethod
+    def valid_provider_ids(cls, values: dict[str, RuntimePolicySetting]) -> dict[str, RuntimePolicySetting]:
+        for key in values:
+            identifier(key)
+        return values
+
+    @model_validator(mode="after")
+    def nonempty(self) -> "ExecutionClassConfig":
+        if not self.providers and self.default is None:
+            raise ValueError("execution class requires a provider mapping or default runtime setting")
+        return self
+
+
 class Policy(Contract):
     require_execution_approval: StrictBool = True
     cross_provider_review: StrictBool = True
@@ -290,17 +334,22 @@ class Profile(Contract):
     roles: dict[str, RoleConfig]
     policy: Policy = Field(default_factory=Policy)
     validators: dict[str, ValidatorConfig] = Field(default_factory=dict)
+    execution_classes: dict[str, ExecutionClassConfig] = Field(default_factory=dict)
     workflow: str = "build-review"
     workflows: dict[str, WorkflowSpec] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def bindings(self) -> Profile:
-        for key in [*self.providers, *self.roles, *self.validators, *self.workflows]:
+        for key in [*self.providers, *self.roles, *self.validators, *self.execution_classes, *self.workflows]:
             identifier(key)
         identifier(self.workflow)
         for key, workflow in self.workflows.items():
             if key != workflow.id:
                 raise ValueError(f"workflow key/id mismatch: {key} != {workflow.id}")
+        for class_name, execution_class in self.execution_classes.items():
+            for provider in execution_class.providers:
+                if provider not in self.providers:
+                    raise ValueError(f"execution class {class_name} references unknown provider: {provider}")
         for role in ("planner", "implementer", "reviewer"):
             if role not in self.roles:
                 raise ValueError(f"missing role: {role}")
