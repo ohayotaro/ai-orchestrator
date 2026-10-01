@@ -8,12 +8,82 @@ import pytest
 
 from ai_orchestrator.models import AgentResult, OrchestratorError, ProviderConfig
 from ai_orchestrator.process import ProcessResult, redact, run_process, validator_environment
-from ai_orchestrator.providers import ClaudeAdapter, CodexAdapter, RunRequest
+from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter, RunRequest
 
 
 def request(tmp_path, phase="review", command=None):
     return RunRequest(phase, "PRIVATE_PROMPT_NOT_IN_ARGV", tmp_path, ProviderConfig(adapter="fixture", executable=command), 5, lambda: False)
 
+
+
+
+def test_agy_argv_uses_stdin_stream_json_and_sandbox(tmp_path):
+    adapter = AgyAdapter()
+    args = adapter.command_line(request(tmp_path, "execute"), tmp_path / "schema.json")
+    assert args[args.index("--input-format") + 1] == "stream-json"
+    assert args[args.index("--output-format") + 1] == "stream-json"
+    assert "--sandbox" in args
+    assert "--mode=accept-edits" in args
+    assert "--dangerously-skip-permissions" not in args
+    assert "PRIVATE_PROMPT_NOT_IN_ARGV" not in " ".join(args)
+
+
+def test_agy_non_execute_uses_plan_mode(tmp_path):
+    args = AgyAdapter().command_line(request(tmp_path, "review"), tmp_path / "schema.json")
+    assert "--mode=plan" in args
+    assert "--mode=accept-edits" not in args
+
+
+def test_agy_adapter_parses_terminal_structured_output(tmp_path, monkeypatch):
+    expected = AgentResult(outcome="approved", summary="agy verified", findings=[], evidence=[])
+    seen = {}
+    envelope = {
+        "event": "result",
+        "result": {
+            "status": "SUCCESS",
+            "response": expected.model_dump_json(),
+            "structured_output": expected.model_dump(),
+        },
+    }
+    def fake_process(argv, **kwargs):
+        seen.update(kwargs)
+        return ProcessResult(0, json.dumps({"event": "init", "init": {}}) + "\n" + json.dumps(envelope) + "\n", "", 0.1)
+    monkeypatch.setattr("ai_orchestrator.providers.run_process", fake_process)
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    assert adapter.execute(request(tmp_path)) == expected
+    sent = json.loads(seen["input_text"])
+    assert sent == {"event": "user", "message": {"content": "PRIVATE_PROMPT_NOT_IN_ARGV"}}
+
+
+@pytest.mark.parametrize(
+    "returncode,status,structured",
+    [
+        (0, "ERROR", None),
+        (0, "SUCCESS", None),
+        (1, "ERROR", {"outcome": "approved", "summary": "bad", "findings": [], "evidence": []}),
+    ],
+)
+def test_agy_fails_closed_on_terminal_errors(tmp_path, monkeypatch, returncode, status, structured):
+    payload = {"status": status, "response": ""}
+    if structured is not None:
+        payload["structured_output"] = structured
+    stdout = json.dumps({"event": "result", "result": payload}) + "\n"
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *a, **kw: ProcessResult(returncode, stdout, "", 0.1),
+    )
+    adapter = AgyAdapter()
+    monkeypatch.setattr(adapter, "executable", lambda config: sys.executable)
+    with pytest.raises(OrchestratorError):
+        adapter.execute(request(tmp_path))
+
+
+def test_agy_rejects_missing_or_malformed_result_event():
+    with pytest.raises(OrchestratorError, match="no terminal result"):
+        AgyAdapter._result_envelope(json.dumps({"event": "init", "init": {}}))
+    with pytest.raises(OrchestratorError, match="malformed"):
+        AgyAdapter._result_envelope("{not-json}")
 
 def test_codex_argv_is_explicit_readonly_and_fresh(tmp_path):
     adapter = CodexAdapter()
