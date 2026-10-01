@@ -232,3 +232,20 @@ persistent profile settings and are never inferred for existing tasks. A task
 must already be awaiting execution approval, the user must explicitly confirm
 the provider-permission form, and a separate execution confirmation remains
 required afterwards.
+
+
+## v0.8.6 to v0.8.7
+
+No database migration or profile re-trust is required solely for the upgrade.
+Existing TaskState rows remain valid; the new `abandoned` status is used only by
+an explicit binding-cleanup HumanGate. Existing intakes gain the optional
+`withdrawn` terminal state through the same schema reader.
+
+Provider-change preview now reports unfinished blockers structurally rather than
+raising immediately. This does not weaken provider-change safety: the actual
+provider-change HumanGate still refuses to prepare while blockers remain.
+
+Binding cleanup is not rollback. Historical projects with unfinished tasks that
+may already have modified files should inspect/retain those files separately;
+cleanup only retires the orchestration binding so later authority changes can
+proceed.
