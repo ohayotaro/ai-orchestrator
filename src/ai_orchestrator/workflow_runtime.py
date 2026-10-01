@@ -112,8 +112,15 @@ class WorkflowExecutor:
         node_state = state.workflow_nodes[node.id]
         frozen = node_state.model_variant_resolution
         override = self.engine.runtime_override_for(state, node.role, node_id=node.id)
+        execution_class, policy_override = self.engine.execution_class_for(
+            state, resolution, node.role, node_id=node.id
+        )
         adapter, config, variant = self.engine._resolve_variant(
-            resolution, frozen=frozen, override=override
+            resolution,
+            frozen=frozen,
+            override=override,
+            policy_override=policy_override,
+            execution_class=execution_class,
         )
         if frozen is None:
             node_state.model_variant_resolution = variant.model_dump()
@@ -302,10 +309,15 @@ class WorkflowExecutor:
 
         resolution = self._resolution_for_execution(state, node)
         node_state = state.workflow_nodes[node.id]
+        execution_class, policy_override = engine.execution_class_for(
+            state, resolution, node.role, node_id=node.id
+        )
         adapter, config, variant = engine._resolve_variant(
             resolution,
             frozen=node_state.model_variant_resolution,
             override=engine.runtime_override_for(state, node.role, node_id=node.id),
+            policy_override=policy_override,
+            execution_class=execution_class,
         )
 
         before_files = engine.project.manifest()
@@ -460,10 +472,15 @@ class WorkflowExecutor:
             for node in nodes:
                 resolution = self._resolution_for_execution(state, node)
                 node_state = state.workflow_nodes[node.id]
+                execution_class, policy_override = engine.execution_class_for(
+                    state, resolution, node.role, node_id=node.id
+                )
                 adapter, config, variant = engine._resolve_variant(
                     resolution,
                     frozen=node_state.model_variant_resolution,
                     override=engine.runtime_override_for(state, node.role, node_id=node.id),
+                    policy_override=policy_override,
+                    execution_class=execution_class,
                 )
                 workspace = workspaces[node.id]
                 workspace_project = Project(workspace)
