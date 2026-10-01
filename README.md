@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.6 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.7 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.6
+.venv/bin/orchestrator --version  # 0.8.7
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -400,3 +400,21 @@ drift requires a fresh permission gate.
 Ordinary execution approval never implies broad provider permission. Arbitrary
 policy/config mutation, validator registration and direct trust remain outside
 the agent-facing mutation surface.
+
+
+## v0.8.7 binding lifecycle cleanup
+
+Provider changes can now recover cleanly from unfinished historical bindings
+without requiring direct runtime edits. `preview_provider_change` returns
+structured `ready` and `blocked_by` fields. If unfinished tasks/intakes block
+the change, the agent may call `preview_binding_cleanup` for exact IDs and then
+`request_binding_cleanup` to present a separate HumanGate.
+
+Confirmed cleanup moves selected unfinished tasks to `abandoned` and selected
+unconsumed intakes to `withdrawn` in one transaction. It never deletes history,
+artifacts or task files and never restores/rolls back workspace files. A cleanup
+confirmation and a provider-change confirmation remain separate authority
+decisions.
+
+Running tasks/intakes cannot be cleaned up through this path; they must first
+finish or be stopped/recovered through the appropriate existing control.
