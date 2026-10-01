@@ -191,3 +191,33 @@ instructions; v0.8 does not claim OS-level separation between the conversational
 host and the operator account. The control-plane guarantee is that the MCP
 surface itself does not expose template save/trust authority and the kernel does
 not infer persistent authority from model output or task success.
+
+
+## v0.8.1 Antigravity provider boundary
+
+The built-in `agy` adapter uses Antigravity's official non-interactive
+stream-json interface, JSON Schema output, and terminal sandbox. Prompts are sent
+over stdin rather than process argv. The adapter never passes
+`--dangerously-skip-permissions` and accepts a provider result only when the
+terminal event reports `status=SUCCESS` and includes schema-valid
+`structured_output`.
+
+For implementation turns the adapter uses `--mode=accept-edits` so workspace
+file writes can complete without an interactive diff prompt. Non-write phases use
+`--mode=plan`. Orchestrator's own protected-path, control-snapshot,
+allowed-path/write-set, validator and independent-review checks remain mandatory
+after provider execution.
+
+Antigravity also has user/global permission, MCP, plugin and web settings.
+The adapter deliberately does not rewrite or delete those user settings. Under
+Antigravity's normal headless/default permission behavior, workspace file access
+is allowed while web/MCP or unsandboxed operations that require approval are
+soft-denied when no interactive confirmation is available. However, an operator
+who has globally configured broader Antigravity authority (for example Turbo,
+explicit web/MCP allow rules, or trusted plugins) has broadened the provider
+process itself. ai-orchestrator does not claim to revoke that external authority.
+
+Accordingly, AGY remains inside the project's trusted-local provider boundary.
+Use conservative Antigravity permissions for orchestrated workers, keep terminal
+sandboxing available, and do not treat the Orchestrator prompt rule against
+external effects as a substitute for provider-native permission policy.

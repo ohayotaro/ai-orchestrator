@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.1 — alpha
+
+- Add a built-in Provider Adapter v2 for Google Antigravity CLI (`agy`).
+- Use official headless `stream-json` input/output so prompts travel on stdin
+  rather than argv and the adapter consumes exactly one terminal result event.
+- Enforce AGY `--json-schema` structured output and fail closed unless the
+  terminal envelope reports `status=SUCCESS` and includes `structured_output`;
+  a zero process exit code alone is never treated as success.
+- Run AGY with terminal sandboxing enabled. Implementer calls use
+  `--mode=accept-edits`; non-write phases use `--mode=plan`.
+- Never use `--dangerously-skip-permissions`; normal Antigravity workspace and
+  sandbox permission policy remains in force.
+- Expose adapter family `google` and the existing repository-analysis/planning/
+  code-edit/test-authoring/review/supervision semantic capability set.
+- Keep Codex and Claude adapters unchanged. Projects opt into AGY through normal
+  provider/profile configuration and re-trust; no task or workflow needs vendor
+  names embedded in its DAG.
+
+
 ## 0.8.0 — alpha
 
 - Let the Supervisor propose a bounded task-scoped Workflow Schema v1 DAG when

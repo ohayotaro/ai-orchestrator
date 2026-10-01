@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8 alpha** adds adaptive, task-scoped workflow authoring: users can describe
+**v0.8.1 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,11 +173,11 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.0
+.venv/bin/orchestrator --version  # 0.8.1
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
-(or Python 3.11/3.12). Install/authenticate Claude Code and Codex CLI separately.
+(or Python 3.11/3.12). Install/authenticate the provider CLIs you intend to use separately. Built-in adapters are available for Claude Code, Codex CLI, and Antigravity CLI (`agy`).
 No model name is fixed; configured CLI defaults apply unless the profile specifies
 one. v0.8 can propose task-scoped DAGs and reuse v0.7 isolated parallel execution,
 but it still cannot install new providers, validator commands, policies or
@@ -313,3 +313,48 @@ automatic replay.
 
 See `docs/PARALLEL_EXECUTION.md` and `docs/SECURITY.md` for the exact boundary
 and limitations.
+
+
+## v0.8.1 Antigravity CLI provider
+
+The built-in `agy` adapter lets Antigravity replace Codex as an implementer
+without changing Workflow Schema or task prompts. Provider choice remains a
+profile/capability-resolution concern.
+
+A fixed provider configuration can look like:
+
+```yaml
+providers:
+  reasoning:
+    adapter: claude
+  engineering:
+    adapter: agy
+
+roles:
+  supervisor:
+    provider: reasoning
+  planner:
+    provider: reasoning
+  implementer:
+    provider: engineering
+  reviewer:
+    provider: reasoning
+```
+
+Changing provider configuration is a project-authority change and requires the
+normal inspect/re-trust ceremony.
+
+The adapter uses AGY headless `stream-json` mode with prompts on stdin,
+`--json-schema` structured output, `--sandbox`, and never
+`--dangerously-skip-permissions`. Implementation runs use
+`--mode=accept-edits`; read-only orchestration phases use `--mode=plan`.
+The controller still enforces its own allowed-path/write-set/validator/review
+boundaries after provider execution.
+
+Authenticate AGY interactively once before headless use:
+
+```bash
+agy
+agy --version
+```
+

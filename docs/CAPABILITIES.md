@@ -13,7 +13,7 @@ A semantic capability describes what a role needs to accomplish, for example:
 - `supervision`
 - `research`
 
-The current built-in Claude and Codex adapters advertise the first six. Neither
+The current built-in Claude, Codex and Antigravity (`agy`) adapters advertise the first six. Neither
 advertises `research` because web/external research is deliberately disabled in
 the current worker configuration.
 
@@ -162,3 +162,25 @@ They never bypass:
 A model may propose additional task requirements, but cannot name a provider,
 change priorities, add capabilities to a provider or use requirements to weaken
 authority boundaries.
+
+
+### Antigravity CLI adapter
+
+v0.8.1 adds adapter `agy` with provider family `google`. It is a Provider
+Adapter v2 and advertises the same repository-local semantic capabilities as the
+existing coding adapters. The adapter requires AGY headless flags for
+`stream-json`, JSON Schema output, sandboxing, execution mode and print
+timeouts.
+
+AGY prompts are delivered through `--input-format stream-json` stdin rather
+than command-line arguments. The controller accepts only the final
+`event=result` envelope when its status is `SUCCESS` and
+`structured_output` validates against the requested result contract. This is
+important because headless tools may return a process exit code of zero for some
+terminal error/partial states.
+
+The adapter enables AGY terminal sandboxing and does not pass
+`--dangerously-skip-permissions`. Implementer turns use `accept-edits` so
+workspace file edits can complete non-interactively; other phases use AGY plan
+mode. Deterministic validators still execute outside the model worker.
+

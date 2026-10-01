@@ -91,6 +91,83 @@ class CodexAdapter(CLIAdapter):
             return request.result_model.model_validate_json(read_text(output))
 
 
+class AgyAdapter(CLIAdapter):
+    """Google Antigravity CLI headless adapter.
+
+    Prompts use stream-json stdin so task content never appears in argv. The
+    terminal result must be SUCCESS and contain schema-validated structured
+    output; AGY is known to sometimes exit zero with an ERROR envelope, so the
+    envelope status is authoritative.
+    """
+
+    command = "agy"
+    family = "google"
+    capabilities = CLIAdapter.capabilities | {"native_sandbox"}
+    help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode")
+
+    def command_line(self, request: RunRequest, schema: Path) -> list[str]:
+        timeout_seconds = max(1, int(request.timeout))
+        args = [
+            request.config.executable or self.command,
+            "--input-format", "stream-json",
+            "--output-format", "stream-json",
+            "--json-schema", str(schema),
+            "--sandbox",
+            "--mode=accept-edits" if request.phase == "execute" else "--mode=plan",
+            "--print-timeout", f"{timeout_seconds}s",
+        ]
+        if request.config.model:
+            args += ["--model", request.config.model]
+        if request.config.effort:
+            args += ["--effort", request.config.effort]
+        return args
+
+    @staticmethod
+    def _result_envelope(stdout: str) -> dict:
+        terminal: dict | None = None
+        for line in stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise OrchestratorError("Antigravity returned malformed stream-json output") from exc
+            if not isinstance(event, dict):
+                raise OrchestratorError("Antigravity returned malformed stream-json event")
+            if event.get("event") == "result":
+                payload = event.get("result")
+                if not isinstance(payload, dict):
+                    raise OrchestratorError("Antigravity returned malformed terminal result")
+                terminal = payload
+        if terminal is None:
+            raise OrchestratorError("Antigravity returned no terminal result event")
+        return terminal
+
+    def execute(self, request: RunRequest) -> Contract:
+        with tempfile.TemporaryDirectory(prefix="orchestrator-agy-") as directory:
+            schema = Path(directory) / "schema.json"
+            schema.write_text(encode(request.result_model.model_json_schema()), encoding="utf-8")
+            argv = self.command_line(request, schema)
+            argv[0] = self.executable(request.config)
+            input_text = encode({"event": "user", "message": {"content": request.prompt}}) + "\n"
+            result = run_process(
+                argv, cwd=request.workspace, input_text=input_text,
+                timeout=request.timeout, cancel=request.cancel,
+            )
+            envelope = self._result_envelope(result.stdout)
+            if result.returncode != 0 or envelope.get("status") != "SUCCESS":
+                raise OrchestratorError(
+                    f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
+                    "inspect CLI authentication/quota/permissions, then create a new task"
+                )
+            structured = envelope.get("structured_output")
+            if not isinstance(structured, dict):
+                raise OrchestratorError(
+                    "Antigravity returned SUCCESS without structured_output; refusing to accept an ambiguous headless result"
+                )
+            return request.result_model.model_validate(structured)
+
+
 class ClaudeAdapter(CLIAdapter):
     command = "claude"
     family = "anthropic"
@@ -128,4 +205,4 @@ class ClaudeAdapter(CLIAdapter):
 
 
 def default_registry() -> dict[str, ProviderAdapter]:
-    return {"codex": CodexAdapter(), "claude": ClaudeAdapter()}
+    return {"codex": CodexAdapter(), "claude": ClaudeAdapter(), "agy": AgyAdapter()}

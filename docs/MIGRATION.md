@@ -176,3 +176,24 @@ The packaged Agent Skill should be re-exported after upgrade so connected client
 learn the v0.8 default: omit workflow/provider choices unless the user explicitly
 requests a trusted template, and let the Supervisor propose bounded task-scoped
 structure when needed.
+
+
+## v0.8 to v0.8.1
+
+No persisted state or runtime database migration is required. Existing Claude
+and Codex provider configurations keep the same behavior.
+
+v0.8.1 adds the built-in `agy` adapter. Merely upgrading the package does not
+modify a project profile or require re-trust. Replacing a configured provider
+adapter (for example changing the engineering provider from `codex` to `agy`)
+is an intentional profile authority change and requires normal inspection and
+re-trust before new work can be queued.
+
+Install and authenticate Antigravity CLI separately before selecting it. The
+adapter probes `agy --version` and `agy --help` for required headless flags.
+It does not auto-login, modify Antigravity settings, or use the
+`--dangerously-skip-permissions` override.
+
+After changing a provider, run `orchestrator doctor` and
+`orchestrator capabilities` before live E2E. Existing tasks retain their frozen
+provider resolution and should not be silently rerouted.
