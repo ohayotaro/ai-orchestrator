@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.7 — alpha
+
+- Add explicit lifecycle terminal states for unfinished authority bindings:
+  tasks may become `abandoned` and unconsumed intakes may become `withdrawn`.
+- Add read-only `preview_binding_cleanup` and dedicated
+  `request_binding_cleanup` HumanGate. Cleanup is exact-ID scoped, audited and
+  atomic across all selected task/intake rows.
+- Binding cleanup never deletes task/intake history, artifacts or task files and
+  never rolls back existing workspace changes. The confirmation preview states
+  this explicitly.
+- Reject cleanup of running tasks/intakes and already-terminal bindings.
+- Change provider-change preview to return structured `ready` / `blocked_by`
+  data instead of forcing agents to parse an exception string. The actual
+  provider-change HumanGate remains blocked until all unfinished bindings are
+  resolved.
+- Preserve dedicated separation between binding-cleanup authority and provider
+  configuration authority: cleaning bindings never implicitly changes a
+  provider, and provider-change confirmation never implicitly abandons work.
+- Add regression coverage that an ordinary approved review with no blockers
+  proceeds to acceptance without entering a repair attempt.
+
+
 ## 0.8.6 — alpha
 
 - Add bounded authority-control for provider adapter changes in single-terminal
