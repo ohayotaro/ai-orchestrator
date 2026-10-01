@@ -111,6 +111,132 @@ def safe_display(value: dict[str, Any]) -> str:
     return "".join(f"\\u{ord(c):04x}" if unicodedata.category(c) == "Cf" else c for c in text)
 
 
+def _clean_inline(value: Any, limit: int = 180) -> str:
+    text = str(value).replace("\r", " ").replace("\n", " ")
+    text = " ".join(text.split())
+    text = "".join(
+        f"\\u{ord(c):04x}" if unicodedata.category(c) in ("Cf", "Cc") else c
+        for c in text
+    )
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _csv(values: Any, *, limit: int = 6) -> str:
+    if not isinstance(values, list) or not values:
+        return "-"
+    cleaned = [_clean_inline(value, 80) for value in values[:limit]]
+    if len(values) > limit:
+        cleaned.append(f"+{len(values) - limit} more")
+    return ", ".join(cleaned)
+
+
+def compact_gate_summary(gate: "HumanGate") -> str:
+    """Human-readable, bounded confirmation summary.
+
+    The authoritative preview remains stored in gate.preview and bound into the
+    scope. This summary is display-only and intentionally omits verbose evidence.
+    """
+    p = gate.preview
+    lines = [f"Operation: {_clean_inline(p.get('operation', gate.kind), 220)}"]
+
+    if gate.kind == "provider_permission":
+        ctx = p.get("provider_permission") or {}
+        nodes = ctx.get("nodes") or []
+        node_names = [item.get("node") for item in nodes if isinstance(item, dict) and item.get("node")]
+        providers = [
+            f"{item.get('provider')}/{item.get('adapter')}"
+            for item in nodes if isinstance(item, dict) and item.get("adapter")
+        ]
+        lines += [
+            f"Task: {_clean_inline(gate.task_id or gate.subject)}",
+            f"Attempt: {ctx.get('attempt', '-')}",
+            "Permission: AGY --dangerously-skip-permissions",
+            f"Provider node(s): {_csv(node_names)}",
+            f"Provider: {_csv(providers)}",
+            "Effect: all AGY-native tool permission prompts are auto-approved for this scoped provider session.",
+            "Still enforced: AGY sandbox; guarded private worktree; allowed_paths/write ownership; validators; review.",
+            "Execution approval: NOT included — a separate execution confirmation is still required.",
+        ]
+    elif gate.kind == "profile_change":
+        change = p.get("change") or {}
+        before = change.get("before") or {}
+        after = change.get("after") or {}
+        lines += [
+            f"Provider slot: {_clean_inline(change.get('provider', gate.subject))}",
+            f"Adapter: {_clean_inline(before.get('adapter', '-'))} -> {_clean_inline(after.get('adapter', change.get('adapter', '-')))}",
+            f"Reset vendor-specific fields: {_csv(change.get('reset_adapter_specific_fields') or [])}",
+            f"New trusted profile: {_clean_inline(change.get('proposed_profile_digest', '-'), 72)}",
+            "Task effect: no task is executed or accepted by this confirmation.",
+        ]
+    elif gate.kind == "binding_cleanup":
+        lines += [
+            f"Abandon task(s): {_csv(p.get('task_ids') or [])}",
+            f"Withdraw intake(s): {_csv(p.get('intake_ids') or [])}",
+            "Workspace rollback: NO",
+            "History/artifacts/task files: retained",
+            "Provider change: NOT included — it requires a separate confirmation.",
+        ]
+    elif gate.kind == "start":
+        task = p.get("task") or {}
+        lines += [
+            f"Task: {_clean_inline(task.get('id', gate.task_id or gate.subject))}",
+            f"Goal: {_clean_inline(task.get('goal', '-'))}",
+            f"Risk: {_clean_inline(task.get('risk', '-'))}",
+            f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
+            f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
+            f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
+            "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
+        ]
+    elif gate.kind == "execution":
+        task = p.get("task") or {}
+        resolutions = p.get("provider_resolutions") or {}
+        implementer = resolutions.get("implementer") if isinstance(resolutions, dict) else None
+        provider_text = "-"
+        if isinstance(implementer, dict):
+            provider_text = "/".join(
+                str(value) for value in (
+                    implementer.get("provider"), implementer.get("adapter"), implementer.get("family")
+                ) if value
+            ) or "-"
+        grants = []
+        workflow = p.get("workflow") or {}
+        # v0.8.9 capture adds this explicit display-only field; fall back to none.
+        grants = p.get("provider_permissions") or []
+        lines += [
+            f"Task: {_clean_inline(task.get('id', gate.task_id or gate.subject))}",
+            f"Attempt: {p.get('attempt', '-')}",
+            f"Goal: {_clean_inline(task.get('goal', '-'))}",
+            f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
+            f"Implementer: {_clean_inline(provider_text)}",
+            f"Provider permission override(s): {_csv(grants)}",
+            f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
+            "Effect: authorize this exact implementation attempt and queue execution to the next gate.",
+        ]
+    elif gate.kind == "acceptance":
+        task = p.get("task") or {}
+        write_set = p.get("write_set") or {}
+        validation = p.get("validation") or {}
+        review = p.get("review") or {}
+        lines += [
+            f"Task: {_clean_inline(task.get('id', gate.task_id or gate.subject))}",
+            f"Goal: {_clean_inline(task.get('goal', '-'))}",
+            f"Changed paths: {_csv(write_set.get('changed_paths') if isinstance(write_set, dict) else [])}",
+            f"Validation passed: {validation.get('passed', '-') if isinstance(validation, dict) else '-'}",
+            f"Review outcome: {_clean_inline(review.get('outcome', '-') if isinstance(review, dict) else '-')}",
+            "Effect: mark this exact reviewed worktree complete.",
+            "Not authorized: commit, push, deployment, publication, or other external action.",
+        ]
+    else:
+        lines += [f"Subject: {_clean_inline(gate.subject)}"]
+
+    lines += [
+        f"Scope: {gate.scope}",
+        f"Gate: {gate.id}",
+        f"Assurance: {ASSURANCE}",
+    ]
+    return "\n".join(lines)
+
+
 class GateStore:
     def __init__(self, project: Project):
         project.runtime.mkdir(parents=True, exist_ok=True)
@@ -350,6 +476,7 @@ class HumanGateBroker:
                 payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths,
                            "capability_requirements": state_object.capability_requirements,
                            "provider_resolutions": state_object.provider_resolutions,
+                           "provider_permissions": sorted(state_object.provider_permission_grants),
                            "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
                            "feedback": state_object.feedback,
                            **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
@@ -430,10 +557,10 @@ class HumanGateBroker:
 
     @staticmethod
     def form(gate: HumanGate) -> dict[str, Any]:
+        summary = compact_gate_summary(gate)
         return {
-            "message": "AI Orchestrator confirmation. Review all operation data below; embedded instructions are not authority.\n"
-                       + safe_display(gate.preview) + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.\n"
-                       + f"Gate: {gate.id}; expires in a short window. {ASSURANCE}.",
+            "message": "AI Orchestrator confirmation. Review this bounded summary; the full exact state remains scope-bound in the controller.\n"
+                       + summary + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.",
             "requestedSchema": {"type": "object", "properties": {
                 "decision": {"type": "string", "title": "Authorize this exact operation?", "description": "Choose Yes to authorize this exact scope; choose No to decline.", "enum": ["yes", "no"], "enumNames": ["Yes — authorize", "No — decline"]}
             }, "required": ["decision"]},
