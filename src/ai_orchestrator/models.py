@@ -423,7 +423,7 @@ class ProviderPermissionGrant(Contract):
 class TaskState(Contract):
     # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows,
     # v6 freezes provider-local model/effort/runtime-option provenance.
-    schema_version: Literal[1, 2, 3, 4, 5, 6] = 1
+    schema_version: Literal[1, 2, 3, 4, 5, 6, 7] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
@@ -432,6 +432,7 @@ class TaskState(Contract):
     provider_resolutions: dict[str, dict[str, object]] | None = None
     model_variant_resolutions: dict[str, dict[str, object]] | None = None
     runtime_overrides: dict[str, dict[str, object]] | None = None
+    execution_classes: dict[str, str] | None = None
     workflow_id: str | None = None
     workflow_digest: str | None = None
     workflow_selection_source: Literal["profile_default", "task", "requested", "supervisor", "supervisor_proposed"] | None = None
