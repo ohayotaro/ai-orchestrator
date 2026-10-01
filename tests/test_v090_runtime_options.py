@@ -34,6 +34,9 @@ class RuntimeAdapter(FakeAdapter):
                 default="medium",
                 complete=True,
             ),
+            options={
+                "adapter_mode": RuntimeValueDescriptor(mode="passthrough"),
+            },
             limitations=[f"fixture-{self.revision}"],
         )
 
@@ -186,7 +189,11 @@ def test_task_runtime_override_beats_profile_and_is_frozen_per_node(workspace):
         state = engine.create(
             spec("runtime-override"),
             runtime_overrides={
-                "implementer": {"model": "deep-model", "effort": "xhigh", "options": {}},
+                "implementer": {
+                    "model": "deep-model",
+                    "effort": "xhigh",
+                    "options": {"adapter_mode": "strict"},
+                },
             },
         )
         state = engine.run(state.spec.id)
@@ -208,6 +215,7 @@ def test_task_runtime_override_beats_profile_and_is_frozen_per_node(workspace):
         assert engineering.requests
         assert engineering.requests[0].config.model == "deep-model"
         assert engineering.requests[0].config.effort == "xhigh"
+        assert engineering.requests[0].runtime_options == {"adapter_mode": "strict"}
     finally:
         engine.close()
 
