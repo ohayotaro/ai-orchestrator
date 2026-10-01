@@ -1,11 +1,14 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.10 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
-the desired outcome while the Supervisor reuses trusted templates or proposes a
-bounded DAG for that task. Persistent template installation remains an explicit
-operator/profile action. This remains a trusted-local application, not
-authenticated human identity or a general OS-isolated control plane.
+**v0.9.0 alpha** adds provider-local model/effort resolution on top of the
+adaptive v0.8 control plane. Provider Resolution still decides who runs a node;
+Model Variant Resolution separately decides how that provider runs. Exact
+task/node model and effort overrides can be requested conversationally, are
+shown in HumanGate authority UX, and are frozen into task/node provenance without
+silently mutating persistent project defaults. This remains a trusted-local
+application, not authenticated human identity or a general OS-isolated control
+plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -173,15 +176,17 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.10
+.venv/bin/orchestrator --version  # 0.9.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
 (or Python 3.11/3.12). Install/authenticate the provider CLIs you intend to use separately. Built-in adapters are available for Claude Code, Codex CLI, and Antigravity CLI (`agy`).
-No model name is fixed; configured CLI defaults apply unless the profile specifies
-one. v0.8 can propose task-scoped DAGs and reuse v0.7 isolated parallel execution,
-but it still cannot install new providers, validator commands, policies or
-external-effect authority.
+No vendor model list is fixed in the kernel. v0.9 resolves provider-local
+model/effort after provider selection using task/node explicit override > trusted
+profile setting > adapter default. Built-in adapters report honest pass-through
+limitations when their CLIs do not expose a complete reliable catalog. Adaptive
+task-scoped DAGs and isolated parallel execution still cannot install new
+providers, validator commands, policies or external-effect authority.
 
 ## Opt in for the existing calculator fixture
 
@@ -474,3 +479,51 @@ A Yes response performs one atomic config replacement and trusts only the
 verified resulting digest. No intermediate same-family provider configuration is
 created. Existing single-provider change tools remain available as compatibility
 wrappers.
+
+
+## v0.9.0 provider-local model and effort resolution
+
+v0.9.0 makes provider selection and runtime selection separate, inspectable
+contracts:
+
+```text
+task / workflow node
+  -> semantic capabilities
+  -> Provider Resolution
+  -> Model Variant Resolution
+  -> adapter execution
+```
+
+Model Variant Resolution uses deterministic precedence:
+
+```text
+task/node explicit override
+        >
+trusted profile model/effort
+        >
+adapter default
+```
+
+A task-scoped override is ephemeral. It is validated against the selected
+workflow, resolved only after the provider is known, frozen into TaskState v6 and
+the workflow-node state, and included in approval scope. It does not rewrite
+`.orchestrator/config.yaml`. The execution HumanGate shows the exact resolved
+provider/adapter/model/effort for the affected implementation node(s).
+
+Conversational requests may therefore express concrete intent such as
+"implementation model X with effort=xhigh" or "review only at high effort".
+The Supervisor may preserve such an explicit request as `runtime_overrides`;
+it is instructed not to increase effort/cost on its own.
+
+Adapters advertise whether model/effort values are enumerated, unsupported or
+pass-through. Enumerated values fail closed when unsupported. Pass-through means
+the adapter can set the provider-local value but cannot truthfully claim a
+complete catalog; the provider runtime remains responsible for validating that
+value. AI Orchestrator records that limitation rather than maintaining a stale
+kernel-global vendor model list.
+
+Use `orchestrator schema runtime-options`,
+`orchestrator schema runtime-override`, and
+`orchestrator schema model-variant-resolution` for the wire contracts. MCP
+`inspect_project` also reports runtime-option descriptors and current role
+resolutions.
