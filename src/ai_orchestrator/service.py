@@ -72,6 +72,19 @@ class ProviderChangeInput(Contract):
     _ids = field_validator("provider", "adapter")(identifier)
 
 
+class BindingCleanupInput(Contract):
+    task_ids: list[str] = Field(default_factory=list, max_length=100)
+    intake_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator("task_ids", "intake_ids")
+    @classmethod
+    def valid_ids(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("binding cleanup IDs must be unique")
+        return normalized
+
+
 class RunInput(TaskInput):
     request_id: str
 
@@ -88,6 +101,7 @@ class ArtifactInput(TaskInput):
 TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "inspect_project": (Empty, "Inspect the fixed project's profile and validator diagnostics. Does not execute validators or check model authentication.", True),
     "preview_provider_change": (ProviderChangeInput, "Preview one bounded persistent provider-adapter change. This does not edit config or grant trust. Use request_provider_change in single-terminal mode for the exact confirmed change.", True),
+    "preview_binding_cleanup": (BindingCleanupInput, "Preview abandonment/withdrawal of exact unfinished task/intake bindings. This never rolls back workspace files or deletes history. Use request_binding_cleanup for the dedicated HumanGate.", True),
     "propose_task": (AskInput, "Queue a natural-language Supervisor request. workflow_ref may select an already-trusted workflow from inspect_project; it never installs/trusts one. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
     "get_job": (JobInput, "Read a queued job immediately. Prefer wait_job for active work instead of repeated polling.", True),
     "wait_job": (WaitJobInput, "Wait up to a bounded timeout for one job; in MCP single-terminal mode the server can emit progress notifications. Timeout never cancels the job.", True),
@@ -164,6 +178,7 @@ class ApplicationService:
                         },
                         "authority_control": {
                             "provider_adapter_change": "preview_provider_change -> request_provider_change HumanGate; applies exact diff and trusts resulting digest",
+                            "binding_cleanup": "preview_binding_cleanup -> request_binding_cleanup HumanGate; abandons/withdraws exact unfinished bindings without rollback",
                             "agy_broad_permission": "task/attempt-scoped request_provider_permission HumanGate; separate from execution approval",
                             "arbitrary_config_edit": False,
                             "arbitrary_policy_change": False,
@@ -171,10 +186,12 @@ class ApplicationService:
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
                         "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover", "arbitrary config/policy changes"],
-                        "human_gate_authority": ["start", "execution", "acceptance", "bounded provider adapter change", "task-scoped AGY broad permission"],
+                        "human_gate_authority": ["start", "execution", "acceptance", "binding cleanup", "bounded provider adapter change", "task-scoped AGY broad permission"],
                         "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":
                 return authority.provider_change_preview(engine, params.provider, params.adapter)
+            if name == "preview_binding_cleanup":
+                return authority.binding_cleanup_preview(engine, params.task_ids, params.intake_ids)
             if name == "get_intake":
                 return Supervisor(engine).describe(params.intake_id)
             if name == "get_task":
