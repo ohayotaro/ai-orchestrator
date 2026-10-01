@@ -239,6 +239,10 @@ class Supervisor:
                 "base_role_capabilities": {role: list(values) for role, values in DEFAULT_ROLE_CAPABILITIES.items() if role != "supervisor"},
                 "available_workflows": self.engine.workflow_registry_report(),
                 "available_runtime_options": self.engine.runtime_option_report(),
+                "available_execution_classes": {
+                    name: value.model_dump()
+                    for name, value in sorted(self.engine.profile.execution_classes.items())
+                },
                 "default_workflow": self.engine.profile.workflow,
                 "requested_workflow_ref": workflow_ref,
                 "advisory": advisory,
@@ -259,6 +263,8 @@ class Supervisor:
                     "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, policies or permissions.",
                     "runtime_overrides are task-scoped only. Set them only when the user explicitly asks for a specific model, effort/reasoning level, or execution intensity; otherwise leave them empty. Never raise effort/cost on your own.",
                     "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
+                    "execution_classes may select only IDs from available_execution_classes and may be keyed by planner/implementer/reviewer or an exact agent node ID. Use a named class only when the user explicitly expresses matching quality/cost/execution intent; do not escalate on your own.",
+                    "If the same target has both execution_classes and runtime_overrides, the explicit runtime override wins for any dimension it sets and the trusted execution class supplies only remaining dimensions.",
                     "Do not set template_version/provenance in a proposed workflow. Keep it at most 16 nodes and within the stated task. Every isolated write_path must be one of task.allowed_paths; independent isolated writers must own disjoint files.",
                     "Use isolated parallel writers only when the task can actually be split by exact file ownership. Otherwise prefer a simpler sequential DAG.",
                 ],
@@ -298,6 +304,7 @@ class Supervisor:
                 proposed_workflow_ref = task_result.pop("workflow_ref") if task_result is not None else None
                 proposed_workflow_raw = task_result.pop("workflow") if task_result is not None else None
                 raw_runtime_overrides = task_result.pop("runtime_overrides") if task_result is not None else None
+                raw_execution_classes = task_result.pop("execution_classes") if task_result is not None else None
                 proposed_workflow = WorkflowSpec.model_validate(proposed_workflow_raw) if proposed_workflow_raw is not None else None
                 intake.capability_requirements = validate_requirements(raw_requirements) or None
                 if task_result is not None:
@@ -344,6 +351,19 @@ class Supervisor:
                             + ", ".join(sorted(unknown_runtime_keys))
                         )
                     intake.runtime_overrides = overrides or None
+                    execution_classes = raw_execution_classes or {}
+                    unknown_class_targets = set(execution_classes) - valid_runtime_keys
+                    if unknown_class_targets:
+                        raise OrchestratorError(
+                            "execution class targets are not present in the selected workflow: "
+                            + ", ".join(sorted(unknown_class_targets))
+                        )
+                    unknown_classes = set(execution_classes.values()) - set(self.engine.profile.execution_classes)
+                    if unknown_classes:
+                        raise OrchestratorError(
+                            "unknown execution classes: " + ", ".join(sorted(unknown_classes))
+                        )
+                    intake.execution_classes = execution_classes or None
                 intake.result = SupervisorResult.model_validate(raw_result)
                 intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
@@ -386,11 +406,12 @@ class Supervisor:
             compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=6,
+            state = TaskState(schema_version=7,
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
                               runtime_overrides=intake.runtime_overrides,
+                              execution_classes=intake.execution_classes,
                               calls=intake.calls, elapsed_seconds=intake.elapsed_seconds, artifacts=[intake.artifact])
             if intake.workflow_spec is not None:
                 executor = self.engine.bind_proposed_workflow(state, intake.workflow_spec)
