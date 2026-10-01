@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.8.7 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
+**v0.8.8 alpha** adds adaptive, task-scoped workflow authoring and built-in Antigravity CLI provider support: users can describe
 the desired outcome while the Supervisor reuses trusted templates or proposes a
 bounded DAG for that task. Persistent template installation remains an explicit
 operator/profile action. This remains a trusted-local application, not
@@ -173,7 +173,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.8.7
+.venv/bin/orchestrator --version  # 0.8.8
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -418,3 +418,17 @@ decisions.
 
 Running tasks/intakes cannot be cleaned up through this path; they must first
 finish or be stopped/recovered through the appropriate existing control.
+
+
+## v0.8.8 content-free provider tool telemetry
+
+Antigravity calls now emit a `provider.tool_telemetry` audit event containing
+only tool names and aggregate terminal call states/counts. This makes it possible
+to distinguish, for example, `write_to_file`, `replace_file_content` and
+`run_command` usage without retaining the file path, command, prompt, tool
+output, provider response or conversation ID.
+
+Telemetry is observational only. It does not authorize tools and does not change
+the AGY denied-action or structured-output fail-closed rules. For isolated
+parallel/guarded execution, worker threads write only to per-call in-memory
+collectors; the controller persists telemetry after futures return.

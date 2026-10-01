@@ -317,3 +317,22 @@ Running bindings and already-terminal bindings are rejected. Cleanup never
 implicitly changes provider configuration or grants execution/provider
 permissions. Provider-change confirmation must be requested separately after
 the blocker set is empty.
+
+
+## v0.8.8 content-free provider telemetry
+
+AGY stream-json contains tool parameters and outputs that may include source
+paths, commands, file contents or other sensitive task data. The controller does
+not persist those fields. The telemetry extractor reads only `step_type=tool`,
+`tool_name`, `step_index` and `state` in memory; step indexes are used only
+to collapse AGY's ACTIVE -> DONE/ERROR updates and are not stored.
+
+The resulting event contains the provider identifier, sorted tool names and
+aggregate DONE/ERROR/other counts. Raw stream-json, tool_info, parameters,
+commands, target paths, outputs, tool errors, prompts, response text and
+conversation IDs are excluded by construction.
+
+Telemetry is emitted for both successful and failed calls but has no authority
+semantics. Denied actions remain terminal failures, broad AGY permission still
+requires its dedicated HumanGate, and guarded worktree/write-set enforcement is
+unchanged.

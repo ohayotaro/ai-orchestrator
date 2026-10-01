@@ -321,6 +321,7 @@ class WorkflowExecutor:
             },
         )
         started = time.monotonic()
+        telemetry: dict[str, object] = {}
         try:
             raw = adapter.execute(
                 RunRequest(
@@ -328,11 +329,17 @@ class WorkflowExecutor:
                     min(policy.call_timeout_seconds, remaining),
                     lambda: engine.store.cancelled(state.spec.id),
                     result_model=model,
+                    telemetry_sink=telemetry.update,
                 )
             )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - started
+            if telemetry:
+                engine.store.save(
+                    state, "provider.tool_telemetry",
+                    {"node": node.id, "phase": phase, **telemetry},
+                )
 
         engine._check(state)
         if engine.store.cancelled(state.spec.id):
@@ -466,6 +473,7 @@ class WorkflowExecutor:
                         "snapshot": manager.seed_snapshot, "workspace": "isolated",
                     },
                 )
+                telemetry: dict[str, object] = {}
                 prepared[node.id] = {
                     "node": node,
                     "resolution": resolution,
@@ -475,6 +483,7 @@ class WorkflowExecutor:
                     "workspace": workspace,
                     "protected": workspace_project.protected_snapshot(engine.profile),
                     "controls": workspace_project.control_snapshot(),
+                    "telemetry": telemetry,
                     "request": RunRequest(
                         "execute", self._prompt(state, node, resolution), workspace, config,
                         min(policy.call_timeout_seconds, remaining), cancel_event.is_set,
@@ -482,6 +491,7 @@ class WorkflowExecutor:
                         provider_permissions=engine.provider_permissions_for_node(
                             state, node.id, resolution
                         ),
+                        telemetry_sink=telemetry.update,
                     ),
                 }
 
@@ -517,6 +527,13 @@ class WorkflowExecutor:
                             cancel_event.set()
 
             state.elapsed_seconds += time.monotonic() - started
+            for node in nodes:
+                telemetry = prepared[node.id].get("telemetry") or {}
+                if telemetry:
+                    engine.store.save(
+                        state, "provider.tool_telemetry",
+                        {"node": node.id, "phase": "execute", **telemetry},
+                    )
             if engine.store.cancelled(state.spec.id):
                 raise OrchestratorError("execution cancelled")
             if errors:

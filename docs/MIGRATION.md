@@ -249,3 +249,13 @@ Binding cleanup is not rollback. Historical projects with unfinished tasks that
 may already have modified files should inspect/retain those files separately;
 cleanup only retires the orchestration binding so later authority changes can
 proceed.
+
+
+## v0.8.7 to v0.8.8
+
+No database migration, profile change or re-trust is required. Existing events
+are unchanged; new provider calls may append `provider.tool_telemetry` events.
+
+Historical provider calls cannot be retroactively reconstructed because raw AGY
+tool traces were intentionally not persisted. Re-run a safe E2E after upgrading
+when tool-level provenance is needed.

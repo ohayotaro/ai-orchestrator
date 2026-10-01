@@ -25,6 +25,7 @@ class RunRequest:
     cancel: Callable[[], bool]
     result_model: type[Contract] = AgentResult
     provider_permissions: frozenset[str] = frozenset()
+    telemetry_sink: Callable[[dict[str, object]], None] | None = None
 
 
 class ProviderExecutionError(OrchestratorError):
@@ -159,6 +160,58 @@ class AgyAdapter(CLIAdapter):
         return terminal
 
     @staticmethod
+    def _safe_tool_telemetry(stdout: str) -> dict[str, object]:
+        """Extract content-free AGY tool audit data from stream-json.
+
+        Tool parameters, paths, commands, prompts, outputs and response text are
+        intentionally ignored. Only tool names and terminal step states/counts
+        are retained.
+        """
+        calls: dict[tuple[int, str], str] = {}
+        for line in stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict) or event.get("event") != "step_update":
+                continue
+            update = event.get("step_update")
+            if not isinstance(update, dict) or update.get("step_type") != "tool":
+                continue
+            name = update.get("tool_name")
+            index = update.get("step_index")
+            state = update.get("state")
+            if not isinstance(name, str) or not isinstance(index, int) or not isinstance(state, str):
+                continue
+            # AGY emits ACTIVE then DONE/ERROR for the same step. Retain only
+            # the latest state and aggregate below; step indexes are not stored.
+            calls[(index, name)] = state
+
+        aggregate: dict[str, dict[str, int]] = {}
+        for (_, name), state in calls.items():
+            counts = aggregate.setdefault(name, {"DONE": 0, "ERROR": 0, "OTHER": 0})
+            bucket = state if state in ("DONE", "ERROR") else "OTHER"
+            counts[bucket] += 1
+        tools = [
+            {
+                "name": name,
+                "calls": sum(counts.values()),
+                "done": counts["DONE"],
+                "error": counts["ERROR"],
+                "other": counts["OTHER"],
+            }
+            for name, counts in sorted(aggregate.items())
+        ]
+        return {
+            "provider": "agy",
+            "tools": tools,
+            "tool_names": [item["name"] for item in tools],
+            "tool_call_count": sum(item["calls"] for item in tools),
+        }
+
+    @staticmethod
     def _safe_diagnostics(result, envelope: dict) -> dict[str, object]:
         response = envelope.get("response")
         structured = envelope.get("structured_output")
@@ -203,8 +256,13 @@ class AgyAdapter(CLIAdapter):
                 argv, cwd=request.workspace, input_text=input_text,
                 timeout=request.timeout, cancel=request.cancel,
             )
+            telemetry = self._safe_tool_telemetry(result.stdout)
+            if request.telemetry_sink is not None:
+                request.telemetry_sink(telemetry)
             envelope = self._result_envelope(result.stdout)
             diagnostics = self._safe_diagnostics(result, envelope)
+            diagnostics["tool_names"] = telemetry["tool_names"]
+            diagnostics["tool_call_count"] = telemetry["tool_call_count"]
             if result.returncode != 0 or envelope.get("status") != "SUCCESS":
                 raise ProviderExecutionError(
                     f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "

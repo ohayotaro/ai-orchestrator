@@ -257,3 +257,17 @@ attempt automatic workspace rollback because earlier provider attempts may have
 produced legitimate user-visible edits that cannot be safely inferred as
 discardable. Filesystem effects remain separate evidence requiring explicit user
 handling when desired.
+
+
+## v0.8.8 provider telemetry channel
+
+`RunRequest` carries an optional in-memory telemetry sink. Adapters may publish
+content-free observations to that sink while retaining their normal Contract
+return type. AGY parses its stream-json into two independent views: the terminal
+result contract and a tool-name/state aggregate.
+
+For guarded/parallel execution each prepared node owns a separate dictionary
+collector. Provider threads mutate only their own collector. After all futures
+return, the workflow controller persists `provider.tool_telemetry` events on
+the controller thread before normal error normalization/integration. Sequential
+calls use the same pattern in a local collector.

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.8 — alpha
+
+- Add content-free provider tool telemetry for Antigravity stream-json calls.
+  Successful and failed calls record only tool names plus aggregate terminal
+  DONE/ERROR/other call counts.
+- Never persist AGY tool parameters, target paths, command lines, prompts, tool
+  outputs, error messages, response bodies or conversation IDs in telemetry.
+- Persist `provider.tool_telemetry` from the controller thread after provider
+  execution, including guarded/parallel calls, so telemetry does not introduce
+  cross-thread SQLite writes.
+- Keep `provider.execution.failed` as the separate failure diagnostic event;
+  telemetry is observational and does not weaken denied-action, structured-output,
+  sandbox, write-ownership or HumanGate enforcement.
+- Add regression coverage for successful and failed guarded calls and for
+  redaction-by-construction of sensitive tool fields.
+
+
 ## 0.8.7 — alpha
 
 - Add explicit lifecycle terminal states for unfinished authority bindings:
