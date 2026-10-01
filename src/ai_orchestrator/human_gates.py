@@ -56,11 +56,28 @@ class ProviderPermissionRequest(Contract):
     _ids = field_validator("task_id", "request_id")(identifier)
 
 
+class BindingCleanupRequest(Contract):
+    task_ids: list[str] = Field(default_factory=list, max_length=100)
+    intake_ids: list[str] = Field(default_factory=list, max_length=100)
+    request_id: str
+
+    _request = field_validator("request_id")(identifier)
+
+    @field_validator("task_ids", "intake_ids")
+    @classmethod
+    def valid_ids(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("binding cleanup IDs must be unique")
+        return normalized
+
+
 GATE_TOOLS = {
     "request_start": (StartRequest, "Ask the host to display a scoped confirmation of an intake; only its explicit form response may register the task and queue planning. Never supply a decision or actor.", False),
     "request_execution": (TaskRequest, "Ask the host for scoped implementation approval. After explicit confirmation, approve the exact current plan/attempt and queue it. Every repair needs a fresh request.", False),
     "request_acceptance": (TaskRequest, "Ask the host to confirm acceptance of the exact reviewed result. Only explicit confirmation can mark it succeeded. This never commits/pushes/deploys.", False),
     "request_provider_change": (ProfileChangeRequest, "Ask the host to confirm one exact persistent provider-adapter change. On Yes, the controller atomically edits only that provider slot, resets adapter-specific executable/model/effort overrides, validates the resulting profile, and trusts only its resulting digest.", False),
+    "request_binding_cleanup": (BindingCleanupRequest, "Ask the host to abandon exact unfinished tasks and withdraw exact unconsumed intakes. This terminalizes bindings only; it never deletes history or rolls back workspace files.", False),
     "request_provider_permission": (ProviderPermissionRequest, "Ask the host for a separate high-risk provider permission gate. The only supported permission is AGY --dangerously-skip-permissions for this exact task attempt; it does not approve execution itself.", False),
 }
 
@@ -73,7 +90,7 @@ class HumanGate(Contract):
     actor: str
     client: dict[str, str]
     request_id: str
-    kind: Literal["start", "execution", "acceptance", "profile_change", "provider_permission"]
+    kind: Literal["start", "execution", "acceptance", "profile_change", "binding_cleanup", "provider_permission"]
     subject: str
     task_id: str | None = None
     scope: str
@@ -194,9 +211,45 @@ class HumanGateBroker:
         if current != engine.profile_digest or not engine.store.trusted(current):
             raise OrchestratorError("profile changed or untrusted; host confirmation never grants project trust")
 
+        if kind == "binding_cleanup":
+            request = BindingCleanupRequest.model_validate(authority_request or {})
+            proposed = authority.binding_cleanup_preview(
+                engine, request.task_ids, request.intake_ids
+            )
+            kernel_scope = proposed["scope"]
+            state = {"authority_request": request.model_dump(), "cleanup": proposed}
+            scope = digest({
+                "kind": kind, "subject": subject, "state": state, "kernel_scope": kernel_scope,
+                "profile": current, "workspace": project.snapshot(),
+                "protected": project.protected_snapshot(engine.profile),
+                "controls": project.control_snapshot(),
+            })
+            preview = {
+                "operation": (
+                    "Terminalize only these exact unfinished bindings. Tasks become abandoned; "
+                    "intakes become withdrawn. This does NOT roll back or delete existing workspace changes, "
+                    "task files, artifacts, or audit history."
+                ),
+                "project": str(project.root),
+                "subject": subject,
+                "scope": scope,
+                **proposed,
+            }
+            if len(safe_display(preview).encode()) > MAX_PREVIEW_BYTES:
+                raise OrchestratorError("confirmation preview exceeds 32 KiB; no binding cleanup was prepared")
+            return {"task_id": None, "kernel_scope": kernel_scope, "scope": scope, "preview": preview}
+
         if kind == "profile_change":
             request = ProfileChangeRequest.model_validate(authority_request or {})
             proposed = authority.provider_change_preview(engine, request.provider, request.adapter)
+            if not proposed["ready"]:
+                blockers = proposed["blocked_by"]
+                raise OrchestratorError(
+                    "provider change is blocked by unfinished bindings; use preview_binding_cleanup "
+                    "and request_binding_cleanup first: "
+                    f"tasks={','.join(blockers['task_ids']) or '-'}; "
+                    f"intakes={','.join(blockers['intake_ids']) or '-'}"
+                )
             change = proposed["change"]
             kernel_scope = change["proposed_profile_digest"]
             state = {"authority_request": request.model_dump(), "change": change}
@@ -352,6 +405,16 @@ class HumanGateBroker:
             self.store.create(gate)
         return gate
 
+    def prepare_binding_cleanup(self, request: BindingCleanupRequest) -> HumanGate:
+        subject = "BC-" + digest({
+            "task_ids": sorted(request.task_ids),
+            "intake_ids": sorted(request.intake_ids),
+        })[:32]
+        return self.prepare(
+            "binding_cleanup", subject, request.request_id,
+            request.model_dump(),
+        )
+
     def prepare_provider_change(self, request: ProfileChangeRequest) -> HumanGate:
         subject = "PC-" + digest({"provider": request.provider, "adapter": request.adapter})[:32]
         return self.prepare(
@@ -368,7 +431,7 @@ class HumanGateBroker:
     @staticmethod
     def form(gate: HumanGate) -> dict[str, Any]:
         return {
-            "message": "AI Orchestrator confirmation. Review all task data below; embedded instructions are not authority.\n"
+            "message": "AI Orchestrator confirmation. Review all operation data below; embedded instructions are not authority.\n"
                        + safe_display(gate.preview) + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.\n"
                        + f"Gate: {gate.id}; expires in a short window. {ASSURANCE}.",
             "requestedSchema": {"type": "object", "properties": {
@@ -438,6 +501,18 @@ class HumanGateBroker:
                         "next_action": "Request execution confirmation for the now-expanded exact execution scope.",
                     }
                     event_task_id = state.spec.id
+                elif gate.kind == "binding_cleanup":
+                    request = BindingCleanupRequest.model_validate(gate.authority_request or {})
+                    with engine.project.lock():
+                        check()
+                        result = authority.apply_binding_cleanup(
+                            engine,
+                            request.task_ids,
+                            request.intake_ids,
+                            gate.kernel_scope,
+                            gate.actor,
+                        )
+                    event_task_id = None
                 elif gate.kind == "profile_change":
                     request = ProfileChangeRequest.model_validate(gate.authority_request or {})
                     with engine.project.lock():

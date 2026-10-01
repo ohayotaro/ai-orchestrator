@@ -236,3 +236,24 @@ awaiting_approval task
 The provider adapter sees the dangerous AGY flag only when the executing node
 matches a persisted approved grant. Permission grants are task state, not project
 profile authority, and are cleared on repair.
+
+
+## v0.8.7 binding lifecycle control
+
+The authority-control plane now models unfinished binding retirement explicitly:
+
+```text
+provider-change preview
+  -> ready=false + exact blocked_by task/intake IDs
+  -> binding-cleanup preview
+  -> binding-cleanup HumanGate
+  -> atomic abandoned/withdrawn transitions
+  -> provider-change preview again
+  -> provider-change HumanGate
+```
+
+Cleanup operates on persisted orchestration state only. It deliberately does not
+attempt automatic workspace rollback because earlier provider attempts may have
+produced legitimate user-visible edits that cannot be safely inferred as
+discardable. Filesystem effects remain separate evidence requiring explicit user
+handling when desired.

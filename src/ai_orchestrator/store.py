@@ -102,7 +102,7 @@ class Store:
         active: list[str] = []
         for intake_id, data in rows:
             intake = IntakeState.model_validate_json(data)
-            if intake.status in ("proposed", "needs_clarification"):
+            if intake.status in ("running", "proposed", "needs_clarification"):
                 active.append(intake_id)
         return active
 
@@ -111,7 +111,7 @@ class Store:
         active: list[str] = []
         for task_id, data in rows:
             state = TaskState.model_validate_json(data)
-            if state.status not in ("succeeded", "blocked", "failed", "cancelled"):
+            if state.status not in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
                 active.append(task_id)
         return active
 
@@ -134,6 +134,78 @@ class Store:
                 "provider_permission.approved",
                 {"scope": scope, "actor": actor, "permission": permission, "attempt": state.attempt},
             )
+
+    def cleanup_bindings(
+        self, task_ids: list[str], intake_ids: list[str], actor: str, reason: str
+    ) -> dict[str, list[str]]:
+        if not actor.strip():
+            raise OrchestratorError("an approval actor is required")
+        tasks = [self.get(task_id) for task_id in task_ids]
+        intakes = [self.get_intake(intake_id) for intake_id in intake_ids]
+        for state in tasks:
+            if state.status == "running":
+                raise OrchestratorError(
+                    f"running task cannot be abandoned: {state.spec.id}; stop/recover active execution first"
+                )
+            if state.status in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
+                raise OrchestratorError(f"task is already terminal: {state.spec.id} ({state.status})")
+        for intake in intakes:
+            if intake.status == "running":
+                raise OrchestratorError(
+                    f"running intake cannot be withdrawn: {intake.id}; wait for Supervisor execution to finish"
+                )
+            if intake.status not in ("proposed", "needs_clarification"):
+                raise OrchestratorError(
+                    f"intake cannot be withdrawn: {intake.id} ({intake.status})"
+                )
+
+        with self.db:
+            for state in tasks:
+                state.status = "abandoned"
+                state.provider_permission_grants = {}
+                state.error = reason[:4000]
+                self.db.execute(
+                    "UPDATE tasks SET data=? WHERE id=?",
+                    (state.model_dump_json(), state.spec.id),
+                )
+                self._event(
+                    state.spec.id,
+                    "task.abandoned",
+                    {
+                        "actor": actor,
+                        "reason": reason[:2000],
+                        "phase": state.phase,
+                        "attempt": state.attempt,
+                        "workspace_rollback": False,
+                    },
+                )
+            for intake in intakes:
+                intake.status = "withdrawn"
+                intake.error = reason[:4000]
+                self.db.execute(
+                    "UPDATE intakes SET data=? WHERE id=?",
+                    (intake.model_dump_json(), intake.id),
+                )
+                self._event(
+                    None,
+                    "intake.withdrawn",
+                    {
+                        "intake_id": intake.id,
+                        "actor": actor,
+                        "reason": reason[:2000],
+                    },
+                )
+            self._event(
+                None,
+                "binding_cleanup.applied",
+                {
+                    "task_ids": task_ids,
+                    "intake_ids": intake_ids,
+                    "actor": actor,
+                    "workspace_rollback": False,
+                },
+            )
+        return {"task_ids": task_ids, "intake_ids": intake_ids}
 
     def request_cancel(self, task_id: str) -> None:
         state = self.get(task_id)

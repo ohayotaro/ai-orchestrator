@@ -151,29 +151,35 @@ def test_provider_change_decline_is_noop(workspace):
         check.close()
 
 
-def test_provider_change_rejected_while_task_is_active(workspace):
+def test_provider_change_preview_reports_active_task_blocker(workspace):
     registry = {"claude": FakeAdapter("anthropic"), "codex": FakeAdapter("openai"), "agy": FakeAdapter("google")}
     engine = Engine(workspace, registry)
     try:
         engine.trust("operator")
         engine.create(spec("active-task"))
-        with pytest.raises(OrchestratorError, match="bindings are active"):
-            from ai_orchestrator.authority import provider_change_preview
-            provider_change_preview(engine, "engineering", "agy")
+        from ai_orchestrator.authority import provider_change_preview
+        preview = provider_change_preview(engine, "engineering", "agy")
+        assert preview["ready"] is False
+        assert preview["blocked_by"] == {"task_ids": ["active-task"], "intake_ids": []}
     finally:
         engine.close()
 
 
-def test_provider_change_rejected_while_intake_is_unconsumed(workspace):
-    providers = {"claude": IntakeAdapter("anthropic"), "codex": IntakeAdapter("openai")}
+def test_provider_change_preview_reports_unconsumed_intake_blocker(workspace):
+    providers = {
+        "claude": IntakeAdapter("anthropic"),
+        "codex": IntakeAdapter("openai"),
+        "agy": IntakeAdapter("google"),
+    }
     engine = Engine(workspace, providers)
     try:
         engine.trust("operator")
         intake = Supervisor(engine).ask("Add a result", task_id="pending-intake")
         assert intake.status == "proposed"
         from ai_orchestrator.authority import provider_change_preview
-        with pytest.raises(OrchestratorError, match="bindings are active"):
-            provider_change_preview(engine, "engineering", "agy")
+        preview = provider_change_preview(engine, "engineering", "agy")
+        assert preview["ready"] is False
+        assert preview["blocked_by"] == {"task_ids": [], "intake_ids": [intake.id]}
     finally:
         engine.close()
 
