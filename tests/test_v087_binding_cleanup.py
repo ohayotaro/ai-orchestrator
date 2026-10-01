@@ -108,6 +108,33 @@ def test_binding_cleanup_humangate_terminalizes_without_rollback(workspace):
         check.close()
 
 
+def test_binding_cleanup_form_rejects_too_many_targets(workspace):
+    engine = Engine(workspace, registry())
+    try:
+        engine.trust("operator")
+        task_ids = []
+        for index in range(13):
+            state = engine.create(spec(f"bulk-task-{index}"))
+            task_ids.append(state.spec.id)
+    finally:
+        engine.close()
+
+    broker = HumanGateBroker(
+        ApplicationService(workspace), "cleanup-session", {"name": "test", "version": "1"}
+    )
+    try:
+        with pytest.raises(OrchestratorError, match="limited to 12 exact IDs"):
+            broker.prepare_binding_cleanup(
+                BindingCleanupRequest(
+                    task_ids=task_ids,
+                    intake_ids=[],
+                    request_id="cleanup-too-many",
+                )
+            )
+    finally:
+        broker.close()
+
+
 def test_cleanup_decline_is_noop(workspace):
     engine, _, task, intake = setup_blockers(workspace)
     engine.close()
