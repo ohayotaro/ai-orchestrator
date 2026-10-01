@@ -52,10 +52,17 @@ def provider_change_preview(engine, provider: str, adapter: str) -> dict[str, An
     provider = identifier(provider)
     adapter = identifier(adapter)
     current = _assert_current_trusted(engine)
-    active = engine.store.active_task_ids()
-    if active:
+    active_tasks = engine.store.active_task_ids()
+    active_intakes = engine.store.active_intake_ids()
+    if active_tasks or active_intakes:
+        details = []
+        if active_tasks:
+            details.append("tasks=" + ",".join(active_tasks[:20]))
+        if active_intakes:
+            details.append("intakes=" + ",".join(active_intakes[:20]))
         raise OrchestratorError(
-            "provider authority cannot change while tasks are active: " + ", ".join(active[:20])
+            "provider authority cannot change while task/intake bindings are active: "
+            + "; ".join(details)
         )
     if provider not in engine.profile.providers:
         raise OrchestratorError(f"unknown provider slot: {provider}")
