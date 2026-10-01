@@ -179,6 +179,16 @@ def compact_gate_summary(gate: "HumanGate") -> str:
         ]
     elif gate.kind == "start":
         task = p.get("task") or {}
+        workflow_nodes = (p.get("workflow") or {}).get("nodes") or []
+        node_names = [
+            item.get("id") for item in workflow_nodes
+            if isinstance(item, dict) and item.get("id")
+        ]
+        ownership = [
+            str(item.get("id")) + ":" + ",".join(item.get("write_paths") or [])
+            for item in workflow_nodes
+            if isinstance(item, dict) and item.get("write_paths")
+        ]
         lines += [
             f"Task: {_clean_inline(task.get('id', gate.task_id or gate.subject))}",
             f"Goal: {_clean_inline(task.get('goal', '-'))}",
@@ -186,15 +196,8 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
             f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
             f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
-            f"Workflow nodes: {_csv([
-                item.get('id') for item in ((p.get('workflow') or {}).get('nodes') or [])
-                if isinstance(item, dict) and item.get('id')
-            ])}",
-            f"Write ownership: {_csv([
-                f"{item.get('id')}:{','.join(item.get('write_paths') or [])}"
-                for item in ((p.get('workflow') or {}).get('nodes') or [])
-                if isinstance(item, dict) and item.get('write_paths')
-            ])}",
+            f"Workflow nodes: {_csv(node_names)}",
+            f"Write ownership: {_csv(ownership)}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
     elif gate.kind == "execution":
@@ -208,8 +211,6 @@ def compact_gate_summary(gate: "HumanGate") -> str:
                     implementer.get("provider"), implementer.get("adapter"), implementer.get("family")
                 ) if value
             ) or "-"
-        grants = []
-        workflow = p.get("workflow") or {}
         # v0.8.9 capture adds this explicit display-only field; fall back to none.
         grants = p.get("provider_permissions") or []
         lines += [
