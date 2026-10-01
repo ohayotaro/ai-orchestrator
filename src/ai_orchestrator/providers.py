@@ -159,6 +159,7 @@ class AgyAdapter(CLIAdapter):
     def _safe_diagnostics(result, envelope: dict) -> dict[str, object]:
         response = envelope.get("response")
         structured = envelope.get("structured_output")
+        denied = envelope.get("denied_actions")
         diagnostics: dict[str, object] = {
             "provider": "agy",
             "process_returncode": result.returncode,
@@ -166,7 +167,14 @@ class AgyAdapter(CLIAdapter):
             "terminal_keys": sorted(str(key) for key in envelope),
             "structured_output_type": type(structured).__name__,
             "response_type": type(response).__name__,
+            "denied_action_count": len(denied) if isinstance(denied, list) else 0,
         }
+        if isinstance(denied, list):
+            actions = []
+            for item in denied:
+                if isinstance(item, dict) and isinstance(item.get("action"), str):
+                    actions.append(item["action"])
+            diagnostics["denied_action_types"] = sorted(set(actions))
         if isinstance(structured, dict):
             diagnostics["structured_output_keys"] = sorted(str(key) for key in structured)
         if isinstance(response, str):
@@ -198,6 +206,20 @@ class AgyAdapter(CLIAdapter):
                 raise ProviderExecutionError(
                     f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
                     "inspect CLI authentication/quota/permissions, then create a new task",
+                    diagnostics,
+                )
+            denied = envelope.get("denied_actions")
+            if isinstance(denied, list) and denied:
+                actions = sorted({
+                    item.get("action") for item in denied
+                    if isinstance(item, dict) and isinstance(item.get("action"), str)
+                })
+                detail = ", ".join(actions) if actions else "one or more tools"
+                raise ProviderExecutionError(
+                    "Antigravity headless execution was permission-denied for "
+                    f"{detail}; status=SUCCESS does not mean the requested work completed. "
+                    "Do not use --dangerously-skip-permissions. Configure the provider's "
+                    "native scoped permission policy explicitly or select another writable provider.",
                     diagnostics,
                 )
 
