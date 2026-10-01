@@ -102,7 +102,7 @@ class Store:
         active: list[str] = []
         for intake_id, data in rows:
             intake = IntakeState.model_validate_json(data)
-            if intake.status in ("proposed", "needs_clarification"):
+            if intake.status in ("running", "proposed", "needs_clarification"):
                 active.append(intake_id)
         return active
 
