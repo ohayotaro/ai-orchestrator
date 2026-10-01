@@ -72,6 +72,22 @@ class ProviderChangeInput(Contract):
     _ids = field_validator("provider", "adapter")(identifier)
 
 
+class ProviderChangeSetInput(Contract):
+    changes: dict[str, str] = Field(min_length=1, max_length=16)
+
+    @field_validator("changes")
+    @classmethod
+    def valid_changes(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for provider, adapter in value.items():
+            provider_id = identifier(provider)
+            adapter_id = identifier(adapter)
+            if provider_id in normalized:
+                raise ValueError("provider change-set contains duplicate provider slots")
+            normalized[provider_id] = adapter_id
+        return normalized
+
+
 class BindingCleanupInput(Contract):
     task_ids: list[str] = Field(default_factory=list, max_length=100)
     intake_ids: list[str] = Field(default_factory=list, max_length=100)
@@ -101,6 +117,7 @@ class ArtifactInput(TaskInput):
 TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "inspect_project": (Empty, "Inspect the fixed project's profile and validator diagnostics. Does not execute validators or check model authentication.", True),
     "preview_provider_change": (ProviderChangeInput, "Preview one bounded persistent provider-adapter change. This does not edit config or grant trust. Use request_provider_change in single-terminal mode for the exact confirmed change.", True),
+    "preview_provider_change_set": (ProviderChangeSetInput, "Preview an atomic bounded provider-adapter change-set across multiple existing provider slots. The final profile is validated as one unit; no intermediate profile is applied. Use request_provider_change_set in single-terminal mode for the exact confirmed set.", True),
     "preview_binding_cleanup": (BindingCleanupInput, "Preview abandonment/withdrawal of exact unfinished task/intake bindings. This never rolls back workspace files or deletes history. Use request_binding_cleanup for the dedicated HumanGate.", True),
     "propose_task": (AskInput, "Queue a natural-language Supervisor request. workflow_ref may select an already-trusted workflow from inspect_project; it never installs/trusts one. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
     "get_job": (JobInput, "Read a queued job immediately. Prefer wait_job for active work instead of repeated polling.", True),
@@ -177,7 +194,8 @@ class ApplicationService:
                             "profile_mutation_by_agent": "bounded provider-adapter changes only through dedicated HumanGate",
                         },
                         "authority_control": {
-                            "provider_adapter_change": "preview_provider_change -> request_provider_change HumanGate; applies exact diff and trusts resulting digest",
+                            "provider_adapter_change": "preview_provider_change -> request_provider_change HumanGate; single-slot compatibility path",
+                            "provider_adapter_change_set": "preview_provider_change_set -> request_provider_change_set HumanGate; atomically validates/applies multiple provider slots and trusts resulting digest",
                             "binding_cleanup": "preview_binding_cleanup -> request_binding_cleanup HumanGate; abandons/withdraws exact unfinished bindings without rollback",
                             "agy_broad_permission": "task/attempt-scoped request_provider_permission HumanGate; separate from execution approval",
                             "arbitrary_config_edit": False,
@@ -190,6 +208,8 @@ class ApplicationService:
                         "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":
                 return authority.provider_change_preview(engine, params.provider, params.adapter)
+            if name == "preview_provider_change_set":
+                return authority.provider_change_set_preview(engine, params.changes)
             if name == "preview_binding_cleanup":
                 return authority.binding_cleanup_preview(engine, params.task_ids, params.intake_ids)
             if name == "get_intake":
