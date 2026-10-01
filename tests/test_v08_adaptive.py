@@ -153,7 +153,7 @@ def test_supervisor_can_author_task_scoped_workflow_without_profile_mutation(wor
             broker.close()
 
         state = supervisor.start(intake.id, supervisor.scope(intake), "operator")
-        assert state.schema_version == 6
+        assert state.schema_version == 7
         assert state.workflow_selection_source == "supervisor_proposed"
         assert state.workflow_spec == intake.workflow_spec
 
