@@ -247,10 +247,8 @@ def test_frozen_runtime_metadata_drift_fails_closed(workspace):
         engine.approve(state.spec.id, engine.approval_scope(state), "test-operator")
 
         engineering.revision = "r2"
-        with pytest.raises(
-            OrchestratorError,
-            match="model/effort/runtime-option resolution changed since task binding",
-        ):
-            engine.run(state.spec.id)
+        state = engine.run(state.spec.id)
+        assert state.status == "blocked"
+        assert "model/effort/runtime-option resolution changed since task binding" in state.error
     finally:
         engine.close()
