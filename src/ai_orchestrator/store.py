@@ -111,7 +111,7 @@ class Store:
         active: list[str] = []
         for task_id, data in rows:
             state = TaskState.model_validate_json(data)
-            if state.status not in ("succeeded", "blocked", "failed", "cancelled"):
+            if state.status not in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
                 active.append(task_id)
         return active
 
@@ -134,6 +134,45 @@ class Store:
                 "provider_permission.approved",
                 {"scope": scope, "actor": actor, "permission": permission, "attempt": state.attempt},
             )
+
+    def abandon_task(self, task_id: str, actor: str, reason: str) -> TaskState:
+        state = self.get(task_id)
+        if not actor.strip():
+            raise OrchestratorError("an approval actor is required")
+        if state.status == "running":
+            raise OrchestratorError("running tasks cannot be abandoned; stop/recover the active execution first")
+        if state.status in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
+            raise OrchestratorError(f"task is already terminal: {state.status}")
+        state.status = "abandoned"
+        state.provider_permission_grants = {}
+        state.error = reason[:4000]
+        with self.db:
+            self.db.execute("UPDATE tasks SET data=? WHERE id=?", (state.model_dump_json(), task_id))
+            self._event(
+                task_id,
+                "task.abandoned",
+                {"actor": actor, "reason": reason[:2000], "phase": state.phase, "attempt": state.attempt},
+            )
+        return state
+
+    def withdraw_intake(self, intake_id: str, actor: str, reason: str) -> IntakeState:
+        intake = self.get_intake(intake_id)
+        if not actor.strip():
+            raise OrchestratorError("an approval actor is required")
+        if intake.status == "running":
+            raise OrchestratorError("running intakes cannot be withdrawn; wait for the active Supervisor call to finish")
+        if intake.status not in ("proposed", "needs_clarification"):
+            raise OrchestratorError(f"intake cannot be withdrawn from status: {intake.status}")
+        intake.status = "withdrawn"
+        intake.error = reason[:4000]
+        with self.db:
+            self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake_id))
+            self._event(
+                None,
+                "intake.withdrawn",
+                {"intake_id": intake_id, "actor": actor, "reason": reason[:2000]},
+            )
+        return intake
 
     def request_cancel(self, task_id: str) -> None:
         state = self.get(task_id)
