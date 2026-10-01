@@ -165,11 +165,31 @@ class AgyAdapter(CLIAdapter):
                     "inspect CLI authentication/quota/permissions, then create a new task"
                 )
             structured = envelope.get("structured_output")
-            if not isinstance(structured, dict):
-                raise OrchestratorError(
-                    "Antigravity returned SUCCESS without structured_output; refusing to accept an ambiguous headless result"
-                )
-            return request.result_model.model_validate(structured)
+            if isinstance(structured, dict):
+                return request.result_model.model_validate(structured)
+
+            # AGY 1.2.14 has been observed in live headless execution to omit
+            # structured_output even with --json-schema while returning the
+            # schema-shaped payload in response. Official AGY documentation
+            # defines response as the same structured payload serialized as a
+            # string. Accept that compatibility path only when it is strict JSON
+            # and validates against the exact requested controller contract.
+            response = envelope.get("response")
+            if isinstance(response, str):
+                try:
+                    decoded = json.loads(response)
+                except json.JSONDecodeError:
+                    decoded = None
+                if isinstance(decoded, dict):
+                    try:
+                        return request.result_model.model_validate(decoded)
+                    except Exception as exc:
+                        raise OrchestratorError(
+                            "Antigravity omitted structured_output and response JSON did not match the requested contract"
+                        ) from exc
+            raise OrchestratorError(
+                "Antigravity returned SUCCESS without a schema-valid structured_output or JSON response"
+            )
 
 
 class ClaudeAdapter(CLIAdapter):
