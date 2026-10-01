@@ -149,6 +149,12 @@ class RuntimePolicySetting(Contract):
     def valid_options(cls, values: dict[str, str]) -> dict[str, str]:
         return {identifier(key): _runtime_policy_value(value) for key, value in values.items()}
 
+    @model_validator(mode="after")
+    def nonempty(self) -> "RuntimePolicySetting":
+        if self.model is None and self.effort is None and not self.options:
+            raise ValueError("runtime policy setting must specify model, effort, or an option")
+        return self
+
 
 class ExecutionClassConfig(Contract):
     """Trusted mapping from an abstract execution class to provider-local settings."""
