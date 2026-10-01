@@ -15,7 +15,7 @@ from .models import Contract, OrchestratorError, ProviderConfig, identifier
 
 RUNTIME_OPTION_REGISTRY_VERSION = 1
 RuntimeSelectionMode = Literal["unsupported", "enumerated", "passthrough"]
-RuntimeResolutionSource = Literal["explicit_override", "trusted_profile", "adapter_default"]
+RuntimeResolutionSource = Literal["explicit_override", "execution_class", "trusted_profile", "adapter_default"]
 
 
 def _runtime_value(value: str) -> str:
@@ -104,11 +104,17 @@ class ModelVariantResolution(Contract):
     model: str | None = None
     effort: str | None = None
     options: dict[str, str] = Field(default_factory=dict)
+    execution_class: str | None = None
     sources: dict[str, RuntimeResolutionSource]
     runtime_options_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     runtime_registry_version: Literal[1] = RUNTIME_OPTION_REGISTRY_VERSION
     limitations: list[str] = Field(default_factory=list)
     fallback: Literal["none"] = "none"
+
+    @field_validator("execution_class")
+    @classmethod
+    def valid_execution_class(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
 
     @field_validator("provider", "adapter")
     @classmethod
@@ -173,11 +179,14 @@ class ModelVariantResolver:
     def _select(
         kind: str,
         override: str | None,
+        policy_value: str | None,
         profile_value: str | None,
         domain: RuntimeValueDescriptor,
     ) -> tuple[str | None, RuntimeResolutionSource]:
         if override is not None:
             return ModelVariantResolver._validate_selected(kind, override, domain), "explicit_override"
+        if policy_value is not None:
+            return ModelVariantResolver._validate_selected(kind, policy_value, domain), "execution_class"
         if profile_value is not None:
             return ModelVariantResolver._validate_selected(kind, profile_value, domain), "trusted_profile"
         return ModelVariantResolver._validate_selected(kind, domain.default, domain), "adapter_default"
@@ -190,11 +199,18 @@ class ModelVariantResolver:
         workspace: Path,
         *,
         override: RuntimeOverride | None = None,
+        policy_override: RuntimeOverride | None = None,
+        execution_class: str | None = None,
     ) -> ModelVariantResolution:
         descriptor = self.describe(adapter, config, workspace)
         override = override or RuntimeOverride()
-        model, model_source = self._select("model", override.model, config.model, descriptor.model)
-        effort, effort_source = self._select("effort", override.effort, config.effort, descriptor.effort)
+        policy_override = policy_override or RuntimeOverride()
+        model, model_source = self._select(
+            "model", override.model, policy_override.model, config.model, descriptor.model
+        )
+        effort, effort_source = self._select(
+            "effort", override.effort, policy_override.effort, config.effort, descriptor.effort
+        )
 
         options: dict[str, str] = {}
         sources: dict[str, RuntimeResolutionSource] = {
@@ -209,6 +225,16 @@ class ModelVariantResolver:
             if selected is not None:
                 options[name] = selected
                 sources[f"option:{name}"] = "explicit_override"
+        for name, value in policy_override.options.items():
+            if name in options:
+                continue
+            domain = descriptor.options.get(name)
+            if domain is None:
+                raise OrchestratorError(f"adapter does not advertise runtime option: {name}")
+            selected = self._validate_selected(name, value, domain)
+            if selected is not None:
+                options[name] = selected
+                sources[f"option:{name}"] = "execution_class"
         for name, domain in descriptor.options.items():
             if name in options:
                 continue
@@ -229,6 +255,7 @@ class ModelVariantResolver:
             model=model,
             effort=effort,
             options=options,
+            execution_class=execution_class,
             sources=sources,
             runtime_options_digest=_descriptor_digest(descriptor),
             limitations=limitations,
@@ -243,8 +270,18 @@ class ModelVariantResolver:
         workspace: Path,
         *,
         override: RuntimeOverride | None = None,
+        policy_override: RuntimeOverride | None = None,
+        execution_class: str | None = None,
     ) -> ModelVariantResolution:
-        current = self.resolve(provider, config, adapter, workspace, override=override)
+        current = self.resolve(
+            provider,
+            config,
+            adapter,
+            workspace,
+            override=override,
+            policy_override=policy_override,
+            execution_class=execution_class,
+        )
         saved = ModelVariantResolution.model_validate(frozen)
         if saved.model_dump() != current.model_dump():
             raise OrchestratorError(
