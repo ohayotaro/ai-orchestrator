@@ -142,6 +142,18 @@ def _clean_inline(value: Any, limit: int = 180) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _named_mapping(values: Any, *, limit: int = 6) -> str:
+    if not isinstance(values, dict) or not values:
+        return "-"
+    items = [
+        f"{_clean_inline(key, 60)}:{_clean_inline(value, 80)}"
+        for key, value in sorted(values.items())[:limit]
+    ]
+    if len(values) > limit:
+        items.append(f"+{len(values) - limit} more")
+    return "; ".join(items)
+
+
 def _runtime_overrides(values: Any, *, limit: int = 6) -> str:
     if not isinstance(values, dict) or not values:
         return "-"
@@ -182,6 +194,8 @@ def _resolved_runtime(preview: dict[str, Any]) -> str:
         values.append(
             f"{_clean_inline(node_id, 60)}:"
             f"{_clean_inline(provider.get('provider', '-'), 60)}/{_clean_inline(provider.get('adapter', '-'), 60)} "
+            f"class={_clean_inline(variant.get('execution_class') or '-', 60)} "
+            f"class={_clean_inline(variant.get('execution_class') or '-', 60)} "
             f"model={_clean_inline(variant.get('model') or '<adapter-default>', 100)} "
             f"effort={_clean_inline(variant.get('effort') or '<adapter-default>', 60)}"
         )
@@ -297,6 +311,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
             f"Workflow nodes: {_csv(node_names)}",
             f"Write ownership: {_csv(ownership)}",
+            f"Execution class(es): {_named_mapping(p.get('execution_classes'))}",
             f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
@@ -320,6 +335,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
             f"Implementer: {_clean_inline(provider_text)}",
             f"Resolved runtime: {_resolved_runtime(p)}",
+            f"Execution class(es): {_named_mapping(p.get('execution_classes'))}",
             f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             f"Provider permission override(s): {_csv(grants)}",
             f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
@@ -603,6 +619,7 @@ class HumanGateBroker:
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
                        "runtime_overrides": intake.runtime_overrides,
+                       "execution_classes": intake.execution_classes,
                        "workflow_ref": selected_workflow,
                        "workflow_source": intake.workflow_source or "profile_default",
                        "workflow_persistence": workflow_persistence,
@@ -630,6 +647,7 @@ class HumanGateBroker:
                            "provider_resolutions": state_object.provider_resolutions,
                            "model_variant_resolutions": state_object.model_variant_resolutions,
                            "runtime_overrides": state_object.runtime_overrides,
+                           "execution_classes": state_object.execution_classes,
                            "provider_permissions": sorted(state_object.provider_permission_grants),
                            "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
                            "feedback": state_object.feedback,
@@ -643,6 +661,7 @@ class HumanGateBroker:
                            "provider_resolutions": state_object.provider_resolutions,
                            "model_variant_resolutions": state_object.model_variant_resolutions,
                            "runtime_overrides": state_object.runtime_overrides,
+                           "execution_classes": state_object.execution_classes,
                            "write_set": engine.store.latest(state_object, "write_set"),
                            "validation": engine.store.latest(state_object, "validation"),
                            "review": engine.store.latest(state_object, "review"),
