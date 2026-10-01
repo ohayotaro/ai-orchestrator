@@ -207,6 +207,7 @@ def test_task_runtime_override_beats_profile_and_is_frozen_per_node(workspace):
         assert implementer.model_variant_resolution["sources"] == {
             "model": "explicit_override",
             "effort": "explicit_override",
+            "option:adapter_mode": "explicit_override",
         }
         assert state.runtime_overrides["implementer"]["model"] == "deep-model"
 
