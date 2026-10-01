@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from .capabilities import CAPABILITIES, CapabilityResolver, ProviderResolution, validate_requirements
 from .contracts import ReviewResult, result_contract
-from .models import AgentResult, Contract, OrchestratorError, ProviderPermissionGrant, TaskSpec, TaskState, WorkflowSpec
+from .models import AgentResult, Contract, OrchestratorError, ProviderPermissionGrant, TaskSpec, TaskState, WorkflowSpec, identifier
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
@@ -109,7 +109,8 @@ class Engine:
         return executor
 
     def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
-               workflow_ref: str | None = None) -> TaskState:
+               workflow_ref: str | None = None,
+               runtime_overrides: dict[str, dict[str, object]] | None = None) -> TaskState:
         with self.project.lock():
             missing = set(spec.validators) - self.profile.validators.keys()
             if missing:
@@ -122,15 +123,33 @@ class Engine:
             if path.exists():
                 raise OrchestratorError(f"task specification already exists: {spec.id}")
             requested = validate_requirements(capability_requirements)
+            normalized_runtime: dict[str, dict[str, object]] = {}
+            for key, value in (runtime_overrides or {}).items():
+                identifier(key)
+                normalized_runtime[key] = RuntimeOverride.model_validate(value).model_dump()
             state = TaskState(schema_version=6, spec=spec, profile_digest=self.profile_digest,
-                              capability_requirements=requested or None)
+                              capability_requirements=requested or None,
+                              runtime_overrides=normalized_runtime or None)
             executor = self.bind_workflow(
                 state, workflow_ref,
                 source="task" if workflow_ref is not None else "profile_default",
             )
+            valid_runtime_keys = {
+                value
+                for node in executor.workflow.spec.nodes
+                if node.kind == "agent"
+                for value in (node.id, node.role)
+            }
+            unknown_runtime_keys = set(normalized_runtime) - valid_runtime_keys
+            if unknown_runtime_keys:
+                raise OrchestratorError(
+                    "runtime override targets are not present in the selected workflow: "
+                    + ", ".join(sorted(unknown_runtime_keys))
+                )
             self.store.save(state, "task.created", {
                 "risk": spec.risk, "profile_digest": self.profile_digest,
                 "capability_requirements": requested,
+                "runtime_overrides": normalized_runtime,
                 "workflow_id": state.workflow_id, "workflow_digest": state.workflow_digest,
                 "workflow_selection_source": state.workflow_selection_source,
             }, create=True)
