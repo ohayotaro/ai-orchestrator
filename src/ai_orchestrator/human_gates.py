@@ -142,6 +142,64 @@ def _clean_inline(value: Any, limit: int = 180) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _runtime_overrides(values: Any, *, limit: int = 6) -> str:
+    if not isinstance(values, dict) or not values:
+        return "-"
+    items: list[str] = []
+    for key in sorted(values)[:limit]:
+        value = values.get(key)
+        if not isinstance(value, dict):
+            continue
+        parts = []
+        if value.get("model"):
+            parts.append("model=" + _clean_inline(value["model"], 80))
+        if value.get("effort"):
+            parts.append("effort=" + _clean_inline(value["effort"], 40))
+        for option, option_value in sorted((value.get("options") or {}).items()):
+            parts.append(_clean_inline(option, 40) + "=" + _clean_inline(option_value, 60))
+        items.append(_clean_inline(key, 60) + ":" + (",".join(parts) if parts else "default"))
+    if len(values) > limit:
+        items.append(f"+{len(values) - limit} more")
+    return "; ".join(items) or "-"
+
+
+def _resolved_runtime(preview: dict[str, Any]) -> str:
+    workflow = preview.get("workflow") or {}
+    nodes = workflow.get("nodes") or {}
+    batch = workflow.get("execution_batch") or []
+    node_ids = [item.get("node") for item in batch if isinstance(item, dict) and item.get("node")]
+    if not node_ids and workflow.get("current_node"):
+        node_ids = [workflow["current_node"]]
+    values: list[str] = []
+    for node_id in node_ids[:6]:
+        state = nodes.get(node_id) if isinstance(nodes, dict) else None
+        if not isinstance(state, dict):
+            continue
+        provider = state.get("provider_resolution") or {}
+        variant = state.get("model_variant_resolution") or {}
+        if not isinstance(provider, dict) or not isinstance(variant, dict):
+            continue
+        values.append(
+            f"{_clean_inline(node_id, 60)}:"
+            f"{_clean_inline(provider.get('provider', '-'), 60)}/{_clean_inline(provider.get('adapter', '-'), 60)} "
+            f"model={_clean_inline(variant.get('model') or '<adapter-default>', 100)} "
+            f"effort={_clean_inline(variant.get('effort') or '<adapter-default>', 60)}"
+        )
+    if values:
+        return "; ".join(values)
+    resolutions = preview.get("provider_resolutions") or {}
+    variants = preview.get("model_variant_resolutions") or {}
+    implementer = resolutions.get("implementer") if isinstance(resolutions, dict) else None
+    variant = variants.get("implementer") if isinstance(variants, dict) else None
+    if isinstance(implementer, dict) and isinstance(variant, dict):
+        return (
+            f"{_clean_inline(implementer.get('provider', '-'), 60)}/{_clean_inline(implementer.get('adapter', '-'), 60)} "
+            f"model={_clean_inline(variant.get('model') or '<adapter-default>', 100)} "
+            f"effort={_clean_inline(variant.get('effort') or '<adapter-default>', 60)}"
+        )
+    return "-"
+
+
 def _csv(values: Any, *, limit: int = 6) -> str:
     if not isinstance(values, list) or not values:
         return "-"
@@ -239,6 +297,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
             f"Workflow nodes: {_csv(node_names)}",
             f"Write ownership: {_csv(ownership)}",
+            f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
     elif gate.kind == "execution":
@@ -260,6 +319,8 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Goal: {_clean_inline(task.get('goal', '-'))}",
             f"Allowed paths: {_csv(p.get('allowed_paths') or [])}",
             f"Implementer: {_clean_inline(provider_text)}",
+            f"Resolved runtime: {_resolved_runtime(p)}",
+            f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             f"Provider permission override(s): {_csv(grants)}",
             f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
             "Effect: authorize this exact implementation attempt and queue execution to the next gate.",
@@ -541,6 +602,7 @@ class HumanGateBroker:
                 workflow_persistence = "trusted_registry"
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
+                       "runtime_overrides": intake.runtime_overrides,
                        "workflow_ref": selected_workflow,
                        "workflow_source": intake.workflow_source or "profile_default",
                        "workflow_persistence": workflow_persistence,
@@ -566,6 +628,8 @@ class HumanGateBroker:
                 payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths,
                            "capability_requirements": state_object.capability_requirements,
                            "provider_resolutions": state_object.provider_resolutions,
+                           "model_variant_resolutions": state_object.model_variant_resolutions,
+                           "runtime_overrides": state_object.runtime_overrides,
                            "provider_permissions": sorted(state_object.provider_permission_grants),
                            "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
                            "feedback": state_object.feedback,
@@ -577,6 +641,8 @@ class HumanGateBroker:
                 payload = {"task": task.model_dump(), "allowed_paths": state_object.allowed_paths,
                            "capability_requirements": state_object.capability_requirements,
                            "provider_resolutions": state_object.provider_resolutions,
+                           "model_variant_resolutions": state_object.model_variant_resolutions,
+                           "runtime_overrides": state_object.runtime_overrides,
                            "write_set": engine.store.latest(state_object, "write_set"),
                            "validation": engine.store.latest(state_object, "validation"),
                            "review": engine.store.latest(state_object, "review"),
