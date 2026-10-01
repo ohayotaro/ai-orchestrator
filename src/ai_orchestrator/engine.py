@@ -417,6 +417,7 @@ class Engine:
                 attempt=state.attempt,
                 profile_digest=state.profile_digest,
                 execution_scope=context["execution_scope_before_permission"],
+                workspace_snapshot=context["workspace_snapshot"],
                 nodes=[item["node"] for item in context["nodes"]],
                 actor=actor,
             )
@@ -435,11 +436,27 @@ class Engine:
             grant is None
             or grant.attempt != state.attempt
             or grant.profile_digest != state.profile_digest
+            or grant.workspace_snapshot != self.project.snapshot()
             or node_id not in grant.nodes
             or not self.store.approved(state.spec.id, grant.scope)
         ):
             return frozenset()
         return frozenset({permission})
+
+    def validate_provider_permission_grants(self, state: TaskState) -> None:
+        current_workspace = self.project.snapshot()
+        for permission, grant in state.provider_permission_grants.items():
+            if grant.attempt != state.attempt:
+                continue
+            if grant.profile_digest != state.profile_digest:
+                raise OrchestratorError("provider permission grant profile binding changed")
+            if grant.workspace_snapshot != current_workspace:
+                raise OrchestratorError(
+                    f"provider permission grant {permission} is stale because the worktree changed; "
+                    "request a fresh provider-permission confirmation before execution approval"
+                )
+            if not self.store.approved(state.spec.id, grant.scope):
+                raise OrchestratorError("provider permission grant has no matching approval record")
 
     def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         with self.project.lock():
@@ -447,6 +464,7 @@ class Engine:
             self._check(state)
             if not actor.strip() or state.status != "awaiting_approval":
                 raise OrchestratorError("execution approval requires an actor and an awaiting_approval task")
+            self.validate_provider_permission_grants(state)
             if scope != self.approval_scope(state):
                 raise OrchestratorError("approval scope changed; inspect current task/plan/worktree before approving")
             if precondition is not None:
