@@ -185,3 +185,19 @@ snapshot, freezes an evidence-backed candidate scope, then writes a versioned
 project workflow only after exact operator confirmation. Because this changes
 project configuration, the resulting profile digest is intentionally untrusted
 until normal re-trust.
+
+
+## v0.8.4 guarded single-writer path
+
+The v0.7 `WorkspaceManager` is now also the write-effect boundary for ordinary
+exact-scope shared implementers. Workflow scheduling semantics remain sequential,
+but before the provider call the controller synthesizes a single isolated writer
+whose ownership is the task's `allowed_paths`. The provider runs there; only a
+validated completed result can proceed to `finalize_node -> integrate ->
+apply_integrated`.
+
+This reuses the same deterministic patch provenance as isolated parallel
+execution without changing workflow authority. The effective isolation is an
+execution hardening beneath the declared DAG. Repositories without HEAD are
+supported by initializing the disposable runtime integration repository directly
+from the approved manifest.
