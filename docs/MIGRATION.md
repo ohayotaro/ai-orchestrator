@@ -270,3 +270,15 @@ compact and operation-specific.
 Large binding cleanups that previously fit one form may now need multiple
 confirmations because v0.8.9 caps one cleanup form at 12 exact IDs to keep all
 targets visible.
+
+
+## v0.8.9 to v0.8.10
+
+No database migration, profile re-trust or task migration is required solely for
+the upgrade.
+
+Single-slot provider change tools keep their existing schema and behavior.
+Clients that want provider swaps or multiple simultaneous changes should use
+`preview_provider_change_set` and `request_provider_change_set` rather than
+issuing sequential single-slot changes. This avoids transient policy failures and
+ensures the user approves the complete final provider mapping in one HumanGate.
