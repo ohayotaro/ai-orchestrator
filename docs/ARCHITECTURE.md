@@ -201,3 +201,38 @@ execution without changing workflow authority. The effective isolation is an
 execution hardening beneath the declared DAG. Repositories without HEAD are
 supported by initializing the disposable runtime integration repository directly
 from the approved manifest.
+
+
+## v0.8.6 authority-control plane
+
+Authority-control introduces two typed flows beside the task DAG.
+
+Persistent provider change:
+
+```text
+natural-language request
+  -> inspect/preview existing provider slot
+  -> deterministic proposed profile + digest
+  -> provider-change HumanGate
+  -> atomic config mutation
+  -> digest verification
+  -> trust resulting digest
+```
+
+No arbitrary mapping, policy key, validator command, workflow definition or
+trust digest can be supplied through this flow.
+
+Task-scoped provider permission:
+
+```text
+awaiting_approval task
+  -> resolve current writable AGY node(s)
+  -> provider-permission HumanGate
+  -> persist attempt/snapshot-bound grant
+  -> execution HumanGate on the expanded exact scope
+  -> RunRequest(provider_permissions=...)
+```
+
+The provider adapter sees the dangerous AGY flag only when the executing node
+matches a persisted approved grant. Permission grants are task state, not project
+profile authority, and are cleared on repair.
