@@ -170,8 +170,9 @@ class ApplicationService:
                         },
                         "validators": engine.doctor(validators_only=True),
                         "execution": "queued; operator must run orchestrator worker in a separate terminal",
-                        "operator_only": ["direct trust", "arbitrary config/policy changes", "validator add", "workflow template promotion", "recover"],
-                        "human_gate_authority": ["start", "execution", "acceptance", "bounded provider adapter change", "task-scoped AGY broad permission"]}
+                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover", "arbitrary config/policy changes"],
+                        "human_gate_authority": ["start", "execution", "acceptance", "bounded provider adapter change", "task-scoped AGY broad permission"],
+                        "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":
                 return authority.provider_change_preview(engine, params.provider, params.adapter)
             if name == "get_intake":
