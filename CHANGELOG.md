@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.3 — alpha
+
+- Add a fail-closed compatibility path for Antigravity CLI 1.2.14 live
+  headless runs that report `status=SUCCESS` but omit `structured_output`
+  despite `--json-schema`.
+- When that field is absent, accept `result.response` only if it is strict JSON
+  and validates against the exact requested Pydantic result contract.
+- Continue rejecting natural-language, malformed JSON, arrays, wrong outcomes,
+  and schema-invalid response payloads.
+- Preserve the preferred documented `structured_output` path when AGY emits it.
+
+
 ## 0.8.2 — alpha
 
 - Fix provider doctor/preflight compatibility with CLIs that emit successful
