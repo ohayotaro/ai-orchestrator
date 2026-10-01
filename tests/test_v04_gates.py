@@ -198,6 +198,8 @@ def test_model_cannot_supply_authority_fields(tool, injected):
         data["intake_id"] = "target"
     elif tool == "request_provider_change":
         data.update(provider="engineering", adapter="codex")
+    elif tool == "request_provider_change_set":
+        data.update(changes={"reasoning": "agy", "engineering": "claude"})
     elif tool == "request_binding_cleanup":
         data.update(task_ids=["target"], intake_ids=[])
     elif tool == "request_provider_permission":
