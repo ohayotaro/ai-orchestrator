@@ -132,7 +132,7 @@ def test_workflow_freezes_variant_provenance_and_executes_resolved_config(worksp
         engine.trust("test-operator")
         state = engine.create(spec("runtime-options"))
         state = engine.run(state.spec.id)
-        assert state.schema_version == 6
+        assert state.schema_version == 7
         assert state.status == "awaiting_approval"
 
         agent_nodes = [
