@@ -357,6 +357,7 @@ class ProviderPermissionGrant(Contract):
     attempt: int = Field(ge=1, strict=True)
     profile_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     execution_scope: str = Field(pattern=r"^[a-f0-9]{64}$")
+    workspace_snapshot: str = Field(pattern=r"^[a-f0-9]{64}$")
     nodes: list[str]
     actor: str = Field(min_length=1, max_length=256)
 
