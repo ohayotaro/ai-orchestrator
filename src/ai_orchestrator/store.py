@@ -113,6 +113,10 @@ class Store:
             raise OrchestratorError("an approval actor is required")
         with self.db:
             self.db.execute(
+                "UPDATE tasks SET data=? WHERE id=?",
+                (state.model_dump_json(), state.spec.id),
+            )
+            self.db.execute(
                 "INSERT OR REPLACE INTO approvals VALUES (?,?,?,?)",
                 (state.spec.id, scope, actor, now()),
             )
