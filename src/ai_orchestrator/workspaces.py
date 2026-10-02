@@ -62,11 +62,13 @@ class ReadOnlyWorkspaceManager:
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             if value.startswith("link:"):
-                target.symlink_to(os.readlink(source))
-            else:
-                shutil.copy2(source, target, follow_symlinks=False)
-                current = target.stat().st_mode
-                target.chmod((current & ~0o111) | mode)
+                raise OrchestratorError(
+                    "read-only provider workspace refuses project symlinks; "
+                    f"cannot safely materialize {relative}"
+                )
+            shutil.copy2(source, target, follow_symlinks=False)
+            current = target.stat().st_mode
+            target.chmod((current & ~0o111) | mode)
 
     def prepare(self) -> Path:
         if self.path is not None:
