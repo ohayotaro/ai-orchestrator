@@ -412,9 +412,10 @@ same-OS-user actor rewriting installed controller/provider code.
 
 ## v0.9.1 read-only provider hardening
 
-Supervisor, Planner and Reviewer are given disposable project snapshots rather
-than the controller worktree. `.orchestrator` and ignored ambient files are not
-materialized, and provider writes to the snapshot cause the call to fail. This
+Supervisor, Planner and Reviewer are given disposable project snapshots outside
+the controller worktree. `.orchestrator` and ignored ambient files are not
+materialized, project symlinks fail closed rather than being followed, and
+provider writes to the snapshot cause the call to fail. This
 reduces accidental control-plane discovery such as inspecting task/runtime files;
 it is not an OS security boundary. A provider command can still be subject to its
 own native permission policy and sandbox behavior.
