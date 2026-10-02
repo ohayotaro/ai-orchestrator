@@ -223,3 +223,114 @@ def test_other_session_expiry_does_not_crash_transport(server_setup):
     final = server.expire()
     assert final['result']['isError']
     assert final['result']['structuredContent']['gate_status'] == 'stale'
+
+
+
+def test_gate_transport_diagnostics_capture_advertised_form_and_cancel(gate_setup):
+    engine, intake, broker, _ = gate_setup
+    manager = RecordingWorker()
+    server = StdioServer(broker.service, single_terminal=True, auto_worker=manager)
+    try:
+        answer = server.handle(rpc("initialize", {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {"elicitation": {"form": {}, "url": {}}},
+            "clientInfo": {"name": "antigravity-cli", "version": "2-test"},
+        }))
+        assert answer["result"]["protocolVersion"] == "2025-06-18"
+        server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+        inspected = tool(server, "inspect_project", {}, id=2)["result"]["structuredContent"]
+        transport = inspected["host_confirmation"]["transport"]
+        assert transport == {
+            "client": {"name": "antigravity-cli", "version": "2-test"},
+            "negotiated_protocol": "2025-06-18",
+            "elicitation_capabilities": {"advertised": True, "form": True, "url": True},
+        }
+        assert inspected["host_confirmation"]["form_supported"] is True
+
+        prompt = tool(
+            server,
+            "request_start",
+            {"intake_id": intake.id, "request_id": "agy-form-cancel"},
+            id="origin-agy",
+        )
+        gate_id = server.pending.gate.id
+        pending_gate = server.broker.store.get(gate_id)
+        assert pending_gate.transport_diagnostics["elicitation_sent"] is True
+        assert pending_gate.transport_diagnostics["response_received"] is False
+        assert pending_gate.transport_diagnostics["outcome"] == "pending"
+
+        final = server.handle({
+            "jsonrpc": "2.0",
+            "id": prompt["id"],
+            "result": {"action": "cancel"},
+        })
+        payload = final["result"]["structuredContent"]
+        assert payload["gate_status"] == "cancelled"
+        diagnostics = payload["transport_diagnostics"]
+        assert diagnostics["client"] == {"name": "antigravity-cli", "version": "2-test"}
+        assert diagnostics["negotiated_protocol"] == "2025-06-18"
+        assert diagnostics["elicitation_capabilities"] == {
+            "advertised": True, "form": True, "url": True
+        }
+        assert diagnostics["form_supported"] is True
+        assert diagnostics["elicitation_sent"] is True
+        assert diagnostics["response_received"] is True
+        assert diagnostics["response_action"] == "cancel"
+        assert diagnostics["outcome"] == "response"
+
+        stored = server.broker.store.get(gate_id)
+        assert stored.transport_diagnostics == diagnostics
+        assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
+    finally:
+        server.close()
+
+
+def test_gate_transport_diagnostics_distinguish_timeout_and_host_error(gate_setup):
+    _, intake, broker, _ = gate_setup
+
+    timeout_server = StdioServer(
+        broker.service, single_terminal=True, auto_worker=RecordingWorker()
+    )
+    try:
+        initialize(timeout_server, {"elicitation": {"form": {}}})
+        prompt = tool(
+            timeout_server,
+            "request_start",
+            {"intake_id": intake.id, "request_id": "diag-timeout"},
+            id="timeout-origin",
+        )
+        timeout_server.pending.deadline = time.monotonic() - 1
+        expired = timeout_server.expire()["result"]["structuredContent"]
+        assert expired["gate_status"] == "expired"
+        assert expired["transport_diagnostics"]["outcome"] == "timeout"
+        assert expired["transport_diagnostics"]["response_received"] is False
+        assert expired["transport_diagnostics"]["elicitation_sent"] is True
+    finally:
+        timeout_server.close()
+
+    # Use a fresh fixture intake because the first gate is terminal but the same
+    # intake itself remains unconsumed.
+    error_server = StdioServer(
+        broker.service, single_terminal=True, auto_worker=RecordingWorker()
+    )
+    try:
+        initialize(error_server, {"elicitation": {"form": {}}})
+        prompt = tool(
+            error_server,
+            "request_start",
+            {"intake_id": intake.id, "request_id": "diag-host-error"},
+            id="error-origin",
+        )
+        failed = error_server.handle({
+            "jsonrpc": "2.0",
+            "id": prompt["id"],
+            "error": {"code": -32603, "message": "client UI failed"},
+        })["result"]["structuredContent"]
+        assert failed["gate_status"] == "failed"
+        assert failed["transport_diagnostics"]["outcome"] == "host_error"
+        assert failed["transport_diagnostics"]["response_received"] is True
+        assert failed["transport_diagnostics"]["host_error_code"] == -32603
+        assert "client UI failed" not in str(failed["transport_diagnostics"])
+    finally:
+        error_server.close()
