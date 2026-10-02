@@ -200,6 +200,23 @@ def _resolved_runtime(preview: dict[str, Any]) -> str:
     return "-"
 
 
+def _supervisor_runtime(preview: dict[str, Any]) -> str:
+    provider = preview.get("supervisor_provider_resolution") or {}
+    variant = preview.get("supervisor_model_variant_resolution") or {}
+    if not isinstance(provider, dict) or not isinstance(variant, dict):
+        return "-"
+    provider_text = "/".join(
+        str(value) for value in (
+            provider.get("provider"), provider.get("adapter"), provider.get("family")
+        ) if value
+    ) or "-"
+    return (
+        f"{_clean_inline(provider_text, 120)} "
+        f"model={_clean_inline(variant.get('model') or '<adapter-default>', 100)} "
+        f"effort={_clean_inline(variant.get('effort') or '<adapter-default>', 60)}"
+    )
+
+
 def _csv(values: Any, *, limit: int = 6) -> str:
     if not isinstance(values, list) or not values:
         return "-"
@@ -297,6 +314,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Workflow: {_clean_inline(p.get('workflow_ref', '-'))} ({_clean_inline(p.get('workflow_source', '-'))})",
             f"Workflow nodes: {_csv(node_names)}",
             f"Write ownership: {_csv(ownership)}",
+            f"Supervisor runtime: {_supervisor_runtime(p)}",
             f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
@@ -603,6 +621,9 @@ class HumanGateBroker:
             payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
                        "runtime_overrides": intake.runtime_overrides,
+                       "supervisor_runtime_override": intake.supervisor_runtime_override,
+                       "supervisor_provider_resolution": intake.supervisor_provider_resolution,
+                       "supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution,
                        "workflow_ref": selected_workflow,
                        "workflow_source": intake.workflow_source or "profile_default",
                        "workflow_persistence": workflow_persistence,
