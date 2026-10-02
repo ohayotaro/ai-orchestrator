@@ -63,6 +63,16 @@ class CLIAdapter:
     effort_selection_mode = "unsupported"
     runtime_option_limitations: tuple[str, ...] = ()
 
+    def role_compatibility(self, role: str) -> dict[str, object]:
+        return {
+            "status": "supported",
+            "role": role,
+            "adapter": self.command,
+            "requires_native_scoped_permissions": False,
+            "orchestrator_attests_permissions_sufficient": True,
+            "limitations": [],
+        }
+
     def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor:
         def domain(kind: str, mode: str) -> RuntimeValueDescriptor:
             limitations = []
@@ -152,6 +162,22 @@ class AgyAdapter(CLIAdapter):
         "Antigravity model and effort catalogs are not assumed complete; configured values are passed through and attributed to this adapter contract.",
     )
     help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode")
+
+    def role_compatibility(self, role: str) -> dict[str, object]:
+        if role in ("supervisor", "planner", "reviewer"):
+            return {
+                "status": "conditional_native_permissions",
+                "role": role,
+                "adapter": self.command,
+                "requires_native_scoped_permissions": True,
+                "orchestrator_attests_permissions_sufficient": False,
+                "limitations": [
+                    "Antigravity headless plan/read-only sessions may choose run_command or other native tools that require AGY-scoped permission.",
+                    "Orchestrator does not modify or attest the sufficiency of the user's AGY native permission policy.",
+                    "Permission denial fails closed; do not auto-enable --dangerously-skip-permissions or rewrite the task prompt to bypass native permission policy.",
+                ],
+            }
+        return super().role_compatibility(role)
 
     def command_line(self, request: RunRequest, schema: Path) -> list[str]:
         timeout_seconds = max(1, int(request.timeout))
