@@ -21,11 +21,14 @@ language. Preserve exact identifiers, model IDs, field names, and exact error
 strings when they are relevant evidence; translate the surrounding explanation,
 not those machine identifiers.
 
-## Choose the actual mode, never assume native approval
+## Use the configured mode; single-terminal is the standard default
 
-Inspect `host_confirmation` and `worker` in `inspect_project`.
+Do not require the user to say "single-terminal mode". A normal `serve`
+registration defaults to single-terminal operation. Inspect `host_confirmation`
+and `worker` in `inspect_project` and use the advertised mode. Only an operator
+who explicitly starts `serve --legacy-terminal` selects the legacy manual flow.
 
-In `serve --single-terminal` mode, workers start automatically after queueing.
+In single-terminal mode, workers start automatically after queueing.
 If `host_confirmation.form_supported` is true, use the three request tools below.
 The server requests a native host form through MCP elicitation. Only the user
 should answer its explicit Yes/No selection; do not answer for them or translate
@@ -33,6 +36,14 @@ chat text into a fabricated form response. The form uses a two-choice enum rathe
 than a checkbox so Accept alone cannot silently mean No. Tool permission prompts and "always allow"
 settings are not this confirmation. Host hooks can auto-answer forms; if the user
 requires personal confirmation, ask them to disable such hooks/configurations.
+
+If AGY fails with a permission denial, report the adapter-sanitized
+`provider_failure_diagnostics` from `get_intake` for Supervisor failures or
+`get_artifact(kind=provider_failure)` for task-node failures. These diagnostics
+may expose action type, executable basename, shell-shape flags and simple native
+permission/rule labels, but never reconstruct or reveal raw command arguments.
+Do not respond by enabling `--dangerously-skip-permissions` unless the user
+separately and explicitly requests that task/attempt-scoped high-risk authority.
 
 If the host lacks supported forms, declines, cancels, disconnects or times out,
 STOP. Report the exact gate state. Do not fall back to executing approval commands
