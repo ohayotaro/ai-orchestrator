@@ -375,12 +375,10 @@ class WorkflowExecutor:
         started = time.monotonic()
         telemetry: dict[str, object] = {}
         try:
-            with engine.readonly_workspace(
-                state.spec.id, state.attempt, "readonly-" + node.id
-            ) as provider_workspace:
+            if node.role == "implementer":
                 raw = adapter.execute(
                     RunRequest(
-                        phase, self._prompt(state, node, resolution), provider_workspace, config,
+                        phase, self._prompt(state, node, resolution), engine.project.root, config,
                         min(policy.call_timeout_seconds, remaining),
                         lambda: engine.store.cancelled(state.spec.id),
                         result_model=model,
@@ -388,6 +386,20 @@ class WorkflowExecutor:
                         telemetry_sink=telemetry.update,
                     )
                 )
+            else:
+                with engine.readonly_workspace(
+                    state.spec.id, state.attempt, "readonly-" + node.id
+                ) as provider_workspace:
+                    raw = adapter.execute(
+                        RunRequest(
+                            phase, self._prompt(state, node, resolution), provider_workspace, config,
+                            min(policy.call_timeout_seconds, remaining),
+                            lambda: engine.store.cancelled(state.spec.id),
+                            result_model=model,
+                            runtime_options=dict(variant.options),
+                            telemetry_sink=telemetry.update,
+                        )
+                    )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - started
