@@ -149,6 +149,7 @@ class IntakeState(Contract):
     supervisor_runtime_override: dict[str, object] | None = None
     supervisor_provider_resolution: dict[str, object] | None = None
     supervisor_model_variant_resolution: dict[str, object] | None = None
+    supervisor_dispatch_provenance: dict[str, object] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
