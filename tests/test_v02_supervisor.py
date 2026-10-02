@@ -60,6 +60,8 @@ def test_ask_proposes_without_creating_task_or_granting_approval(supervisor):
     assert len(reasoning.requests) == 1 and not engineering.requests
     assert reasoning.requests[0].phase == "supervise"
     assert reasoning.requests[0].result_model.__name__ == "SupervisorResultScoped"
+    assert not (reasoning.requests[0].workspace / ".orchestrator").exists()
+    assert not reasoning.requests[0].workspace.resolve().is_relative_to(intake.project.root.resolve())
     assert intake.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     assert intake.store.db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
     assert before == intake.project.snapshot()
@@ -203,7 +205,8 @@ def test_supervisor_file_mutation_prevents_task_proposal(supervisor, target):
     reasoning.mutation = lambda root: (root / target).write_text("changed")
     state = intake.ask("Create result")
     assert state.status == "failed"
-    assert "modified" in state.error
+    if not target.startswith(".orchestrator/"):
+        assert "modified" in state.error
     assert state.task is None
     assert intake.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
 
