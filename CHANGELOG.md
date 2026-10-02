@@ -15,6 +15,10 @@
 - Preserve historical dynamic-routing diversity: unbound reviewer routing still
   prefers a different provider family, while fixed/task-scoped bindings may use
   distinct models from the same vendor.
+- Align bounded provider-adapter changes with the same contract: profile-change
+  preview/apply validates provider capability resolution but defers review
+  independence to task preflight, because adapter changes reset model/effort and
+  later task/node overrides may supply the distinct model IDs.
 - Add regression coverage for same-family/different-model review, same-model
   rejection, and read-only control-directory isolation.
 

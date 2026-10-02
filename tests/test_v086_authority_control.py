@@ -241,12 +241,18 @@ def test_atomic_provider_swap_validates_final_profile_not_intermediate_states(wo
         engine.trust("operator")
         old_digest = engine.profile_digest
 
-        # Either single-slot half-swap violates cross-provider review.
-        with pytest.raises(OrchestratorError):
-            from ai_orchestrator.authority import provider_change_preview
-            provider_change_preview(engine, "engineering", "claude")
-        with pytest.raises(OrchestratorError):
-            provider_change_preview(engine, "reasoning", "agy")
+        # v0.9.1 authority validation no longer rejects a temporary same-family
+        # profile before task-level Model Variant Resolution exists.
+        from ai_orchestrator.authority import provider_change_preview
+        engineering_only = provider_change_preview(engine, "engineering", "claude")
+        assert engineering_only["ready"] is True
+        assert engineering_only["resolution_after"]["roles"]["implementer"]["family"] == "anthropic"
+        assert engineering_only["resolution_after"]["roles"]["reviewer"]["family"] == "anthropic"
+
+        reasoning_only = provider_change_preview(engine, "reasoning", "agy")
+        assert reasoning_only["ready"] is True
+        assert reasoning_only["resolution_after"]["roles"]["implementer"]["family"] == "google"
+        assert reasoning_only["resolution_after"]["roles"]["reviewer"]["family"] == "google"
 
         from ai_orchestrator.authority import provider_change_set_preview
         preview = provider_change_set_preview(
@@ -515,3 +521,76 @@ def test_provider_permission_gate_rejects_non_agy_execution(workspace):
             )
     finally:
         broker.close()
+
+
+def test_provider_change_allows_same_family_when_task_models_will_supply_independence(workspace):
+    # Reproduce the live E2E shape: reasoning is AGY, engineering is Claude.
+    edit_profile(
+        workspace,
+        lambda data: (
+            data["providers"]["reasoning"].update(adapter="agy"),
+            data["providers"]["engineering"].update(adapter="claude"),
+        ),
+    )
+    registry = {
+        "agy": FakeAdapter("google"),
+        "claude": FakeAdapter("anthropic"),
+    }
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+        preview = __import__(
+            "ai_orchestrator.authority", fromlist=["provider_change_set_preview"]
+        ).provider_change_set_preview(engine, {"reasoning": "claude"})
+        assert preview["ready"] is True
+        assert preview["resolution_after"]["roles"]["implementer"]["family"] == "anthropic"
+        assert preview["resolution_after"]["roles"]["reviewer"]["family"] == "anthropic"
+        assert preview["resolution_after"]["review_independence"].startswith("task_preflight")
+        # Adapter change resets provider-local runtime fields. The later task must
+        # provide distinct model IDs (or use different families) to pass preflight.
+        reasoning_after = preview["changes"][0]["after"]
+        assert reasoning_after["model"] is None
+        assert reasoning_after["effort"] is None
+    finally:
+        engine.close()
+
+
+def test_provider_change_humangate_can_switch_reasoning_agy_to_claude_same_family(workspace):
+    edit_profile(
+        workspace,
+        lambda data: (
+            data["providers"]["reasoning"].update(adapter="agy"),
+            data["providers"]["engineering"].update(adapter="claude"),
+        ),
+    )
+    registry = {
+        "agy": FakeAdapter("google"),
+        "claude": FakeAdapter("anthropic"),
+    }
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    service = ApplicationService(workspace)
+    broker = HumanGateBroker(service, "same-family-change", {"name": "test", "version": "1"})
+    try:
+        gate = broker.prepare_provider_change_set(
+            ProfileChangeSetRequest(
+                changes={"reasoning": "claude"},
+                request_id="reasoning-to-claude",
+            )
+        )
+        result = confirm(broker, gate)
+        assert result["gate_status"] == "applied"
+    finally:
+        broker.close()
+
+    check = Engine(workspace)
+    try:
+        assert check.profile.providers["reasoning"].adapter == "claude"
+        assert check.profile.providers["engineering"].adapter == "claude"
+        assert check.store.trusted(check.profile_digest)
+    finally:
+        check.close()

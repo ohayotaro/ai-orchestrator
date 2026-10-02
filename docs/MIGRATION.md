@@ -317,6 +317,11 @@ provider-local model IDs can now establish review independence within one family
 If same-family implementation/review previously relied on null/default model
 identity, configure explicit distinct model IDs or use different families.
 
+Provider-adapter HumanGate changes may now produce a temporarily same-family
+profile with no model differentiation. This is intentional: adapter changes
+reset vendor-specific model/effort fields, and review independence is enforced
+later at task preflight after task/node runtime overrides have resolved.
+
 Supervisor, Planner and Reviewer now execute in disposable manifest-backed
 workspaces that omit `.orchestrator` and ignored ambient files. Provider code
 that incorrectly depended on reading controller runtime/task files will fail and
