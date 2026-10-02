@@ -306,3 +306,18 @@ Provider Adapter v2 implementations that do not yet implement
 requested through the new resolver; their runtime-option status is reported as
 unsupported rather than guessed. Adapter authors should implement the versioned
 descriptor before advertising explicit model/effort selection.
+
+
+## v0.9.0 to v0.9.1
+
+No task/event database migration is required. Existing profile field
+`cross_provider_review` remains valid and keeps its default. Its enforcement is
+broadened: different provider families still qualify, while explicit unequal
+provider-local model IDs can now establish review independence within one family.
+If same-family implementation/review previously relied on null/default model
+identity, configure explicit distinct model IDs or use different families.
+
+Supervisor, Planner and Reviewer now execute in disposable manifest-backed
+workspaces that omit `.orchestrator` and ignored ambient files. Provider code
+that incorrectly depended on reading controller runtime/task files will fail and
+must use the supplied prompt/context instead.
