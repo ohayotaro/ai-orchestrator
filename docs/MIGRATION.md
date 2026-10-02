@@ -322,6 +322,11 @@ profile with no model differentiation. This is intentional: adapter changes
 reset vendor-specific model/effort fields, and review independence is enforced
 later at task preflight after task/node runtime overrides have resolved.
 
+New intakes use schema version 3 when created by the upgraded Supervisor and may
+record `supervisor_runtime_override`, exact Supervisor provider resolution and
+Model Variant Resolution. Existing schema-v1/v2 intake artifacts remain verified
+with their historical shape; no database migration or rewrite is required.
+
 Supervisor, Planner and Reviewer now execute in disposable manifest-backed
 workspaces that omit `.orchestrator` and ignored ambient files. Provider code
 that incorrectly depended on reading controller runtime/task files will fail and
