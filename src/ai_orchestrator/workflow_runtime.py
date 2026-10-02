@@ -887,8 +887,19 @@ class WorkflowExecutor:
         node_state.error = redact(str(exc))[:2000]
         diagnostics = getattr(exc, "diagnostics", None)
         if isinstance(diagnostics, dict) and diagnostics:
-            # Provider diagnostics contain shapes/types/lengths only, never raw
-            # prompts or response content.
+            # Provider diagnostics are adapter-sanitized metadata only. Persist
+            # them as an official artifact so agents/operators never need to
+            # inspect runtime databases or raw provider output.
+            failure = {
+                "schema_version": 1,
+                "node": node_id,
+                "attempt": state.attempt,
+                "diagnostics": diagnostics,
+                "evidence_boundary": (
+                    "adapter-sanitized provider failure diagnostics; raw provider content is not retained"
+                ),
+            }
+            self.engine.store.artifact(state, "provider_failure", failure)
             self.engine.store.save(
                 state, "provider.execution.failed",
                 {"node": node_id, "diagnostics": diagnostics},
