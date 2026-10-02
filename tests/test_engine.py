@@ -144,14 +144,14 @@ def test_review_loop_is_bounded(engine):
     assert state.attempt == 3
 
 
-def test_read_only_mutation_is_detected_not_silently_rolled_back(engine):
+def test_read_only_mutation_is_contained_in_disposable_workspace(engine):
     controller, reasoning, _ = engine
     reasoning.mutate_review = True
     controller.create(spec())
     state = approve_and_run(controller)
     assert state.status == "failed"
     assert "read-only" in state.error
-    assert (controller.project.root / "unexpected.txt").exists()
+    assert not (controller.project.root / "unexpected.txt").exists()
 
 
 def test_protected_mutation_stops_workflow(engine):
