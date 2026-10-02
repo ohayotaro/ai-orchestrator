@@ -319,7 +319,11 @@ def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace)
         def execute(self, request):
             if request.phase in ("plan", "review"):
                 self.control_visibility.append(
-                    (request.phase, (request.workspace / ".orchestrator").exists())
+                    (
+                        request.phase,
+                        (request.workspace / ".orchestrator").exists(),
+                        request.workspace.resolve().is_relative_to(workspace.resolve()),
+                    )
                 )
             return super().execute(request)
 
@@ -331,12 +335,12 @@ def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace)
         state = engine.create(spec("readonly-control-isolation"))
         state = engine.run(state.spec.id)
         assert state.status == "awaiting_approval", state.error
-        assert ("plan", False) in reasoning.control_visibility
+        assert ("plan", False, False) in reasoning.control_visibility
 
         engine.approve(state.spec.id, engine.approval_scope(state), "test-operator")
         state = engine.run(state.spec.id)
         assert state.status == "awaiting_acceptance", state.error
-        assert ("review", False) in reasoning.control_visibility
+        assert ("review", False, False) in reasoning.control_visibility
     finally:
         engine.close()
 
