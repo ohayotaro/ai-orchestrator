@@ -147,6 +147,7 @@ class IntakeState(Contract):
     capability_requirements: dict[str, list[str]] | None = None
     runtime_overrides: dict[str, dict[str, object]] | None = None
     supervisor_runtime_override: dict[str, object] | None = None
+    supervisor_provider_resolution: dict[str, object] | None = None
     supervisor_model_variant_resolution: dict[str, object] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
