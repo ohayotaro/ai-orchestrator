@@ -40,6 +40,12 @@
   and legacy fixed-role resolution. Fixed same-family reviewers are now reported
   as valid candidates and are evaluated for independence only after Model Variant
   Resolution; dynamically routed reviewers retain the different-family preference.
+- Make `serve` default to single-terminal operation. `--single-terminal`
+  remains backward-compatible; `--legacy-terminal` is the explicit opt-out.
+- Add adapter-sanitized AGY permission-denial diagnostics. Supervisor failures
+  expose them through `get_intake.provider_failure_diagnostics`; task-node
+  failures expose `get_artifact(kind=provider_failure)`. Raw commands, command
+  arguments, provider messages and free-form denial reasons are not retained.
 
 ## 0.9.0 — alpha
 

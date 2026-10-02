@@ -31,7 +31,20 @@ def parser() -> argparse.ArgumentParser:
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
     serve = commands.add_parser("serve", help="Run the fixed-project MCP stdio frontend")
-    serve.add_argument("--single-terminal", action="store_true", help="Opt into client-mediated confirmation forms and automatic separate workers; requires a trusted interactive host")
+    terminal_mode = serve.add_mutually_exclusive_group()
+    terminal_mode.add_argument(
+        "--single-terminal",
+        dest="single_terminal",
+        action="store_true",
+        help="Use client-mediated confirmation forms and automatic separate workers (default)",
+    )
+    terminal_mode.add_argument(
+        "--legacy-terminal",
+        dest="single_terminal",
+        action="store_false",
+        help="Use the legacy manual worker/operator-terminal authority flow",
+    )
+    serve.set_defaults(single_terminal=True)
     serve.add_argument("--gate-timeout", type=float, default=120, help="Seconds to answer a host form (maximum 600)")
     worker = commands.add_parser("worker", help="Run queued jobs from a separate operator terminal")
     worker.add_argument("--once", action="store_true", help="Process at most one job and exit")

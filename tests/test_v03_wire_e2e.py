@@ -41,7 +41,7 @@ def test_mcp_to_worker_to_human_acceptance(workspace, tmp_path_factory, implemen
         assert result.returncode == 0, result.stderr or result.stdout
         return json.loads(result.stdout)
     cli("trust", "--by", "test-human", "--ack-local-execution")
-    process = subprocess.Popen(prefix + ["serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={**env, "CLAUDECODE": "outer-mcp-host"})
+    process = subprocess.Popen(prefix + ["serve", "--legacy-terminal"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={**env, "CLAUDECODE": "outer-mcp-host"})
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     sequence = 0

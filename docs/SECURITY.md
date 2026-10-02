@@ -445,3 +445,19 @@ The provenance is content-free by design: it does not retain prompts, tool
 arguments, shell commands, model response text or workspace paths. Read-only
 workspace evidence records only structural booleans/mode plus the seed snapshot
 digest.
+
+
+## Provider permission-denial diagnostics
+
+AGY permission-denial evidence is adapter-sanitized before it reaches durable
+state. The controller may retain the action type, a command executable basename,
+boolean shell-shape indicators (pipe/redirection/chaining/subshell), simple
+identifier-like permission/rule/policy/reason codes, denial counts and tool names.
+It does not retain denied command text, argv, paths, arguments, provider messages,
+free-form reason text, prompts or response content.
+
+Supervisor failures expose this metadata directly on the intake because no
+TaskState exists yet. Task-node failures store the same sanitized metadata in a
+hash-verified `provider_failure` artifact. The diagnostics also record whether
+the task-scoped AGY dangerous-skip permission was requested; a denial never
+silently enables that permission.

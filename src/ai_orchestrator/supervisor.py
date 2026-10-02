@@ -11,7 +11,7 @@ from .contracts import IntakeState, SupervisorResult, SupervisorResultScoped
 from .engine import Engine
 from .models import Contract, OrchestratorError, TaskSpec, TaskState, WorkflowSpec, identifier
 from .project import MAX_CONTEXT_BYTES, atomic_write, confined, digest, encode
-from .providers import RunRequest
+from .providers import ProviderExecutionError, RunRequest
 from .runtime_options import ModelVariantResolution, RuntimeOverride, execution_identities_independent
 from .validators import changed_paths, inspect_validator
 
@@ -39,6 +39,7 @@ class Supervisor:
             **({"supervisor_provider_resolution": intake.supervisor_provider_resolution} if intake.supervisor_provider_resolution is not None else {}),
             **({"supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution} if intake.supervisor_model_variant_resolution is not None else {}),
             **({"supervisor_dispatch_provenance": intake.supervisor_dispatch_provenance} if intake.supervisor_dispatch_provenance is not None else {}),
+            **({"provider_failure_diagnostics": intake.provider_failure_diagnostics} if intake.provider_failure_diagnostics is not None else {}),
         }
 
     @staticmethod
@@ -354,24 +355,28 @@ class Supervisor:
                 self.store.save_intake(intake, "supervisor.started")
                 start = time.monotonic()
                 workspace_evidence: dict[str, object] = {}
-                with self.engine.readonly_workspace(
-                    intake.id, intake.round, "supervisor", evidence=workspace_evidence
-                ) as provider_workspace:
-                    request_value = RunRequest(
-                        "supervise", prompt, provider_workspace, config,
-                        min(remaining, policy.call_timeout_seconds),
-                        lambda: self.store.cancelled(intake.id),
-                        result_model=SupervisorResultScoped,
-                        runtime_options=dict(variant.options),
-                    )
-                    raw = adapter.execute(request_value)
-                intake.supervisor_dispatch_provenance = self.engine.dispatch_provenance(
-                    request_value,
-                    resolution,
-                    variant,
-                    role="supervisor",
-                    workspace_evidence=workspace_evidence,
-                )
+                request_value: RunRequest | None = None
+                try:
+                    with self.engine.readonly_workspace(
+                        intake.id, intake.round, "supervisor", evidence=workspace_evidence
+                    ) as provider_workspace:
+                        request_value = RunRequest(
+                            "supervise", prompt, provider_workspace, config,
+                            min(remaining, policy.call_timeout_seconds),
+                            lambda: self.store.cancelled(intake.id),
+                            result_model=SupervisorResultScoped,
+                            runtime_options=dict(variant.options),
+                        )
+                        raw = adapter.execute(request_value)
+                finally:
+                    if request_value is not None:
+                        intake.supervisor_dispatch_provenance = self.engine.dispatch_provenance(
+                            request_value,
+                            resolution,
+                            variant,
+                            role="supervisor",
+                            workspace_evidence=workspace_evidence,
+                        )
                 if self.store.cancelled(intake.id):
                     raise OrchestratorError("Supervisor cancelled; no task was created")
                 self._check_profile(intake.profile_digest)
@@ -442,6 +447,8 @@ class Supervisor:
             except KeyboardInterrupt:
                 intake.status, intake.error = "cancelled", "Supervisor interrupted; no task was created"
             except Exception as exc:
+                if isinstance(exc, ProviderExecutionError) and exc.diagnostics:
+                    intake.provider_failure_diagnostics = dict(exc.diagnostics)
                 intake.status, intake.error = ("cancelled" if self.store.cancelled(intake.id) else "failed"), str(exc)[:4000]
             finally:
                 if start is not None:

@@ -1,7 +1,8 @@
 """Bounded MCP stdio transport with optional, correlated form confirmations.
 
-Legacy serve retains the v0.3 surface. --single-terminal opts into separate
-worker management and host-mediated HumanGates, NOT automatic approval.
+The CLI defaults serve to single-terminal operation with separate worker
+management and host-mediated HumanGates, NOT automatic approval. Operators may
+explicitly opt out with --legacy-terminal.
 """
 from __future__ import annotations
 
