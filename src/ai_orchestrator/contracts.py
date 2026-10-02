@@ -150,6 +150,7 @@ class IntakeState(Contract):
     supervisor_provider_resolution: dict[str, object] | None = None
     supervisor_model_variant_resolution: dict[str, object] | None = None
     supervisor_dispatch_provenance: dict[str, object] | None = None
+    provider_failure_diagnostics: dict[str, object] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
