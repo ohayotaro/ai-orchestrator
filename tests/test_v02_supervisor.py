@@ -11,8 +11,10 @@ from ai_orchestrator.contracts import SupervisorResult, TaskDraft
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.models import OrchestratorError, TaskSpec
 from ai_orchestrator.project import Project
+from ai_orchestrator.service import ApplicationService
 from ai_orchestrator.runtime_options import RuntimeOptionsDescriptor, RuntimeOverride, RuntimeValueDescriptor
 from ai_orchestrator.supervisor import Supervisor
+from ai_orchestrator.worker import process_one
 from conftest import FakeAdapter
 
 
@@ -427,3 +429,37 @@ def test_same_family_same_task_model_fails_supervisor_normalization(workspace):
         assert state.task is None
     finally:
         engine.close()
+
+
+
+def test_propose_task_worker_routes_supervisor_runtime_override(workspace):
+    reasoning, engineering = IntakeAdapter("anthropic"), IntakeAdapter("openai")
+    registry = {"claude": reasoning, "codex": engineering}
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    service = ApplicationService(workspace)
+    job = service.invoke(
+        "propose_task",
+        {
+            "request": "Please add a result",
+            "request_id": "supervisor-override-job",
+            "task_id": "supervisor-override-job-task",
+            "supervisor_runtime_override": {
+                "model": "claude-opus-test",
+                "effort": "high",
+            },
+        },
+    )
+    with service.queue() as queue:
+        result = process_one(queue, registry=registry)
+    assert result["id"] == job["id"]
+    assert result["status"] == "succeeded"
+    assert reasoning.requests[0].config.model == "claude-opus-test"
+    assert reasoning.requests[0].config.effort == "high"
+    intake = result["result"]
+    assert intake["supervisor_model_variant_resolution"]["model"] == "claude-opus-test"
+    assert intake["supervisor_model_variant_resolution"]["sources"]["model"] == "explicit_override"
