@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,7 +13,7 @@ from .models import AgentResult, Contract, OrchestratorError, ProviderPermission
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
-from .runtime_options import ModelVariantResolution, ModelVariantResolver, RuntimeOverride, config_for_variant
+from .runtime_options import ModelVariantResolution, ModelVariantResolver, RuntimeOverride, config_for_variant, execution_identities_independent
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import compile_workflow, workflow_registry, workflow_registry_report
@@ -36,6 +37,26 @@ class Engine:
 
     def close(self) -> None:
         self.store.close()
+
+    @contextmanager
+    def readonly_workspace(self, owner_id: str, attempt: int, node_id: str):
+        """Materialize only project payload for a read-only provider call.
+
+        The disposable workspace deliberately omits .orchestrator and ignored
+        ambient files. Any provider write to the snapshot is rejected and the
+        workspace is removed after the call.
+        """
+        manager = WorkspaceManager(self.project, self.profile, owner_id, attempt)
+        workspace = None
+        try:
+            workspace = manager.prepare([node_id])[node_id]
+            yield workspace
+            if manager.seed_snapshot is None or Project(workspace).snapshot() != manager.seed_snapshot:
+                raise OrchestratorError(
+                    f"read-only provider node {node_id} modified its disposable project snapshot"
+                )
+        finally:
+            manager.cleanup()
 
     def trust(self, actor: str) -> dict[str, str]:
         with self.project.lock():
@@ -380,19 +401,26 @@ class Engine:
             return
         resolved = self._resolve_task_capabilities(state)
         roles = self._task_roles(state)
+        variants: dict[str, ModelVariantResolution] = {}
         for role in roles:
             resolution = resolved[role]
-            config = self.profile.providers[resolution.provider]
-            adapter = self.registry.get(config.adapter)
-            if adapter is None:
-                raise OrchestratorError(f"adapter is not installed: {config.adapter}; no implicit fallback")
+            adapter, config, variant = self._resolve_variant(
+                resolution, override=self.runtime_override_for(state, role)
+            )
+            variants[role] = variant
             report = adapter.doctor(config, self.project.root)
             self.store.save(state, "provider.probed", {"role": role, "provider": resolution.provider,
                                                       "required_capabilities": resolution.required_capabilities,
-                                                      "adapter_api_version": resolution.adapter_api_version, **report})
+                                                      "adapter_api_version": resolution.adapter_api_version,
+                                                      "model_variant_resolution": variant.model_dump(), **report})
         if state.spec.risk != "T0" and self.profile.policy.cross_provider_review:
-            if resolved["implementer"].family == resolved["reviewer"].family:
-                raise OrchestratorError("cross-provider review requires distinct provider families, not aliases")
+            if not execution_identities_independent(
+                resolved["implementer"], variants["implementer"],
+                resolved["reviewer"], variants["reviewer"],
+            ):
+                raise OrchestratorError(
+                    "independent review requires a different provider family or explicit distinct model IDs"
+                )
 
     def approval_scope(self, state: TaskState) -> str:
         self.store.verify(state)
@@ -625,13 +653,23 @@ class Engine:
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
         try:
-            raw = adapter.execute(RunRequest(
-                state.phase, self._prompt(state, role), self.project.root, config,
-                min(policy.call_timeout_seconds, remaining),
-                lambda: self.store.cancelled(state.spec.id),
-                result_model=model,
-                runtime_options=dict(variant.options),
-            ))
+            if role == "implementer":
+                raw = adapter.execute(RunRequest(
+                    state.phase, self._prompt(state, role), self.project.root, config,
+                    min(policy.call_timeout_seconds, remaining),
+                    lambda: self.store.cancelled(state.spec.id),
+                    result_model=model,
+                    runtime_options=dict(variant.options),
+                ))
+            else:
+                with self.readonly_workspace(state.spec.id, state.attempt, role) as provider_workspace:
+                    raw = adapter.execute(RunRequest(
+                        state.phase, self._prompt(state, role), provider_workspace, config,
+                        min(policy.call_timeout_seconds, remaining),
+                        lambda: self.store.cancelled(state.spec.id),
+                        result_model=model,
+                        runtime_options=dict(variant.options),
+                    ))
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - start
