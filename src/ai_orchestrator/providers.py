@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -244,7 +246,93 @@ class AgyAdapter(CLIAdapter):
         }
 
     @staticmethod
-    def _safe_diagnostics(result, envelope: dict) -> dict[str, object]:
+    def _safe_label(value: object) -> str | None:
+        """Return only bounded identifier-like provider metadata.
+
+        Free-form provider text may contain commands, paths or secrets and is
+        therefore intentionally omitted from diagnostics.
+        """
+        if not isinstance(value, str) or not value or len(value) > 120:
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9_.:/-]+", value):
+            return None
+        return value
+
+    @staticmethod
+    def _safe_command_shape(value: object) -> dict[str, object]:
+        """Summarize command shape without retaining argv, paths or arguments."""
+        text: str | None = None
+        first: str | None = None
+        if isinstance(value, str):
+            text = value
+            try:
+                parts = shlex.split(value, posix=True)
+            except ValueError:
+                parts = []
+            if parts:
+                first = parts[0]
+        elif isinstance(value, list) and value and isinstance(value[0], str):
+            first = value[0]
+        summary: dict[str, object] = {}
+        if first:
+            executable = Path(first).name
+            if executable and re.fullmatch(r"[A-Za-z0-9_.+-]{1,120}", executable):
+                summary["executable"] = executable
+        if text is not None:
+            summary.update({
+                "contains_pipe": "|" in text,
+                "contains_redirection": any(token in text for token in (">", "<")),
+                "contains_command_chain": any(token in text for token in ("&&", "||", ";")),
+                "contains_subshell": "$(" in text or chr(96) in text,
+            })
+        return summary
+
+    @classmethod
+    def _safe_denied_actions(cls, denied: object) -> list[dict[str, object]]:
+        """Extract minimal permission-denial facts without raw action payloads."""
+        if not isinstance(denied, list):
+            return []
+        summaries: list[dict[str, object]] = []
+        for item in denied[:32]:
+            if not isinstance(item, dict):
+                continue
+            summary: dict[str, object] = {}
+            action = cls._safe_label(item.get("action"))
+            if action is not None:
+                summary["action_type"] = action
+            for source_key, target_key in (
+                ("tool_name", "tool_name"),
+                ("tool", "tool_name"),
+                ("permission", "permission"),
+                ("rule", "rule"),
+                ("policy", "policy"),
+                ("reason_code", "reason_code"),
+            ):
+                label = cls._safe_label(item.get(source_key))
+                if label is not None and target_key not in summary:
+                    summary[target_key] = label
+            reason = cls._safe_label(item.get("reason"))
+            if reason is not None and "reason_code" not in summary:
+                summary["reason_code"] = reason
+
+            command_value = item.get("command")
+            if command_value is None:
+                command_value = item.get("cmd")
+            if command_value is None:
+                command_value = item.get("argv")
+            command_shape = cls._safe_command_shape(command_value)
+            if command_shape:
+                summary["command"] = command_shape
+
+            summary["has_freeform_reason"] = isinstance(item.get("reason"), str) and reason is None
+            summary["has_details"] = any(
+                key in item for key in ("details", "description", "message")
+            )
+            summaries.append(summary or {"action_type": "unknown"})
+        return summaries
+
+    @staticmethod
+    def _safe_diagnostics(result, envelope: dict, request: RunRequest | None = None) -> dict[str, object]:
         response = envelope.get("response")
         structured = envelope.get("structured_output")
         denied = envelope.get("denied_actions")
@@ -258,11 +346,15 @@ class AgyAdapter(CLIAdapter):
             "denied_action_count": len(denied) if isinstance(denied, list) else 0,
         }
         if isinstance(denied, list):
-            actions = []
-            for item in denied:
-                if isinstance(item, dict) and isinstance(item.get("action"), str):
-                    actions.append(item["action"])
-            diagnostics["denied_action_types"] = sorted(set(actions))
+            summaries = AgyAdapter._safe_denied_actions(denied)
+            diagnostics["denied_actions"] = summaries
+            diagnostics["denied_action_types"] = sorted({
+                str(item["action_type"]) for item in summaries if item.get("action_type")
+            })
+        diagnostics["dangerous_skip_permissions_requested"] = bool(
+            request is not None
+            and "agy_dangerously_skip_permissions" in request.provider_permissions
+        )
         if isinstance(structured, dict):
             diagnostics["structured_output_keys"] = sorted(str(key) for key in structured)
         if isinstance(response, str):
@@ -292,7 +384,7 @@ class AgyAdapter(CLIAdapter):
             if request.telemetry_sink is not None:
                 request.telemetry_sink(telemetry)
             envelope = self._result_envelope(result.stdout)
-            diagnostics = self._safe_diagnostics(result, envelope)
+            diagnostics = self._safe_diagnostics(result, envelope, request)
             diagnostics["tool_names"] = telemetry["tool_names"]
             diagnostics["tool_call_count"] = telemetry["tool_call_count"]
             if result.returncode != 0 or envelope.get("status") != "SUCCESS":
@@ -303,11 +395,18 @@ class AgyAdapter(CLIAdapter):
                 )
             denied = envelope.get("denied_actions")
             if isinstance(denied, list) and denied:
-                actions = sorted({
-                    item.get("action") for item in denied
-                    if isinstance(item, dict) and isinstance(item.get("action"), str)
-                })
-                detail = ", ".join(actions) if actions else "one or more tools"
+                summaries = diagnostics.get("denied_actions")
+                labels: list[str] = []
+                if isinstance(summaries, list):
+                    for item in summaries:
+                        if not isinstance(item, dict):
+                            continue
+                        label = str(item.get("action_type") or "action")
+                        command = item.get("command")
+                        if isinstance(command, dict) and command.get("executable"):
+                            label += f"(executable={command['executable']})"
+                        labels.append(label)
+                detail = ", ".join(labels) if labels else "one or more tools"
                 raise ProviderExecutionError(
                     "Antigravity headless execution was permission-denied for "
                     f"{detail}; status=SUCCESS does not mean the requested work completed. "
