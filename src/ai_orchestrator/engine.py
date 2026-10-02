@@ -251,6 +251,26 @@ class Engine:
     def _role_config(self, role: str):
         return self.capability_resolver.role_config(role)
 
+    def _review_family_exclusion(
+        self, role: str, implementer_family: str | None
+    ) -> set[str] | None:
+        """Prefer family diversity only for dynamically routed reviewers.
+
+        A fixed reviewer provider may intentionally share a provider family with
+        the implementer and establish independence later through explicit,
+        unequal Model Variant IDs. Dynamic routing cannot infer that intent from
+        model-only overrides, so it retains the historical family exclusion.
+        """
+        if (
+            role != "reviewer"
+            or not self.profile.policy.cross_provider_review
+            or not implementer_family
+        ):
+            return None
+        if self.capability_resolver.role_config(role).provider is not None:
+            return None
+        return {implementer_family}
+
     def _task_roles(self, state: TaskState) -> list[str]:
         return ["planner"] if state.spec.risk == "T0" else ["planner", "implementer", "reviewer"]
 
@@ -266,7 +286,7 @@ class Engine:
         changed = False
         for role in roles:
             extra = requested.get(role, [])
-            exclude = {implementer_family} if role == "reviewer" and self.profile.policy.cross_provider_review and implementer_family else None
+            exclude = self._review_family_exclusion(role, implementer_family)
             if role in existing:
                 frozen = existing[role]
                 provider = frozen.get("provider")
@@ -332,11 +352,12 @@ class Engine:
             if not isinstance(provider, str):
                 raise OrchestratorError(f"{role}: invalid persisted provider resolution")
             extra = (state.capability_requirements or {}).get(role, [])
-            exclude = None
-            if role == "reviewer" and self.profile.policy.cross_provider_review and state.provider_resolutions.get("implementer"):
+            implementer_family = None
+            if state.provider_resolutions.get("implementer"):
                 family = state.provider_resolutions["implementer"].get("family")
                 if isinstance(family, str):
-                    exclude = {family}
+                    implementer_family = family
+            exclude = self._review_family_exclusion(role, implementer_family)
             resolution = self.capability_resolver.resolve(role, required=extra, exclude_families=exclude, force_provider=provider)
         else:
             resolution = self.capability_resolver.resolve(role)
@@ -370,7 +391,7 @@ class Engine:
             if role != "supervisor" and role not in self.profile.roles:
                 continue
             try:
-                exclude = {implementer_family} if role == "reviewer" and self.profile.policy.cross_provider_review and implementer_family else None
+                exclude = self._review_family_exclusion(role, implementer_family)
                 provider = self.capability_resolver.resolve(role, exclude_families=exclude)
                 _, _, variant = self._resolve_variant(provider)
                 roles[role] = {
@@ -381,7 +402,16 @@ class Engine:
                     implementer_family = provider.family
             except OrchestratorError as exc:
                 roles[role] = {"role": role, "error": str(exc)}
-        return {"schema_version": 1, "providers": providers, "roles": roles}
+        return {
+            "schema_version": 1,
+            "providers": providers,
+            "roles": roles,
+            "review_independence": (
+                "fixed same-family roles may use explicit distinct model IDs at task preflight; "
+                "dynamic reviewer routing retains different-family preference"
+                if self.profile.policy.cross_provider_review else "disabled"
+            ),
+        }
 
     def capability_report(self) -> dict[str, Any]:
         report = self.capability_resolver.report()
@@ -392,7 +422,7 @@ class Engine:
             if role != "supervisor" and role not in self.profile.roles:
                 continue
             try:
-                exclude = {implementer_family} if role == "reviewer" and self.profile.policy.cross_provider_review and implementer_family else None
+                exclude = self._review_family_exclusion(role, implementer_family)
                 resolution = self.capability_resolver.resolve(role, exclude_families=exclude)
                 roles[role] = resolution.model_dump()
                 if role == "implementer":
@@ -400,6 +430,11 @@ class Engine:
             except OrchestratorError as exc:
                 roles[role] = {"role": role, "error": str(exc)}
         report["roles"] = roles
+        report["review_independence"] = (
+            "fixed same-family roles may use explicit distinct model IDs at task preflight; "
+            "dynamic reviewer routing retains different-family preference"
+            if self.profile.policy.cross_provider_review else "disabled"
+        )
         return report
 
     def workflow_report(self, workflow_ref: str | None = None) -> dict[str, Any]:
