@@ -131,7 +131,7 @@ class SupervisorResult(Contract):
 
 
 class IntakeState(Contract):
-    schema_version: Literal[1, 2] = 1
+    schema_version: Literal[1, 2, 3] = 1
     id: str
     task_id: str
     profile_digest: str
@@ -146,6 +146,8 @@ class IntakeState(Contract):
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
     runtime_overrides: dict[str, dict[str, object]] | None = None
+    supervisor_runtime_override: dict[str, object] | None = None
+    supervisor_model_variant_resolution: dict[str, object] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
