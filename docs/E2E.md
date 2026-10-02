@@ -426,3 +426,78 @@ than an Orchestrator authority failure.
 
 With those boundaries, v0.8 is recorded as complete. Further work belongs to the
 post-v0.8 roadmap rather than being required to substantiate this milestone.
+
+
+## Owner-reported live v0.9 completion E2E (2026-10-03)
+
+The owner completed the v0.9 live series from Claude Code against the calculator
+fixture. Together with the offline suite, these runs close the v0.9 milestone
+for its trusted-local alpha scope. The observations remain owner-reported host
+runs; HumanGate elicitation is client-mediated and provider dispatch provenance
+is controller evidence rather than provider-side attestation.
+
+### Claude-only model-variant and Fresh-Write path
+
+A Claude-only configuration used Opus for Supervisor/Planner/Reviewer and
+Sonnet for implementation, all within the Anthropic family. Explicit unequal
+model IDs established independent implementation/review identity while effort
+remained `high` for both roles. The start, execution and acceptance HumanGates
+all completed.
+
+The final Fresh-Write task `clamp-v091-fresh-write-e2e` added `clamp` to
+`calculator.py` and six pytest cases to `tests/test_calculator.py`. The
+controller write-set contained exactly those two paths, no violations, and a
+non-empty patch hash. Validation reported **20 passed**. Reviewer outcome was
+`approved` with no blocking findings, and the task reached `succeeded`.
+
+Official provenance showed Supervisor/Planner/Reviewer in
+`read_only_disposable` workspaces with `.orchestrator` omitted, unchanged
+verification and cleanup. Implementer provenance reported `isolated_write`
+with ownership limited to the two allowed files. Controller RunRequest evidence
+recorded the requested model/effort/runtime values and explicit-override sources.
+
+### AGY + Claude interoperability boundary
+
+The profile was then changed through a provider-change HumanGate to
+`reasoning=agy / engineering=claude`, making AGY the intended
+Supervisor/Planner/Reviewer and Claude the Implementer.
+
+A first AGY Supervisor attempt failed closed on a provider-native command
+permission denial before task registration. After the host independently retried
+with a prompt-level instruction to avoid shell use, the Supervisor happened to
+produce a proposal, but the AGY Planner later selected `run_command` and was
+permission-denied. Safe diagnostics identified a denied `command` action and
+tool use including `run_command` / `view_file` without retaining the raw command.
+
+This demonstrated that prompt wording such as "do not use shell" is not a
+reliable provider-permission boundary and should not be used as an automatic
+retry strategy. It did **not** demonstrate that AGY read-only roles are
+universally unsupported: an operator whose AGY native scoped permission policy
+authorizes the provider's chosen read-only tools may still complete the same
+flow.
+
+v0.9.2 therefore records AGY Supervisor/Planner/Reviewer as
+`conditional_native_permissions`. Routing/provider changes remain allowed;
+Orchestrator does not modify or attest AGY native permission sufficiency, and a
+denial fails closed with sanitized diagnostics. Broad
+`--dangerously-skip-permissions` remains explicit high-risk task/attempt
+authority and is not automatically inferred as an intake workaround.
+
+### v0.9 completion boundary
+
+The v0.9 series is recorded as complete with evidence for:
+
+- provider-local model/effort/runtime-option resolution and provenance;
+- task/intake-scoped explicit runtime overrides without persistent profile edits;
+- same-family, explicit-different-model independent review;
+- read-only disposable provider workspaces and isolated writable execution;
+- content-free controller dispatch provenance and sanitized provider failures;
+- single-terminal default operation with three explicit HumanGates;
+- user-language presentation separated from English control-plane protocol;
+- fail-closed AGY native permission behavior with conditional compatibility
+  metadata rather than either unsafe bypass or categorical rejection.
+
+The completion claim does not attest provider-side receipt/compliance with
+model settings, cryptographic human identity, OS-level isolation, or universal
+AGY headless permission compatibility. Future AGY CLI permission improvements can
+be adopted at the adapter boundary without reopening the v0.9 architecture.
