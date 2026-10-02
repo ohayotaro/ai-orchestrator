@@ -28,6 +28,8 @@ def test_agy_readonly_roles_are_conditionally_supported_not_blocked():
 
     implementer = adapter.role_compatibility("implementer")
     assert implementer["status"] == "supported"
+    assert implementer["orchestrator_attests_permissions_sufficient"] is False
+    assert any("task/attempt-scoped authority" in item for item in implementer["limitations"])
 
 
 def test_engine_reports_conditional_agy_roles_without_rejecting_resolution(workspace):
