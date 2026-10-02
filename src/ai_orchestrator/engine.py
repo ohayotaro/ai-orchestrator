@@ -39,20 +39,81 @@ class Engine:
         self.store.close()
 
     @contextmanager
-    def readonly_workspace(self, owner_id: str, attempt: int, node_id: str):
+    def readonly_workspace(
+        self,
+        owner_id: str,
+        attempt: int,
+        node_id: str,
+        *,
+        evidence: dict[str, object] | None = None,
+    ):
         """Materialize only project payload for a read-only provider call.
 
         The disposable workspace deliberately omits .orchestrator and ignored
         ambient files. Any provider write to the snapshot is rejected and the
-        workspace is removed after the call.
+        workspace is removed after the call. Optional evidence is content-free
+        controller provenance suitable for audit/reporting.
         """
         manager = ReadOnlyWorkspaceManager(self.project, self.profile, owner_id, node_id)
+        record = evidence if evidence is not None else {}
         try:
             workspace = manager.prepare()
+            record.update({
+                "mode": "read_only_disposable",
+                "outside_project": not workspace.resolve().is_relative_to(self.project.root.resolve()),
+                "control_dir_materialized": (workspace / ".orchestrator").exists(),
+                "seed_snapshot": manager.seed_snapshot,
+                "unchanged_verified": False,
+                "cleaned": False,
+            })
             yield workspace
             manager.verify_unchanged()
+            record["unchanged_verified"] = True
         finally:
             manager.cleanup()
+            record["cleaned"] = True
+
+    @staticmethod
+    def dispatch_provenance(
+        request: RunRequest,
+        resolution: ProviderResolution,
+        variant: ModelVariantResolution,
+        *,
+        role: str,
+        node: str | None = None,
+        workspace_evidence: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+        """Content-free evidence for the exact RunRequest passed to an adapter."""
+        return {
+            "schema_version": 1,
+            "role": role,
+            "node": node,
+            "phase": request.phase,
+            "provider": resolution.provider,
+            "adapter": resolution.adapter,
+            "family": resolution.family,
+            "model": request.config.model,
+            "effort": request.config.effort,
+            "runtime_options": dict(request.runtime_options),
+            "provider_permissions": sorted(request.provider_permissions),
+            "model_variant_sources": dict(variant.sources),
+            "runtime_options_digest": variant.runtime_options_digest,
+            "fallback": variant.fallback,
+            "workspace": dict(workspace_evidence or {"mode": "shared_project"}),
+            "evidence_boundary": (
+                "controller RunRequest dispatch evidence; provider receipt is not independently attested"
+            ),
+        }
+
+    def record_provider_provenance(self, state: TaskState, record: dict[str, Any]) -> None:
+        current = self.store.latest(state, "provider_provenance")
+        records = list(current.get("records", [])) if isinstance(current, dict) else []
+        records.append(record)
+        self.store.artifact(
+            state,
+            "provider_provenance",
+            {"schema_version": 1, "records": records},
+        )
 
     def trust(self, actor: str) -> dict[str, str]:
         with self.project.lock():
