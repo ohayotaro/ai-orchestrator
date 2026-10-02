@@ -13,6 +13,7 @@ from .models import Contract, OrchestratorError, TaskState, WorkflowNodeSpec, Wo
 from .process import redact
 from .project import Project, encode
 from .providers import ProviderExecutionError, RunRequest
+from .runtime_options import ModelVariantResolution, execution_identities_independent
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import CompiledWorkflow
 from .workspaces import WorkspaceManager
@@ -70,8 +71,17 @@ class WorkflowExecutor:
         return list(validate_requirements(source).get(role, []))
 
     def _exclude_families(self, state: TaskState, node: WorkflowNodeSpec) -> set[str]:
+        """Preserve dynamic-routing diversity while allowing fixed same-family models.
+
+        A fixed role/provider may intentionally use a distinct provider-local
+        model and is checked after Model Variant Resolution. Dynamic routing
+        retains the historical family exclusion so it does not silently collapse
+        review onto the same execution identity when no explicit choice exists.
+        """
         excluded: set[str] = set()
         if not self.engine.profile.policy.cross_provider_review:
+            return excluded
+        if self.engine.capability_resolver.role_config(node.role).provider is not None:
             return excluded
         for node_id in node.independent_of:
             resolution = state.workflow_nodes[node_id].provider_resolution
@@ -179,6 +189,30 @@ class WorkflowExecutor:
                     **report,
                 },
             )
+        if self.engine.profile.policy.cross_provider_review:
+            for node_id in self.workflow.order:
+                node = self.workflow.nodes[node_id]
+                if node_id not in active or node.kind != "agent":
+                    continue
+                current_state = state.workflow_nodes[node_id]
+                if current_state.provider_resolution is None or current_state.model_variant_resolution is None:
+                    continue
+                current_provider = ProviderResolution.model_validate(current_state.provider_resolution)
+                current_variant = ModelVariantResolution.model_validate(current_state.model_variant_resolution)
+                for independent_id in node.independent_of:
+                    other_state = state.workflow_nodes[independent_id]
+                    if other_state.provider_resolution is None or other_state.model_variant_resolution is None:
+                        continue
+                    other_provider = ProviderResolution.model_validate(other_state.provider_resolution)
+                    other_variant = ModelVariantResolution.model_validate(other_state.model_variant_resolution)
+                    if not execution_identities_independent(
+                        current_provider, current_variant, other_provider, other_variant
+                    ):
+                        raise OrchestratorError(
+                            f"workflow node {node.id}: independent review requires a different provider family "
+                            "or explicit distinct model IDs"
+                        )
+
         state.capability_requirements = role_requirements or None
         state.provider_resolutions = role_resolutions or None
         state.model_variant_resolutions = role_variants or None
@@ -341,16 +375,19 @@ class WorkflowExecutor:
         started = time.monotonic()
         telemetry: dict[str, object] = {}
         try:
-            raw = adapter.execute(
-                RunRequest(
-                    phase, self._prompt(state, node, resolution), engine.project.root, config,
-                    min(policy.call_timeout_seconds, remaining),
-                    lambda: engine.store.cancelled(state.spec.id),
-                    result_model=model,
-                    runtime_options=dict(variant.options),
-                    telemetry_sink=telemetry.update,
+            with engine.readonly_workspace(
+                state.spec.id, state.attempt, "readonly-" + node.id
+            ) as provider_workspace:
+                raw = adapter.execute(
+                    RunRequest(
+                        phase, self._prompt(state, node, resolution), provider_workspace, config,
+                        min(policy.call_timeout_seconds, remaining),
+                        lambda: engine.store.cancelled(state.spec.id),
+                        result_model=model,
+                        runtime_options=dict(variant.options),
+                        telemetry_sink=telemetry.update,
+                    )
                 )
-            )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - started
