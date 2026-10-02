@@ -184,11 +184,14 @@ For a new checkout, first create a new environment with `python3.13 -m venv .ven
 No vendor model list is fixed in the kernel. v0.9 resolves provider-local
 model/effort after provider selection using task/node explicit override > trusted
 profile setting > adapter default. Built-in adapters report honest pass-through
-limitations when their CLIs do not expose a complete reliable catalog. Adaptive
+limitations when their CLIs do not expose a complete reliable catalog. AGY
+permission denials expose only adapter-sanitized diagnostics (for example action
+type, executable basename and shell-shape flags) through the official intake/task
+interfaces; raw denied commands and arguments are not retained. Adaptive
 task-scoped DAGs and isolated parallel execution still cannot install new
 providers, validator commands, policies or external-effect authority.
 
-## Opt in for the existing calculator fixture
+## Configure the existing calculator fixture
 
 Use a normal terminal for this one-time host setup. Do not reinitialize or reset
 existing projects, tasks or uncommitted calculator changes.
@@ -198,14 +201,16 @@ ORCH=/Users/ohayotaro/ai-orchestrator/.venv/bin/orchestrator
 PROJECT=/Users/ohayotaro/ai-orchestrator-e2e
 ```
 
-Update your existing MCP entry so its arguments end in `serve --single-terminal`,
-or remove/re-add only this server. For Claude Code (local project scope):
+A normal `serve` registration now defaults to single-terminal operation. The
+`--single-terminal` flag remains accepted for compatibility but is unnecessary.
+Use `serve --legacy-terminal` only when you deliberately want the old manual
+worker/operator-terminal flow. For Claude Code (local project scope):
 
 ```bash
 cd "$PROJECT"
 claude mcp remove ai-orchestrator --scope local
 claude mcp add --transport stdio --scope local ai-orchestrator -- \
-  "$ORCH" --project "$PROJECT" serve --single-terminal
+  "$ORCH" --project "$PROJECT" serve
 "$ORCH" skill --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" --replace
 ```
 
@@ -214,7 +219,7 @@ For Codex, update the existing registration:
 ```bash
 codex mcp remove ai-orchestrator
 codex mcp add ai-orchestrator -- \
-  "$ORCH" --project "$PROJECT" serve --single-terminal
+  "$ORCH" --project "$PROJECT" serve
 "$ORCH" skill --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" --replace
 ```
 
