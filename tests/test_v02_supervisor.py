@@ -331,6 +331,9 @@ def test_supervisor_intake_runtime_override_is_applied_and_frozen(supervisor):
         "effort": "high",
         "options": {},
     }
+    assert state.supervisor_provider_resolution["provider"] == "reasoning"
+    assert state.supervisor_provider_resolution["adapter"] == "claude"
+    assert state.supervisor_provider_resolution["family"] == "anthropic"
     assert state.supervisor_model_variant_resolution["model"] == "claude-opus-test"
     assert state.supervisor_model_variant_resolution["effort"] == "high"
     assert state.supervisor_model_variant_resolution["sources"] == {
