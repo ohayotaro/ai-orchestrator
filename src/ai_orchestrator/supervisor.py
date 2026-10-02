@@ -34,10 +34,7 @@ class Supervisor:
         if intake.schema_version < 3:
             return {}
         return {
-            **({"runtime_overrides": intake.runtime_overrides} if intake.runtime_overrides is not None else {}),
-            **({"supervisor_runtime_override": intake.supervisor_runtime_override} if intake.supervisor_runtime_override is not None else {}),
-            **({"supervisor_provider_resolution": intake.supervisor_provider_resolution} if intake.supervisor_provider_resolution is not None else {}),
-            **({"supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution} if intake.supervisor_model_variant_resolution is not None else {}),
+            **Supervisor._runtime_provenance(intake),
         }
 
     @staticmethod
