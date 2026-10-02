@@ -491,6 +491,7 @@ class Engine:
             except OrchestratorError as exc:
                 roles[role] = {"role": role, "error": str(exc)}
         report["roles"] = roles
+        report["provider_compatibility"] = self.provider_compatibility_report()
         report["review_independence"] = (
             "fixed same-family roles may use explicit distinct model IDs at task preflight; "
             "dynamic reviewer routing retains different-family preference"
