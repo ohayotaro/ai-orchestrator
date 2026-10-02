@@ -6,6 +6,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,87 @@ def _remove_path(path: Path) -> None:
         path.unlink()
     elif path.exists():
         shutil.rmtree(path)
+
+
+class ReadOnlyWorkspaceManager:
+    """Disposable provider workspace outside the project/control-plane tree."""
+
+    def __init__(self, project: Project, profile: Profile, owner_id: str, node_id: str):
+        identifier(owner_id)
+        identifier(node_id)
+        self.project = project
+        self.profile = profile
+        self.owner_id = owner_id
+        self.node_id = node_id
+        self.path: Path | None = None
+        self.seed_snapshot: str | None = None
+
+    def _sync_project_state(self, destination: Path) -> None:
+        manifest = self.project.manifest()
+        for child in destination.iterdir():
+            if child.name != ".git":
+                _remove_path(child)
+        for relative, (value, mode) in manifest.items():
+            if value == "deleted":
+                continue
+            source = self.project.root / relative
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if value.startswith("link:"):
+                target.symlink_to(os.readlink(source))
+            else:
+                shutil.copy2(source, target, follow_symlinks=False)
+                current = target.stat().st_mode
+                target.chmod((current & ~0o111) | mode)
+
+    def prepare(self) -> Path:
+        if self.path is not None:
+            raise OrchestratorError("read-only provider workspace already prepared")
+        directory = Path(tempfile.mkdtemp(prefix="ai-orchestrator-readonly-"))
+        self.path = directory
+        try:
+            head = _git(self.project.root, "rev-parse", "--verify", "HEAD", check=False)
+            if head.returncode == 0:
+                shutil.rmtree(directory)
+                _git(
+                    self.project.root, "clone", "--no-checkout", "--quiet",
+                    str(self.project.root), str(directory),
+                )
+                _git(directory, "remote", "remove", "origin", check=False)
+            else:
+                _git(directory, "init", "--quiet")
+            self._sync_project_state(directory)
+            _git(directory, "add", "-A")
+            _git(
+                directory,
+                "-c", "user.name=AI Orchestrator",
+                "-c", "user.email=orchestrator@localhost",
+                "-c", "commit.gpgsign=false",
+                "-c", "core.hooksPath=/dev/null",
+                "commit", "--allow-empty", "-m",
+                f"ai-orchestrator read-only seed {self.owner_id} {self.node_id}",
+            )
+            snapshot = Project(directory).snapshot()
+            if snapshot != self.project.snapshot():
+                raise OrchestratorError("read-only provider workspace seed mismatch")
+            self.seed_snapshot = snapshot
+            return directory
+        except Exception:
+            self.cleanup()
+            raise
+
+    def verify_unchanged(self) -> None:
+        if self.path is None or self.seed_snapshot is None:
+            raise OrchestratorError("read-only provider workspace was not prepared")
+        if Project(self.path).snapshot() != self.seed_snapshot:
+            raise OrchestratorError(
+                f"read-only provider node {self.node_id} modified its disposable project snapshot"
+            )
+
+    def cleanup(self) -> None:
+        if self.path is not None and self.path.exists():
+            shutil.rmtree(self.path)
+        self.path = None
 
 
 class WorkspaceManager:
