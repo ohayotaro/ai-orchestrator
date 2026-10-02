@@ -513,6 +513,10 @@ The portable Skill keeps control-plane/tool interaction in English but requires
 the host agent to explain progress, choices, errors and results in the user's
 current conversation language.
 
+Capability and runtime-option reports use the same review-independence semantics
+as execution: fixed same-family roles are not rejected before model selection,
+while dynamically routed reviewers still prefer a different provider family.
+
 ## v0.9.0 provider-local model and effort resolution
 
 v0.9.0 makes provider selection and runtime selection separate, inspectable
