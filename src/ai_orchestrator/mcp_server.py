@@ -312,7 +312,7 @@ class StdioServer:
                 if name in GATE_TOOLS:
                     parsed = GATE_TOOLS[name][0].model_validate(arguments)
                     if not self.form_supported:
-                        raise OrchestratorError("client does not advertise supported form elicitation; no operation authorized. Use operator CLI manually; never substitute chat text or a tool-permission allowlist")
+                        raise OrchestratorError("client does not advertise supported form elicitation; no operation authorized. Use a host that supports the required HumanGate; never substitute chat text, CLI authority commands, or a tool-permission allowlist")
                     if name == "request_provider_change":
                         gate = self.broker.prepare_provider_change(parsed)
                     elif name == "request_provider_change_set":
