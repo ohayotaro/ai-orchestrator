@@ -1,19 +1,21 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.9.1 alpha** adds read-only provider workspace hardening and model-level
-review independence on top of v0.9.0 Model Variant Resolution. Supervisor,
-Planner and Reviewer execute against disposable project snapshots that omit
-`.orchestrator`. Independent review no longer requires a different vendor when
-the same provider family uses explicit, unequal provider-local model IDs (for
-example Sonnet implementation and Opus review). Effort differences alone do not
-count as an independent identity. This remains a trusted-local application, not
-authenticated human identity or a general OS-isolated control plane.
+**v0.9.2 alpha** closes the v0.9 line with provider-local model/effort resolution,
+read-only workspace hardening, observable dispatch provenance and explicit
+provider-compatibility boundaries. Supervisor, Planner and Reviewer execute
+against disposable project snapshots that omit `.orchestrator`. Independent
+review may use a different provider family or explicit unequal model IDs within
+one family. AGY read-only headless roles are conditionally supported: they may
+run when AGY native scoped permissions are sufficient, but Orchestrator does not
+modify or attest that permission policy and fails closed on denial. This remains
+a trusted-local application, not authenticated human identity or a general
+OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
                     |
-           MCP serve --single-terminal
+           MCP serve
                     |
        propose -> Supervisor -> task proposal
                     |
@@ -176,14 +178,19 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.9.1
+.venv/bin/orchestrator --version  # 0.9.2
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
 (or Python 3.11/3.12). Install/authenticate the provider CLIs you intend to use separately. Built-in adapters are available for Claude Code, Codex CLI, and Antigravity CLI (`agy`).
 No vendor model list is fixed in the kernel. v0.9 resolves provider-local
 model/effort after provider selection using task/node explicit override > trusted
-profile setting > adapter default. Built-in adapters report honest pass-through
+profile setting > adapter default. `inspect_project.provider_compatibility`
+separately reports execution compatibility without turning that metadata into
+authority. AGY Supervisor/Planner/Reviewer report
+`conditional_native_permissions`: the role remains routable, but native scoped
+permission sufficiency is an operator/provider concern rather than something the
+kernel claims to verify. Built-in adapters report honest pass-through
 limitations when their CLIs do not expose a complete reliable catalog. AGY
 permission denials expose only adapter-sanitized diagnostics (for example action
 type, executable basename and shell-shape flags) through the official intake/task

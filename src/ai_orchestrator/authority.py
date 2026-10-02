@@ -38,14 +38,30 @@ def _validate_proposed_profile(engine, profile: Profile) -> dict[str, Any]:
     workflow_registry(profile)
     resolver = CapabilityResolver(profile, engine.registry)
     roles: dict[str, Any] = {}
+    compatibility: dict[str, Any] = {}
     for role in ("supervisor", "planner", "implementer", "reviewer"):
         if role != "supervisor" and role not in profile.roles:
             continue
         resolution = resolver.resolve(role)
         roles[role] = resolution.model_dump()
+        adapter = engine.registry.get(resolution.adapter)
+        role_compatibility = getattr(adapter, "role_compatibility", None) if adapter is not None else None
+        compatibility[role] = (
+            role_compatibility(role)
+            if callable(role_compatibility)
+            else {
+                "status": "supported",
+                "role": role,
+                "adapter": resolution.adapter,
+                "requires_native_scoped_permissions": False,
+                "orchestrator_attests_permissions_sufficient": True,
+                "limitations": [],
+            }
+        )
     return {
         "roles": roles,
         "providers": resolver.report()["providers"],
+        "role_compatibility": compatibility,
         "review_independence": (
             "task_preflight: different provider family or explicit distinct model IDs"
             if profile.policy.cross_provider_review

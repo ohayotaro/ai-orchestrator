@@ -461,3 +461,24 @@ TaskState exists yet. Task-node failures store the same sanitized metadata in a
 hash-verified `provider_failure` artifact. The diagnostics also record whether
 the task-scoped AGY dangerous-skip permission was requested; a denial never
 silently enables that permission.
+
+
+## AGY conditional read-only compatibility
+
+AGY Supervisor, Planner and Reviewer are conditionally supported in headless
+mode. Their read-only disposable workspace prevents controller state from being
+materialized, but it does not determine which AGY-native tools the provider
+chooses or whether the operator's AGY native scoped permission policy authorizes
+those tools.
+
+`conditional_native_permissions` is therefore evidence, not permission and not
+a prohibition. The controller allows routing to proceed and makes no claim that
+provider-native permissions are sufficient. A native denial stops the current
+flow and exposes only sanitized diagnostics.
+
+Hosts must not respond to a denial by silently rewriting the task to influence
+tool choice and retrying. Such prompt changes are not a security boundary.
+Operator-managed AGY scoped permissions may be adjusted outside Orchestrator and
+a new intake may then be attempted. The broad
+`--dangerously-skip-permissions` path remains explicit, high-risk and
+task/attempt-scoped; it is not inferred as a remedy for read-only intake phases.

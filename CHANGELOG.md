@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.2 — alpha
+
+- Mark AGY Supervisor/Planner/Reviewer headless use as conditional support rather
+  than unsupported. These read-only roles may execute when the operator's AGY
+  native scoped permission policy is sufficient.
+- Add `provider_compatibility` to `inspect_project` and provider-change previews.
+  AGY read-only roles report `conditional_native_permissions`, including the
+  explicit boundary that Orchestrator does not modify or attest the sufficiency
+  of the user's AGY permission policy.
+- Keep conditional compatibility non-blocking: provider resolution and provider
+  changes remain allowed. Actual AGY native permission denial still fails closed
+  with the adapter-sanitized diagnostics introduced in v0.9.1.
+- Update the portable Skill/MCP guidance so a permission denial stops the current
+  flow. The host must not rewrite the task with phrases such as "do not use shell"
+  and automatically retry to work around provider-native permission policy.
+- Keep `--dangerously-skip-permissions` explicit, task/attempt-scoped authority;
+  it is not inferred from a denial and is not a Supervisor/Planner intake remedy.
+- Record v0.9 as complete after live Claude-only Fresh-Write validation and the
+  AGY interoperability boundary analysis. Future AGY compatibility improvements
+  can be added at the adapter boundary without reopening v0.9 architecture.
+
 ## 0.9.1 — alpha
 
 - Run Supervisor, Planner and Reviewer provider calls from disposable project

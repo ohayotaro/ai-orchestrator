@@ -336,3 +336,26 @@ Supervisor, Planner and Reviewer now execute in disposable manifest-backed
 workspaces that omit `.orchestrator` and ignored ambient files. Provider code
 that incorrectly depended on reading controller runtime/task files will fail and
 must use the supplied prompt/context instead.
+
+
+## v0.9.1 to v0.9.2
+
+No database migration or profile re-trust is required solely for the software
+upgrade. Existing provider bindings remain unchanged.
+
+The package now reports provider-role execution compatibility separately from
+capability/provider resolution. AGY Supervisor, Planner and Reviewer bindings
+report `conditional_native_permissions`: they remain routable and may work when
+the operator's AGY native scoped permission policy is sufficient, but
+Orchestrator does not modify or attest that provider-native policy.
+
+A permission denial still fails closed. The portable Skill no longer retries
+automatically by rewriting the task with provider-specific shell/tool
+prohibitions. Adjust AGY native scoped permissions outside Orchestrator if
+desired, then create a fresh intake. `--dangerously-skip-permissions` remains a
+separate task/attempt-scoped high-risk authority and is not a read-only intake
+workaround.
+
+Re-export the packaged Skill after upgrade so the host learns the conditional
+compatibility and no-auto-retry contract. Plain `orchestrator serve` remains the
+default single-terminal registration.

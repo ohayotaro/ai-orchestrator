@@ -37,13 +37,26 @@ than a checkbox so Accept alone cannot silently mean No. Tool permission prompts
 settings are not this confirmation. Host hooks can auto-answer forms; if the user
 requires personal confirmation, ask them to disable such hooks/configurations.
 
+Inspect `provider_compatibility`. AGY read-only roles
+(Supervisor/Planner/Reviewer) may report `conditional_native_permissions`.
+This is conditional support, not a prohibition: execution may proceed when the
+user explicitly wants AGY or the trusted profile already selects it, but do not
+claim that Orchestrator has verified the user's AGY native scoped permission
+policy. Implementer support remains governed by the normal execution and
+provider-permission contracts.
+
 If AGY fails with a permission denial, report the adapter-sanitized
 `provider_failure_diagnostics` from `get_intake` for Supervisor failures or
 `get_artifact(kind=provider_failure)` for task-node failures. These diagnostics
 may expose action type, executable basename, shell-shape flags and simple native
 permission/rule labels, but never reconstruct or reveal raw command arguments.
+STOP after the denial. Do not revise the task/request with provider-specific
+phrases such as "do not use shell" and automatically retry in an attempt to work
+around AGY native permission policy. The user/operator may adjust AGY native
+scoped permissions outside Orchestrator and then explicitly start a new intake.
 Do not respond by enabling `--dangerously-skip-permissions` unless the user
-separately and explicitly requests that task/attempt-scoped high-risk authority.
+separately and explicitly requests that task/attempt-scoped high-risk authority;
+that grant is not a remedy for Supervisor/Planner read-only intake failures.
 
 If the host lacks supported forms, declines, cancels, disconnects or times out,
 STOP. Report the exact gate state. Do not fall back to executing approval commands
