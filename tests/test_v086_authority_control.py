@@ -567,7 +567,7 @@ def test_provider_change_humangate_can_switch_reasoning_agy_to_claude_same_famil
     finally:
         engine.close()
 
-    service = ApplicationService(workspace, registry=registry)
+    service = ApplicationService(workspace)
     broker = HumanGateBroker(service, "same-family-change", {"name": "test", "version": "1"})
     try:
         gate = broker.prepare_provider_change_set(
@@ -581,7 +581,7 @@ def test_provider_change_humangate_can_switch_reasoning_agy_to_claude_same_famil
     finally:
         broker.close()
 
-    check = Engine(workspace, registry)
+    check = Engine(workspace)
     try:
         assert check.profile.providers["reasoning"].adapter == "claude"
         assert check.profile.providers["engineering"].adapter == "claude"
