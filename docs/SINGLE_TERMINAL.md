@@ -22,8 +22,9 @@ says `client-mediated; human presence not cryptographically verified` instead of
 claiming a signed approval. A stricter identity boundary requires a separate
 trusted authority service and is not implemented here.
 
-The mode is an explicit operator opt-in, `serve --single-terminal`. Plain `serve`
-retains v0.3 behavior. Form capability is detected at initialization rather than
+Single-terminal is now the standard `serve` behavior. The historical
+`--single-terminal` flag remains accepted for compatibility, while
+`serve --legacy-terminal` is the explicit opt-out to the v0.3-style manual flow. Form capability is detected at initialization rather than
 inferred from a client name. If it is unsupported, returns an error, or cannot
 present UI, gate requests fail closed. There is no fallback to chat text,
 blanket tool permission, shell prompts inside MCP, or automatic authorization.
@@ -76,20 +77,20 @@ cd "$PROJECT"
 # Claude Code, from a normal terminal:
 claude mcp remove ai-orchestrator --scope local
 claude mcp add --transport stdio --scope local ai-orchestrator -- \
-  "$ORCH" --project "$PROJECT" serve --single-terminal
+  "$ORCH" --project "$PROJECT" serve
 "$ORCH" skill --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" --replace
 
 # Codex, if using that client:
 codex mcp remove ai-orchestrator
 codex mcp add ai-orchestrator -- \
-  "$ORCH" --project "$PROJECT" serve --single-terminal
+  "$ORCH" --project "$PROJECT" serve
 "$ORCH" skill --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" --replace
 ```
 
 Restart/reload the host's MCP connection and Skill. Do not enter raw JSON into
-`serve`; its stdin/stdout belongs to the client protocol. To configure manually,
-the only command change is adding `--single-terminal` after `serve`. Optional
-`--gate-timeout 120` sets a 0.1-600 second response deadline. Host timeouts can be
+`serve`; its stdin/stdout belongs to the client protocol. To configure manually, plain `serve` is sufficient. Optional
+`--gate-timeout 120` sets a 0.1-600 second response deadline. Use
+`--legacy-terminal` only for deliberate manual-worker compatibility. Host timeouts can be
 shorter; a cancellation is a cancellation, not implicit consent. Start with
 interactive Claude Code/Codex and disable hooks or settings that auto-answer
 forms when you require a personal Yes/No.
@@ -176,7 +177,8 @@ user and may read user configuration. Threat isolation and cryptographic approva
 attestation remain out of scope.
 
 The manager runs no job at initialization or on read-only inspection. Queueing
-or an applied start/execution gate activates it. Project worker locking prevents
+or an applied start/execution gate activates it. This managed mode is the default
+for `serve`; legacy mode must be selected explicitly. Project worker locking prevents
 cooperating managers from running duplicate workers. Children use constant argv,
 Python isolated mode (`-I`), detached process sessions, null stdin and private
 0600 runtime log files. The worker drains existing durable jobs then exits after
