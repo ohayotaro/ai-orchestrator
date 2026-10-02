@@ -339,3 +339,34 @@ def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace)
         assert ("review", False) in reasoning.control_visibility
     finally:
         engine.close()
+
+
+def test_same_provider_slot_can_use_distinct_models_per_role(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "claude"
+    profile["roles"]["planner"]["provider"] = "reasoning"
+    profile["roles"]["implementer"]["provider"] = "reasoning"
+    profile["roles"]["reviewer"]["provider"] = "reasoning"
+    config_path.write_text(yaml.safe_dump(profile))
+
+    claude = RuntimeAdapter("anthropic")
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        engine.trust("test-operator")
+        state = engine.create(
+            spec("same-slot-distinct-models"),
+            runtime_overrides={
+                "planner": {"model": "deep-model"},
+                "implementer": {"model": "fast-model"},
+                "reviewer": {"model": "deep-model"},
+            },
+        )
+        state = engine.run(state.spec.id)
+        assert state.status == "awaiting_approval", state.error
+        assert state.provider_resolutions["implementer"]["provider"] == "reasoning"
+        assert state.provider_resolutions["reviewer"]["provider"] == "reasoning"
+        assert state.model_variant_resolutions["implementer"]["model"] == "fast-model"
+        assert state.model_variant_resolutions["reviewer"]["model"] == "deep-model"
+    finally:
+        engine.close()
