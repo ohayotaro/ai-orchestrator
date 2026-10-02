@@ -36,6 +36,10 @@
 - Add an explicit language boundary to the portable Skill/MCP guidance:
   control-plane interaction stays English while user-facing progress/errors/results
   follow the user's current conversation language.
+- Remove the remaining stale family-preexclusion from capability/runtime reports
+  and legacy fixed-role resolution. Fixed same-family reviewers are now reported
+  as valid candidates and are evaluated for independence only after Model Variant
+  Resolution; dynamically routed reviewers retain the different-family preference.
 
 ## 0.9.0 — alpha
 

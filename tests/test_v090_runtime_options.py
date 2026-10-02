@@ -403,3 +403,50 @@ def test_same_provider_slot_can_use_distinct_models_per_role(workspace):
         assert state.model_variant_resolutions["reviewer"]["model"] == "deep-model"
     finally:
         engine.close()
+
+
+
+def test_reports_do_not_preexclude_fixed_same_family_reviewer(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "claude"
+    profile["providers"]["engineering"]["adapter"] = "claude"
+    config_path.write_text(yaml.safe_dump(profile))
+
+    claude = RuntimeAdapter("anthropic")
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        capability = engine.capability_report()
+        reviewer_capability = capability["roles"]["reviewer"]
+        assert "error" not in reviewer_capability
+        assert reviewer_capability["family"] == "anthropic"
+        assert "explicit distinct model IDs" in capability["review_independence"]
+
+        runtime = engine.runtime_option_report()
+        reviewer_runtime = runtime["roles"]["reviewer"]
+        assert "error" not in reviewer_runtime
+        assert reviewer_runtime["provider_resolution"]["family"] == "anthropic"
+        assert "explicit distinct model IDs" in runtime["review_independence"]
+    finally:
+        engine.close()
+
+
+def test_reports_keep_family_exclusion_for_dynamic_reviewer_routing(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "claude"
+    profile["providers"]["engineering"]["adapter"] = "claude"
+    profile["roles"]["reviewer"]["provider"] = None
+    profile["roles"]["reviewer"]["candidates"] = ["reasoning", "engineering"]
+    config_path.write_text(yaml.safe_dump(profile))
+
+    claude = RuntimeAdapter("anthropic")
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        capability = engine.capability_report()
+        assert "family anthropic excluded by policy" in capability["roles"]["reviewer"]["error"]
+
+        runtime = engine.runtime_option_report()
+        assert "family anthropic excluded by policy" in runtime["roles"]["reviewer"]["error"]
+    finally:
+        engine.close()

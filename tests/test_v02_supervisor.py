@@ -395,6 +395,11 @@ def test_same_family_distinct_task_models_pass_supervisor_normalization(workspac
             supervisor_runtime_override=RuntimeOverride(model="claude-opus-test", effort="high"),
         )
         assert state.status == "proposed", state.error
+        prompt = json.loads(claude.requests[0].prompt)
+        reviewer_runtime = prompt["available_runtime_options"]["roles"]["reviewer"]
+        assert "error" not in reviewer_runtime
+        assert reviewer_runtime["provider_resolution"]["family"] == "anthropic"
+        assert "explicit distinct model IDs" in prompt["available_runtime_options"]["review_independence"]
         assert state.runtime_overrides["implementer"]["model"] == "claude-sonnet-test"
         assert state.runtime_overrides["reviewer"]["model"] == "claude-opus-test"
     finally:
