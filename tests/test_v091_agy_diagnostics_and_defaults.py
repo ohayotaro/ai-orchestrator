@@ -92,7 +92,12 @@ def test_agy_permission_denial_diagnostics_are_safe_and_actionable(monkeypatch, 
     assert "--dangerously-skip-permissions" not in serialized
 
 
-class DenyingSupervisorAdapter(FakeAdapter):
+class HealthyAdapter(FakeAdapter):
+    def doctor(self, config, workspace):
+        return {"version": "fixture", "family": self.family}
+
+
+class DenyingSupervisorAdapter(HealthyAdapter):
     def doctor(self, config, workspace):
         return {"version": "fixture", "family": self.family}
 
@@ -150,5 +155,38 @@ def test_failed_supervisor_exposes_safe_provider_diagnostics_through_intake(work
         described = Supervisor(engine).describe(intake.id)
         assert described["provider_failure_diagnostics"] == intake.provider_failure_diagnostics
         assert "ps aux" not in json.dumps(described)
+    finally:
+        engine.close()
+
+
+
+def test_task_provider_failure_is_available_as_official_artifact(workspace):
+    config = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "agy"
+    config.write_text(yaml.safe_dump(profile))
+
+    engine = Engine(
+        workspace,
+        {
+            "agy": DenyingSupervisorAdapter("google"),
+            "codex": HealthyAdapter("openai"),
+        },
+    )
+    try:
+        engine.trust("operator")
+        from conftest import spec
+
+        state = engine.create(spec("agy-plan-denial"))
+        state = engine.run(state.spec.id)
+        assert state.status in ("blocked", "failed")
+
+        failure = engine.store.latest(state, "provider_failure")
+        assert failure["schema_version"] == 1
+        assert failure["node"] == "plan"
+        assert failure["diagnostics"]["provider"] == "agy"
+        assert failure["diagnostics"]["denied_actions"][0]["command"]["executable"] == "ps"
+        assert failure["diagnostics"]["dangerous_skip_permissions_requested"] is False
+        assert "raw provider content is not retained" in failure["evidence_boundary"]
     finally:
         engine.close()
