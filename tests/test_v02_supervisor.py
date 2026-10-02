@@ -342,6 +342,16 @@ def test_supervisor_intake_runtime_override_is_applied_and_frozen(supervisor):
         "model": "explicit_override",
         "effort": "explicit_override",
     }
+    dispatch = state.supervisor_dispatch_provenance
+    assert dispatch["model"] == "claude-opus-test"
+    assert dispatch["effort"] == "high"
+    assert dispatch["runtime_options"] == {}
+    assert dispatch["workspace"]["mode"] == "read_only_disposable"
+    assert dispatch["workspace"]["outside_project"] is True
+    assert dispatch["workspace"]["control_dir_materialized"] is False
+    assert dispatch["workspace"]["unchanged_verified"] is True
+    assert dispatch["workspace"]["cleaned"] is True
+    assert "provider receipt is not independently attested" in dispatch["evidence_boundary"]
     described = intake.describe(state.id)
     assert described["supervisor_model_variant_resolution"]["model"] == "claude-opus-test"
     assert "intake_scope" in described

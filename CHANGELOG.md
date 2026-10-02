@@ -27,6 +27,15 @@
 - Make Supervisor proposal normalization use the same model-aware review
   independence contract as task preflight instead of excluding a fixed
   same-family reviewer before Model Variant Resolution.
+- Add content-free provider dispatch provenance. Task agent calls accumulate a
+  hash-verified `provider_provenance` artifact with the exact RunRequest
+  model/effort/runtime options plus workspace mode; Supervisor records the
+  equivalent evidence on the intake.
+- Record read-only workspace isolation evidence: outside-project placement,
+  absence of `.orchestrator`, unchanged verification and cleanup completion.
+- Add an explicit language boundary to the portable Skill/MCP guidance:
+  control-plane interaction stays English while user-facing progress/errors/results
+  follow the user's current conversation language.
 
 ## 0.9.0 — alpha
 

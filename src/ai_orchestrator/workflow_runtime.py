@@ -374,32 +374,50 @@ class WorkflowExecutor:
         )
         started = time.monotonic()
         telemetry: dict[str, object] = {}
+        workspace_evidence: dict[str, object] = {}
         try:
             if node.role == "implementer":
-                raw = adapter.execute(
-                    RunRequest(
-                        phase, self._prompt(state, node, resolution), engine.project.root, config,
+                workspace_evidence.update({
+                    "mode": "shared_project",
+                    "outside_project": False,
+                    "control_dir_materialized": (engine.project.root / ".orchestrator").exists(),
+                    "unchanged_verified": None,
+                    "cleaned": None,
+                })
+                request_value = RunRequest(
+                    phase, self._prompt(state, node, resolution), engine.project.root, config,
+                    min(policy.call_timeout_seconds, remaining),
+                    lambda: engine.store.cancelled(state.spec.id),
+                    result_model=model,
+                    runtime_options=dict(variant.options),
+                    telemetry_sink=telemetry.update,
+                )
+                raw = adapter.execute(request_value)
+            else:
+                with engine.readonly_workspace(
+                    state.spec.id, state.attempt, "readonly-" + node.id,
+                    evidence=workspace_evidence,
+                ) as provider_workspace:
+                    request_value = RunRequest(
+                        phase, self._prompt(state, node, resolution), provider_workspace, config,
                         min(policy.call_timeout_seconds, remaining),
                         lambda: engine.store.cancelled(state.spec.id),
                         result_model=model,
                         runtime_options=dict(variant.options),
                         telemetry_sink=telemetry.update,
                     )
-                )
-            else:
-                with engine.readonly_workspace(
-                    state.spec.id, state.attempt, "readonly-" + node.id
-                ) as provider_workspace:
-                    raw = adapter.execute(
-                        RunRequest(
-                            phase, self._prompt(state, node, resolution), provider_workspace, config,
-                            min(policy.call_timeout_seconds, remaining),
-                            lambda: engine.store.cancelled(state.spec.id),
-                            result_model=model,
-                            runtime_options=dict(variant.options),
-                            telemetry_sink=telemetry.update,
-                        )
-                    )
+                    raw = adapter.execute(request_value)
+            engine.record_provider_provenance(
+                state,
+                engine.dispatch_provenance(
+                    request_value,
+                    resolution,
+                    variant,
+                    role=node.role,
+                    node=node.id,
+                    workspace_evidence=workspace_evidence,
+                ),
+            )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - started
@@ -616,6 +634,27 @@ class WorkflowExecutor:
                 raise OrchestratorError(
                     f"workflow node {node_id}: isolated provider failed: {provider_error}"
                 ) from provider_error
+            for node in nodes:
+                item = prepared[node.id]
+                workspace_evidence = {
+                    "mode": "isolated_write",
+                    "outside_project": False,
+                    "control_dir_materialized": (item["workspace"] / ".orchestrator").exists(),
+                    "write_paths": list(node.write_paths),
+                    "unchanged_verified": None,
+                    "cleaned": None,
+                }
+                engine.record_provider_provenance(
+                    state,
+                    engine.dispatch_provenance(
+                        item["request"],
+                        item["resolution"],
+                        item["variant"],
+                        role=node.role,
+                        node=node.id,
+                        workspace_evidence=workspace_evidence,
+                    ),
+                )
             if state.elapsed_seconds > policy.task_timeout_seconds:
                 raise OrchestratorError("task execution-time budget exhausted")
 

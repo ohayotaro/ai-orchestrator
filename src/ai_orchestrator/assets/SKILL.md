@@ -10,6 +10,17 @@ Use the configured MCP server, not nested CLI/model commands. First call
 Forward only necessary user-approved requirements, not private conversation
 history or credentials. Preserve existing uncommitted changes.
 
+## Language boundary
+
+Keep ai-orchestrator tool calls, structured protocol values, field names, and
+delegated control-plane instructions in English unless a protocol field requires
+otherwise. User-facing conversation is separate: explain progress, choices,
+gate context, errors, and final results in the language the user is currently
+using. Do not expose the orchestrator's internal English as the default response
+language. Preserve exact identifiers, model IDs, field names, and exact error
+strings when they are relevant evidence; translate the surrounding explanation,
+not those machine identifiers.
+
 ## Choose the actual mode, never assume native approval
 
 Inspect `host_confirmation` and `worker` in `inspect_project`.
@@ -135,8 +146,15 @@ respect poll_after_seconds. Never create a new job merely to check progress.
    attempt and validators. An applied execution gate queues execution automatically.
    If the result contains job_id, call `wait_job` once. Do not additionally call
    run_task for the same automatically queued operation.
-3. Read `get_task` and hash-verified `get_artifact` write_set, validation and
-   review output. The controller's write_set records exactly which paths changed
+3. Read `get_task` and hash-verified `get_artifact` write_set, validation,
+   review and `provider_provenance` output. The provider_provenance artifact is
+   controller dispatch evidence for the exact RunRequest model/effort/runtime
+   options and workspace mode; it is not independent provider-side attestation.
+   For Supervisor, read `get_intake.supervisor_dispatch_provenance`. Read-only
+   Supervisor/Planner/Reviewer provenance reports whether the disposable
+   workspace was outside the project, whether .orchestrator was materialized,
+   whether unchanged verification passed, and whether cleanup completed.
+ The controller's write_set records exactly which paths changed
    during implementation and enforces Supervisor-declared allowed_paths. When
    write_set, validation and review evidence are present, treat them as the
    canonical Orchestrator evidence for reporting the result. Do NOT re-inspect the

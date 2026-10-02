@@ -6,6 +6,7 @@ import pytest
 from ai_orchestrator.capabilities import ProviderResolution
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.models import OrchestratorError, ProviderConfig
+from ai_orchestrator.service import ApplicationService
 from ai_orchestrator.runtime_options import (
     ModelVariantResolver,
     RuntimeOptionsDescriptor,
@@ -341,8 +342,36 @@ def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace)
         state = engine.run(state.spec.id)
         assert state.status == "awaiting_acceptance", state.error
         assert ("review", False, False) in reasoning.control_visibility
+
+        provenance = engine.store.latest(state, "provider_provenance")
+        records = provenance["records"]
+        plan = next(item for item in records if item["role"] == "planner")
+        implement = next(item for item in records if item["role"] == "implementer")
+        review = next(item for item in records if item["role"] == "reviewer")
+
+        for item in (plan, review):
+            assert item["workspace"]["mode"] == "read_only_disposable"
+            assert item["workspace"]["outside_project"] is True
+            assert item["workspace"]["control_dir_materialized"] is False
+            assert item["workspace"]["unchanged_verified"] is True
+            assert item["workspace"]["cleaned"] is True
+
+        assert implement["model"] == "fast-model"
+        assert implement["effort"] == "medium"
+        assert implement["runtime_options"] == {}
+        assert implement["workspace"]["mode"] == "shared_project"
+        assert "provider receipt is not independently attested" in implement["evidence_boundary"]
     finally:
         engine.close()
+
+    official = ApplicationService(workspace).invoke(
+        "get_artifact",
+        {"task_id": "readonly-control-isolation", "kind": "provider_provenance"},
+    )
+    assert official["content"]["schema_version"] == 1
+    assert {item["role"] for item in official["content"]["records"]} == {
+        "planner", "implementer", "reviewer"
+    }
 
 
 def test_same_provider_slot_can_use_distinct_models_per_role(workspace):

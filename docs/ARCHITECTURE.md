@@ -361,3 +361,27 @@ catalog. A difference in effort/reasoning level alone is not independence.
 Dynamic reviewer routing without a fixed provider retains the historical
 different-family preference. Fixed provider bindings and task/node runtime
 overrides can intentionally choose distinct models from the same family.
+
+
+## v0.9.1 observable provider provenance
+
+The controller now emits a content-free audit record from the exact `RunRequest`
+object passed to each Provider Adapter. Task calls accumulate those records in the
+hash-verified `provider_provenance` artifact; Supervisor stores the equivalent
+record directly in schema-v3 intake state because it runs before TaskState exists.
+
+Each record contains role/node/phase, provider/adapter/family, dispatched
+model/effort/runtime options, provider permission names, Model Variant source and
+runtime-options digest, fallback state and workspace evidence. It intentionally
+omits prompts, response content, command lines and workspace paths.
+
+Read-only Supervisor/Planner/Reviewer calls report that their disposable
+workspace is outside the project tree, whether `.orchestrator` was materialized,
+whether the seed remained unchanged and whether cleanup completed. This is
+controller-observed execution provenance, not an independent attestation from the
+provider process.
+
+The portable Skill treats language as a presentation boundary: MCP/control-plane
+interaction and structured internal instructions remain English for consistency,
+while the host agent's conversation with the user follows the user's current
+conversation language.

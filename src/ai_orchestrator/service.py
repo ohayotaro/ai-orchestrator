@@ -194,6 +194,7 @@ class ApplicationService:
                             "task_scoped_workflow_proposals": True,
                             "conversational_revision": True,
                             "model_variant_resolution": "provider-local model/effort resolved after Provider Resolution and frozen into task/node provenance",
+                            "provider_dispatch_provenance": "get_artifact(kind=provider_provenance) records content-free controller RunRequest dispatch and workspace evidence; Supervisor equivalent is returned by get_intake",
                             "persistent_template_save": "operator-only after successful evidence-backed execution",
                             "profile_mutation_by_agent": "bounded provider-adapter changes only through dedicated HumanGate",
                         },
