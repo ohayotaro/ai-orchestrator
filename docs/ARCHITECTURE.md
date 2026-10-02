@@ -385,3 +385,23 @@ The portable Skill treats language as a presentation boundary: MCP/control-plane
 interaction and structured internal instructions remain English for consistency,
 while the host agent's conversation with the user follows the user's current
 conversation language.
+
+
+## v0.9.2 provider compatibility evidence
+
+Provider capability resolution and execution compatibility are separate
+controller concepts. A provider can satisfy semantic/runtime capabilities while
+still depending on provider-native permissions that the controller cannot
+pre-attest.
+
+`Engine.provider_compatibility_report()` exposes this distinction without
+changing routing authority. Built-in adapters default to `supported`. AGY
+Supervisor/Planner/Reviewer report `conditional_native_permissions`: the role
+remains eligible for resolution, but a headless session may choose native tools
+such as `run_command` whose authorization is governed by AGY configuration.
+
+Provider-change previews surface the same compatibility metadata but do not
+convert it into a blocker. Runtime denial remains the fail-closed enforcement
+point and is observable through adapter-sanitized provider failure diagnostics.
+The controller neither rewrites task prompts to bypass native permission policy
+nor mutates AGY global settings.
