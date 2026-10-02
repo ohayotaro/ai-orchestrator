@@ -12,6 +12,7 @@ from .engine import Engine
 from .models import Contract, OrchestratorError, TaskSpec, TaskState, WorkflowSpec, identifier
 from .project import MAX_CONTEXT_BYTES, atomic_write, confined, digest, encode
 from .providers import RunRequest
+from .runtime_options import ModelVariantResolution, RuntimeOverride, execution_identities_independent
 from .validators import changed_paths, inspect_validator
 
 
@@ -29,6 +30,17 @@ class Supervisor:
             raise OrchestratorError("profile not trusted; inspect it then run trust --ack-local-execution")
 
     @staticmethod
+    def _runtime_provenance(intake: IntakeState) -> dict[str, Any]:
+        if intake.schema_version < 3:
+            return {}
+        return {
+            **({"runtime_overrides": intake.runtime_overrides} if intake.runtime_overrides is not None else {}),
+            **({"supervisor_runtime_override": intake.supervisor_runtime_override} if intake.supervisor_runtime_override is not None else {}),
+            **({"supervisor_provider_resolution": intake.supervisor_provider_resolution} if intake.supervisor_provider_resolution is not None else {}),
+            **({"supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution} if intake.supervisor_model_variant_resolution is not None else {}),
+        }
+
+    @staticmethod
     def _artifact_value(intake: IntakeState) -> dict[str, Any]:
         if intake.result is None:
             raise OrchestratorError("intake has no completed Supervisor result")
@@ -36,6 +48,7 @@ class Supervisor:
             **intake.result.model_dump(),
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
+            **Supervisor._runtime_provenance(intake),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -61,6 +74,7 @@ class Supervisor:
             "task": intake.task.model_dump() if intake.task else None,
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
+            **Supervisor._runtime_provenance(intake),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -91,6 +105,10 @@ class Supervisor:
                     "task": intake.task.model_dump() if intake.task is not None else intake.result.task.model_dump(),
                     "allowed_paths": intake.allowed_paths,
                     "capability_requirements": intake.capability_requirements,
+                    "runtime_overrides": intake.runtime_overrides,
+                    "supervisor_runtime_override": intake.supervisor_runtime_override,
+                    "supervisor_provider_resolution": intake.supervisor_provider_resolution,
+                    "supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution,
                     "workflow_ref": intake.workflow_ref,
                     "workflow_source": intake.workflow_source,
                     "workflow_spec": intake.workflow_spec.model_dump() if intake.workflow_spec is not None else None,
@@ -158,11 +176,14 @@ class Supervisor:
         for name in validators:
             inspect_validator(self.project, self.engine.profile, name)
 
-        # Resolve every active agent node against existing operator-controlled
-        # provider/capability policy before showing the proposal. This never
-        # launches a provider process and cannot install a new capability.
+        # Resolve every active agent node against operator-controlled capability
+        # policy before showing the proposal. Dynamic reviewer routing retains
+        # the historical different-family preference, while fixed provider
+        # bindings may rely on explicit distinct model IDs resolved below.
         active = set(compiled_workflow.active_ids(advisory=intake.advisory))
         resolved: dict[str, Any] = {}
+        variants: dict[str, ModelVariantResolution] = {}
+        runtime_values = intake.runtime_overrides or {}
         for node_id in compiled_workflow.order:
             if node_id not in active:
                 continue
@@ -170,23 +191,56 @@ class Supervisor:
             if node.kind != "agent":
                 continue
             extra = [*capabilities.get(node.role, []), *node.capabilities]
-            excluded = {
-                resolved[other].family for other in node.independent_of
-                if other in resolved
-            }
+            excluded: set[str] = set()
+            if (
+                self.engine.profile.policy.cross_provider_review
+                and self.engine.capability_resolver.role_config(node.role).provider is None
+            ):
+                excluded = {
+                    resolved[other].family for other in node.independent_of
+                    if other in resolved
+                }
             resolution = self.engine.capability_resolver.resolve(
                 node.role, required=extra, exclude_families=excluded or None,
             )
+            raw_override = (
+                runtime_values.get(node.id)
+                if node.id in runtime_values
+                else runtime_values.get(node.role)
+            )
+            override = RuntimeOverride.model_validate(raw_override) if raw_override is not None else None
+            _, _, variant = self.engine._resolve_variant(resolution, override=override)
             resolved[node_id] = resolution
+            variants[node_id] = variant
+
+        if self.engine.profile.policy.cross_provider_review:
+            for node_id in compiled_workflow.order:
+                if node_id not in active or node_id not in resolved:
+                    continue
+                node = compiled_workflow.nodes[node_id]
+                for independent_id in node.independent_of:
+                    if independent_id not in resolved:
+                        continue
+                    if not execution_identities_independent(
+                        resolved[node_id], variants[node_id],
+                        resolved[independent_id], variants[independent_id],
+                    ):
+                        raise OrchestratorError(
+                            f"workflow node {node.id}: independent review requires a different provider family "
+                            "or explicit distinct model IDs"
+                        )
         return TaskSpec(id=intake.task_id, **{**draft.model_dump(), "risk": risk})
 
     def ask(self, request: str, *, task_id: str | None = None, advisory: bool = False,
             reply_to: str | None = None, workflow_ref: str | None = None,
+            supervisor_runtime_override: RuntimeOverride | None = None,
             expected_workspace: str | None = None) -> IntakeState:
         if not request.strip() or len(request) > 20000:
             raise OrchestratorError("ask requires a nonblank request of at most 20,000 characters")
         with self.project.lock():
             self._check_profile(self.engine.profile_digest)
+            if supervisor_runtime_override is not None:
+                supervisor_runtime_override = RuntimeOverride.model_validate(supervisor_runtime_override)
             snapshot = self.project.snapshot()
             if expected_workspace is not None and snapshot != expected_workspace:
                 raise OrchestratorError("worktree changed since job was queued; inspect and ask again")
@@ -212,6 +266,8 @@ class Supervisor:
                         raise OrchestratorError("cannot change an explicitly requested workflow during intake revision")
                     workflow_ref = parent.requested_workflow_ref
                 task_id, advisory = parent.task_id, parent.advisory
+                if supervisor_runtime_override is None and parent.supervisor_runtime_override is not None:
+                    supervisor_runtime_override = RuntimeOverride.model_validate(parent.supervisor_runtime_override)
                 history = self._history(parent)
                 round_number, previous_calls, previous_elapsed = parent.round + 1, parent.calls, parent.elapsed_seconds
             intake_id = "I-" + uuid.uuid4().hex[:12]
@@ -241,6 +297,10 @@ class Supervisor:
                 "available_runtime_options": self.engine.runtime_option_report(),
                 "default_workflow": self.engine.profile.workflow,
                 "requested_workflow_ref": workflow_ref,
+                "supervisor_runtime_override": (
+                    supervisor_runtime_override.model_dump()
+                    if supervisor_runtime_override is not None else None
+                ),
                 "advisory": advisory,
                 "rules": [
                     "Inspect only. Propose one bounded task or ask concrete clarification questions.",
@@ -258,7 +318,7 @@ class Supervisor:
                     "For non-advisory work only, when no listed trusted workflow suitably expresses the task structure, you may leave workflow_ref null and propose one task-scoped Workflow Schema v1 object in workflow. It is only a proposal for this task and is never installed or trusted automatically.",
                     "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, policies or permissions.",
                     "runtime_overrides are task-scoped only. Set them only when the user explicitly asks for a specific model, effort/reasoning level, or execution intensity; otherwise leave them empty. Never raise effort/cost on your own.",
-                    "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
+                    "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Supervisor runtime is intake-scoped and supplied by the controller before this call; do not emit a supervisor key. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
                     "Do not set template_version/provenance in a proposed workflow. Keep it at most 16 nodes and within the stated task. Every isolated write_path must be one of task.allowed_paths; independent isolated writers must own disjoint files.",
                     "Use isolated parallel writers only when the task can actually be split by exact file ownership. Otherwise prefer a simpler sequential DAG.",
                 ],
@@ -266,14 +326,25 @@ class Supervisor:
             prompt = encode(payload)
             if len(prompt.encode()) > MAX_CONTEXT_BYTES:
                 raise OrchestratorError("intake context exceeds 64 KiB; shorten the request or project context")
-            intake = IntakeState(schema_version=2, id=intake_id, task_id=task_id, request=request, advisory=advisory,
-                                  reply_to=reply_to, round=round_number, calls=previous_calls,
-                                  elapsed_seconds=previous_elapsed, profile_digest=self.engine.profile_digest,
-                                  workspace_snapshot=snapshot, requested_workflow_ref=workflow_ref)
+            intake = IntakeState(
+                schema_version=3, id=intake_id, task_id=task_id, request=request, advisory=advisory,
+                reply_to=reply_to, round=round_number, calls=previous_calls,
+                elapsed_seconds=previous_elapsed, profile_digest=self.engine.profile_digest,
+                workspace_snapshot=snapshot, requested_workflow_ref=workflow_ref,
+                supervisor_runtime_override=(
+                    supervisor_runtime_override.model_dump()
+                    if supervisor_runtime_override is not None else None
+                ),
+            )
             self.store.save_intake(intake, "intake.created", create=True)
             start = None
             try:
-                adapter, config, resolution, variant = self.engine._binding("supervisor")
+                resolution = self.engine.capability_resolver.resolve("supervisor")
+                adapter, config, variant = self.engine._resolve_variant(
+                    resolution, override=supervisor_runtime_override
+                )
+                intake.supervisor_provider_resolution = resolution.model_dump()
+                intake.supervisor_model_variant_resolution = variant.model_dump()
                 adapter.doctor(config, self.project.root)
                 controls = self.project.control_snapshot()
                 protected = self.project.protected_snapshot(self.engine.profile)

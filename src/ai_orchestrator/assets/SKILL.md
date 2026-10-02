@@ -98,6 +98,13 @@ permission for the current attempt, call `request_provider_permission` with
 `request_execution` HumanGate is still required. Repair or worktree drift
 requires a fresh provider-permission gate.
 
+If the user explicitly requests a concrete Supervisor model or effort, pass it in
+`propose_task.supervisor_runtime_override`. Supervisor runs before TaskState
+exists, so this override is intake-scoped and frozen into intake provenance; it
+does not modify project profile authority. Do not ask the Supervisor to emit a
+`supervisor` key inside task `runtime_overrides`; those remain limited to
+Planner/Implementer/Reviewer roles or exact workflow node IDs.
+
 Call `propose_task` with a new task ID and stable request ID. Reuse the exact ID AND
 arguments for an identical transport retry. A queued result is NOT a task proposal
 or completion. Use `get_job` to retrieve the result and `get_intake` to inspect it.

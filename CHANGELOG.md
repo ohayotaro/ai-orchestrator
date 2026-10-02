@@ -21,6 +21,12 @@
   later task/node overrides may supply the distinct model IDs.
 - Add regression coverage for same-family/different-model review, same-model
   rejection, and read-only control-directory isolation.
+- Add intake-scoped Supervisor model/effort override on `propose_task`, freeze
+  its provider/model/effort provenance into schema-v3 intake state and Start
+  HumanGate scope, and keep project profile authority unchanged.
+- Make Supervisor proposal normalization use the same model-aware review
+  independence contract as task preflight instead of excluding a fixed
+  same-family reviewer before Model Variant Resolution.
 
 ## 0.9.0 — alpha
 

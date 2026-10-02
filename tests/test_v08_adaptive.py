@@ -132,7 +132,7 @@ def test_supervisor_can_author_task_scoped_workflow_without_profile_mutation(wor
         intake = supervisor.ask("Split this task using the structure that best fits", task_id="adaptive-task")
 
         assert intake.status == "proposed", intake.error
-        assert intake.schema_version == 2
+        assert intake.schema_version == 3
         assert intake.workflow_source == "supervisor_proposed"
         assert intake.workflow_ref == "adaptive-flow"
         assert intake.workflow_spec is not None

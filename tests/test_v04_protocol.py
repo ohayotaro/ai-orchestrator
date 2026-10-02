@@ -70,7 +70,8 @@ def test_native_whole_flow_has_three_independent_confirmations(server_setup):
     assert "Workflow:" in prompt["params"]["message"]
     assert "Workflow nodes:" in prompt["params"]["message"]
     assert "Allowed paths:" in prompt["params"]["message"]
-    assert len(prompt["params"]["message"].splitlines()) < 22
+    assert "Supervisor runtime:" in prompt["params"]["message"]
+    assert len(prompt["params"]["message"].splitlines()) < 23
     confirm(server, prompt)
     run_queued(broker, providers)
     prompt = tool(server, "request_execution", {"task_id": "host-task", "request_id": "native-2"})

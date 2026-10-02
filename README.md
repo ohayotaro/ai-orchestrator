@@ -496,6 +496,12 @@ same family. Thus a single Claude provider slot may run, for example, Sonnet for
 implementation and Opus for review via task/node runtime overrides. Effort alone
 does not establish independence.
 
+Supervisor executes before TaskState exists. When a user explicitly requests its
+model/effort, the agent-facing `propose_task` call may carry
+`supervisor_runtime_override`; this is intake-scoped, frozen into intake
+provenance and shown in the Start HumanGate. Planner/Implementer/Reviewer
+overrides remain task/node-scoped and are proposed by the Supervisor.
+
 ## v0.9.0 provider-local model and effort resolution
 
 v0.9.0 makes provider selection and runtime selection separate, inspectable

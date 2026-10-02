@@ -11,7 +11,10 @@ from ai_orchestrator.contracts import SupervisorResult, TaskDraft
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.models import OrchestratorError, TaskSpec
 from ai_orchestrator.project import Project
+from ai_orchestrator.service import ApplicationService
+from ai_orchestrator.runtime_options import RuntimeOptionsDescriptor, RuntimeOverride, RuntimeValueDescriptor
 from ai_orchestrator.supervisor import Supervisor
+from ai_orchestrator.worker import process_one
 from conftest import FakeAdapter
 
 
@@ -21,6 +24,12 @@ class IntakeAdapter(FakeAdapter):
         self.next_result = None
         self.mutation = None
         self.interrupt = False
+
+    def describe_runtime_options(self, config, workspace):
+        return RuntimeOptionsDescriptor(
+            model=RuntimeValueDescriptor(mode="passthrough"),
+            effort=RuntimeValueDescriptor(mode="passthrough"),
+        )
 
     def execute(self, request):
         if request.phase != "supervise":
@@ -306,3 +315,151 @@ def test_interactive_approval_checks_scope_again_after_confirmation(supervisor, 
     assert code == 1
     assert "scope changed" in capsys.readouterr().err
     assert intake.store.db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
+
+
+
+def test_supervisor_intake_runtime_override_is_applied_and_frozen(supervisor):
+    intake, reasoning, _ = supervisor
+    state = intake.ask(
+        "Please add a result",
+        task_id="supervisor-runtime",
+        supervisor_runtime_override=RuntimeOverride(model="claude-opus-test", effort="high"),
+    )
+    assert state.status == "proposed", state.error
+    assert reasoning.requests[0].config.model == "claude-opus-test"
+    assert reasoning.requests[0].config.effort == "high"
+    assert state.supervisor_runtime_override == {
+        "model": "claude-opus-test",
+        "effort": "high",
+        "options": {},
+    }
+    assert state.supervisor_provider_resolution["provider"] == "reasoning"
+    assert state.supervisor_provider_resolution["adapter"] == "claude"
+    assert state.supervisor_provider_resolution["family"] == "anthropic"
+    assert state.supervisor_model_variant_resolution["model"] == "claude-opus-test"
+    assert state.supervisor_model_variant_resolution["effort"] == "high"
+    assert state.supervisor_model_variant_resolution["sources"] == {
+        "model": "explicit_override",
+        "effort": "explicit_override",
+    }
+    described = intake.describe(state.id)
+    assert described["supervisor_model_variant_resolution"]["model"] == "claude-opus-test"
+    assert "intake_scope" in described
+
+
+def test_same_family_distinct_task_models_pass_supervisor_normalization(workspace):
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["providers"]["reasoning"]["adapter"] = "claude"
+    data["providers"]["engineering"]["adapter"] = "claude"
+    path.write_text(yaml.safe_dump(data))
+
+    claude = IntakeAdapter("anthropic")
+    claude.next_result = {
+        "outcome": "proposed",
+        "summary": "Use distinct Claude models",
+        "task": {
+            "goal": "Produce a result",
+            "acceptance": ["A result exists"],
+            "risk": "T2",
+            "validators": ["check"],
+            "external_effects": False,
+            "allowed_paths": ["result.txt"],
+            "capabilities": {},
+            "workflow_ref": "build-review",
+            "workflow": None,
+            "runtime_overrides": {
+                "planner": {"model": "claude-opus-test", "effort": "high"},
+                "implementer": {"model": "claude-sonnet-test", "effort": "high"},
+                "reviewer": {"model": "claude-opus-test", "effort": "high"},
+            },
+        },
+        "questions": [],
+    }
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        engine.trust("operator")
+        state = Supervisor(engine).ask(
+            "Use Claude variants",
+            task_id="same-family-intake",
+            supervisor_runtime_override=RuntimeOverride(model="claude-opus-test", effort="high"),
+        )
+        assert state.status == "proposed", state.error
+        assert state.runtime_overrides["implementer"]["model"] == "claude-sonnet-test"
+        assert state.runtime_overrides["reviewer"]["model"] == "claude-opus-test"
+    finally:
+        engine.close()
+
+
+def test_same_family_same_task_model_fails_supervisor_normalization(workspace):
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["providers"]["reasoning"]["adapter"] = "claude"
+    data["providers"]["engineering"]["adapter"] = "claude"
+    path.write_text(yaml.safe_dump(data))
+
+    claude = IntakeAdapter("anthropic")
+    claude.next_result = {
+        "outcome": "proposed",
+        "summary": "Same model is not independent",
+        "task": {
+            "goal": "Produce a result",
+            "acceptance": ["A result exists"],
+            "risk": "T2",
+            "validators": ["check"],
+            "external_effects": False,
+            "allowed_paths": ["result.txt"],
+            "capabilities": {},
+            "workflow_ref": "build-review",
+            "workflow": None,
+            "runtime_overrides": {
+                "planner": {"model": "claude-opus-test", "effort": "high"},
+                "implementer": {"model": "claude-opus-test", "effort": "high"},
+                "reviewer": {"model": "claude-opus-test", "effort": "high"},
+            },
+        },
+        "questions": [],
+    }
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        engine.trust("operator")
+        state = Supervisor(engine).ask("Use one Claude model", task_id="same-model-intake")
+        assert state.status == "failed"
+        assert "different provider family or explicit distinct model IDs" in state.error
+        assert state.task is None
+    finally:
+        engine.close()
+
+
+
+def test_propose_task_worker_routes_supervisor_runtime_override(workspace):
+    reasoning, engineering = IntakeAdapter("anthropic"), IntakeAdapter("openai")
+    registry = {"claude": reasoning, "codex": engineering}
+    engine = Engine(workspace, registry)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    service = ApplicationService(workspace)
+    job = service.invoke(
+        "propose_task",
+        {
+            "request": "Please add a result",
+            "request_id": "supervisor-override-job",
+            "task_id": "supervisor-override-job-task",
+            "supervisor_runtime_override": {
+                "model": "claude-opus-test",
+                "effort": "high",
+            },
+        },
+    )
+    with service.queue() as queue:
+        result = process_one(queue, registry=registry)
+    assert result["id"] == job["id"]
+    assert result["status"] == "succeeded"
+    assert reasoning.requests[0].config.model == "claude-opus-test"
+    assert reasoning.requests[0].config.effort == "high"
+    intake = result["result"]
+    assert intake["supervisor_model_variant_resolution"]["model"] == "claude-opus-test"
+    assert intake["supervisor_model_variant_resolution"]["sources"]["model"] == "explicit_override"

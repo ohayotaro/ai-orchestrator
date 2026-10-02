@@ -44,6 +44,7 @@ SINGLE_INSTRUCTIONS = (
     "Use wait_job once for active work instead of repeated get_job polling or shell loops; progress may appear in the host. "
     "A propose_task workflow_ref may only select an already-trusted workflow advertised by inspect_project; it never installs or trusts one. "
     "When the user does not explicitly select a workflow, omit workflow_ref: the Supervisor may choose trusted authority or propose a bounded task-scoped DAG that the start HumanGate will display. "
+    "If the user explicitly requests a Supervisor model/effort, pass it as propose_task.supervisor_runtime_override; this is intake-scoped runtime intent, not persistent profile authority. Planner/Implementer/Reviewer runtime overrides remain task/node-scoped in the Supervisor proposal. "
     "Task-scoped DAG proposals never mutate the profile; persistent workflow-template save remains operator-only and requires re-trust. "
     "A user may request provider-adapter changes. For one slot, preview_provider_change/request_provider_change remains available. For swaps or multiple slots, use preview_provider_change_set/request_provider_change_set so only the final combined profile is validated and applied atomically; never emulate a swap as sequential single-slot changes. If a preview reports unfinished binding blockers, use the separate binding-cleanup flow first. "
     "AGY --dangerously-skip-permissions is never inferred from execution approval. If the user explicitly requests it, request_provider_permission first; a separate request_execution gate is still required. "

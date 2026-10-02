@@ -13,6 +13,7 @@ from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
 from .project import Project
+from .runtime_options import RuntimeOverride
 from .supervisor import Supervisor
 
 
@@ -49,6 +50,7 @@ class AskInput(Contract):
     advisory: StrictBool = False
     reply_to: str | None = None
     workflow_ref: str | None = None
+    supervisor_runtime_override: RuntimeOverride | None = None
 
     _request_id = field_validator("request_id")(identifier)
 
@@ -119,7 +121,7 @@ TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "preview_provider_change": (ProviderChangeInput, "Preview one bounded persistent provider-adapter change. This does not edit config or grant trust. Use request_provider_change in single-terminal mode for the exact confirmed change.", True),
     "preview_provider_change_set": (ProviderChangeSetInput, "Preview an atomic bounded provider-adapter change-set across multiple existing provider slots. The final profile is validated as one unit; no intermediate profile is applied. Use request_provider_change_set in single-terminal mode for the exact confirmed set.", True),
     "preview_binding_cleanup": (BindingCleanupInput, "Preview abandonment/withdrawal of exact unfinished task/intake bindings. This never rolls back workspace files or deletes history. Use request_binding_cleanup for the dedicated HumanGate.", True),
-    "propose_task": (AskInput, "Queue a natural-language Supervisor request. workflow_ref may select an already-trusted workflow from inspect_project; it never installs/trusts one. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
+    "propose_task": (AskInput, "Queue a natural-language Supervisor request. supervisor_runtime_override may set this intake's Supervisor provider-local model/effort without changing profile authority; workflow_ref may select an already-trusted workflow. Returns a job ID, NOT authorization or a completed proposal. Reuse request_id only for identical retries.", False),
     "get_job": (JobInput, "Read a queued job immediately. Prefer wait_job for active work instead of repeated polling.", True),
     "wait_job": (WaitJobInput, "Wait up to a bounded timeout for one job; in MCP single-terminal mode the server can emit progress notifications. Timeout never cancels the job.", True),
     "get_intake": (IntakeInput, "Read a proposed TaskSpec and confirmation scope. A human must confirm it using start in a separate terminal.", True),
