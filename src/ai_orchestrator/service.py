@@ -13,6 +13,7 @@ from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
 from .project import Project
+from .runtime_options import RuntimeOverride
 from .supervisor import Supervisor
 
 
@@ -49,6 +50,7 @@ class AskInput(Contract):
     advisory: StrictBool = False
     reply_to: str | None = None
     workflow_ref: str | None = None
+    supervisor_runtime_override: RuntimeOverride | None = None
 
     _request_id = field_validator("request_id")(identifier)
 
