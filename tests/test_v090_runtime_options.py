@@ -359,7 +359,7 @@ def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace)
         assert implement["model"] == "fast-model"
         assert implement["effort"] == "medium"
         assert implement["runtime_options"] == {}
-        assert implement["workspace"]["mode"] == "isolated_write"
+        assert implement["workspace"]["mode"] == "shared_project"
         assert "provider receipt is not independently attested" in implement["evidence_boundary"]
     finally:
         engine.close()
