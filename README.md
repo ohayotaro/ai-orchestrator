@@ -502,6 +502,17 @@ model/effort, the agent-facing `propose_task` call may carry
 provenance and shown in the Start HumanGate. Planner/Implementer/Reviewer
 overrides remain task/node-scoped and are proposed by the Supervisor.
 
+Successful provider calls now expose content-free controller dispatch evidence.
+Use `get_artifact(kind=provider_provenance)` for task agent nodes and
+`get_intake` for Supervisor provenance. The evidence records the exact RunRequest
+model/effort/runtime options and workspace isolation facts without prompts,
+command lines or response content. It is controller evidence, not independent
+provider-side attestation.
+
+The portable Skill keeps control-plane/tool interaction in English but requires
+the host agent to explain progress, choices, errors and results in the user's
+current conversation language.
+
 ## v0.9.0 provider-local model and effort resolution
 
 v0.9.0 makes provider selection and runtime selection separate, inspectable
