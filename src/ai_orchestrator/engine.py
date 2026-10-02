@@ -18,7 +18,7 @@ from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
 from .workflow import compile_workflow, workflow_registry, workflow_registry_report
 from .workflow_runtime import WorkflowExecutor
-from .workspaces import WorkspaceManager
+from .workspaces import ReadOnlyWorkspaceManager, WorkspaceManager
 
 
 class Engine:
@@ -46,15 +46,11 @@ class Engine:
         ambient files. Any provider write to the snapshot is rejected and the
         workspace is removed after the call.
         """
-        manager = WorkspaceManager(self.project, self.profile, owner_id, attempt)
-        workspace = None
+        manager = ReadOnlyWorkspaceManager(self.project, self.profile, owner_id, node_id)
         try:
-            workspace = manager.prepare([node_id])[node_id]
+            workspace = manager.prepare()
             yield workspace
-            if manager.seed_snapshot is None or Project(workspace).snapshot() != manager.seed_snapshot:
-                raise OrchestratorError(
-                    f"read-only provider node {node_id} modified its disposable project snapshot"
-                )
+            manager.verify_unchanged()
         finally:
             manager.cleanup()
 
