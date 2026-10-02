@@ -254,7 +254,7 @@ class AgyAdapter(CLIAdapter):
         """
         if not isinstance(value, str) or not value or len(value) > 120:
             return None
-        if not re.fullmatch(r"[A-Za-z0-9_.:/-]+", value):
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]+", value):
             return None
         return value
 
@@ -311,9 +311,10 @@ class AgyAdapter(CLIAdapter):
                 label = cls._safe_label(item.get(source_key))
                 if label is not None and target_key not in summary:
                     summary[target_key] = label
-            reason = cls._safe_label(item.get("reason"))
-            if reason is not None and "reason_code" not in summary:
-                summary["reason_code"] = reason
+            # "reason" is always treated as free-form provider content even
+            # when it happens to look identifier-like. Only an explicit
+            # reason_code field may be retained above.
+            has_reason = isinstance(item.get("reason"), str)
 
             command_value = item.get("command")
             if command_value is None:
@@ -324,7 +325,7 @@ class AgyAdapter(CLIAdapter):
             if command_shape:
                 summary["command"] = command_shape
 
-            summary["has_freeform_reason"] = isinstance(item.get("reason"), str) and reason is None
+            summary["has_freeform_reason"] = has_reason
             summary["has_details"] = any(
                 key in item for key in ("details", "description", "message")
             )
