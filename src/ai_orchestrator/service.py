@@ -187,6 +187,7 @@ class ApplicationService:
                         "trusted": engine.store.trusted(engine.profile_digest),
                         "roles": {name: {"provider": role.provider, "capabilities": role.capabilities, "candidates": role.candidates} for name, role in engine.profile.roles.items()},
                         "capabilities": engine.capability_report(),
+                        "provider_compatibility": engine.provider_compatibility_report(),
                         "runtime_options": engine.runtime_option_report(),
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
