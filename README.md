@@ -1,14 +1,14 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.9.0 alpha** adds provider-local model/effort resolution on top of the
-adaptive v0.8 control plane. Provider Resolution still decides who runs a node;
-Model Variant Resolution separately decides how that provider runs. Exact
-task/node model and effort overrides can be requested conversationally, are
-shown in HumanGate authority UX, and are frozen into task/node provenance without
-silently mutating persistent project defaults. This remains a trusted-local
-application, not authenticated human identity or a general OS-isolated control
-plane.
+**v0.9.1 alpha** adds read-only provider workspace hardening and model-level
+review independence on top of v0.9.0 Model Variant Resolution. Supervisor,
+Planner and Reviewer execute against disposable project snapshots that omit
+`.orchestrator`. Independent review no longer requires a different vendor when
+the same provider family uses explicit, unequal provider-local model IDs (for
+example Sonnet implementation and Opus review). Effort differences alone do not
+count as an independent identity. This remains a trusted-local application, not
+authenticated human identity or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
