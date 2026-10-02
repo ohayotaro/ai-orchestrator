@@ -154,10 +154,9 @@ class StdioServer:
             pending.gate = self._record_gate_transport(
                 pending.gate, outcome="timeout", response_received=True
             )
-            pending.gate = self._record_gate_transport(
-            pending.gate, outcome="timeout", response_received=False
-        )
-        result = self._abort_gate(pending.gate, "expired", "Host confirmation timed out; no operation authorized")
+            result = self._abort_gate(
+                pending.gate, "expired", "Host confirmation timed out; no operation authorized"
+            )
         elif set(message) - {"jsonrpc", "id", "result", "error"} or ("result" in message) == ("error" in message):
             pending.gate = self._record_gate_transport(
                 pending.gate, outcome="protocol_error", response_received=True
@@ -219,7 +218,12 @@ class StdioServer:
         if pending is None or time.monotonic() < pending.deadline:
             return None
         self.pending = None
-        result = self._abort_gate(pending.gate, "expired", "Host confirmation timed out; no operation authorized")
+        pending.gate = self._record_gate_transport(
+            pending.gate, outcome="timeout", response_received=False
+        )
+        result = self._abort_gate(
+            pending.gate, "expired", "Host confirmation timed out; no operation authorized"
+        )
         return self._gate_result(pending.original_id, result)
 
     def handle(self, message: Any) -> dict[str, Any] | None:
