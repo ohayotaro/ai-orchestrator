@@ -323,9 +323,14 @@ reset vendor-specific model/effort fields, and review independence is enforced
 later at task preflight after task/node runtime overrides have resolved.
 
 New intakes use schema version 3 when created by the upgraded Supervisor and may
-record `supervisor_runtime_override`, exact Supervisor provider resolution and
-Model Variant Resolution. Existing schema-v1/v2 intake artifacts remain verified
-with their historical shape; no database migration or rewrite is required.
+record `supervisor_runtime_override`, exact Supervisor provider resolution,
+Model Variant Resolution and content-free dispatch/workspace provenance. Existing
+schema-v1/v2 intake artifacts remain verified with their historical shape; no
+database migration or rewrite is required.
+
+No TaskState schema bump is required for task dispatch provenance. It is stored as
+ordinary immutable `provider_provenance` artifacts and is available through the
+existing `get_artifact` interface.
 
 Supervisor, Planner and Reviewer now execute in disposable manifest-backed
 workspaces that omit `.orchestrator` and ignored ambient files. Provider code
