@@ -73,6 +73,7 @@ class Supervisor:
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **({"runtime_overrides": intake.runtime_overrides} if intake.runtime_overrides is not None else {}),
             **({"supervisor_runtime_override": intake.supervisor_runtime_override} if intake.supervisor_runtime_override is not None else {}),
+            **({"supervisor_provider_resolution": intake.supervisor_provider_resolution} if intake.supervisor_provider_resolution is not None else {}),
             **({"supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution} if intake.supervisor_model_variant_resolution is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
@@ -106,6 +107,7 @@ class Supervisor:
                     "capability_requirements": intake.capability_requirements,
                     "runtime_overrides": intake.runtime_overrides,
                     "supervisor_runtime_override": intake.supervisor_runtime_override,
+                    "supervisor_provider_resolution": intake.supervisor_provider_resolution,
                     "supervisor_model_variant_resolution": intake.supervisor_model_variant_resolution,
                     "workflow_ref": intake.workflow_ref,
                     "workflow_source": intake.workflow_source,
@@ -341,6 +343,7 @@ class Supervisor:
                 adapter, config, variant = self.engine._resolve_variant(
                     resolution, override=supervisor_runtime_override
                 )
+                intake.supervisor_provider_resolution = resolution.model_dump()
                 intake.supervisor_model_variant_resolution = variant.model_dump()
                 adapter.doctor(config, self.project.root)
                 controls = self.project.control_snapshot()
