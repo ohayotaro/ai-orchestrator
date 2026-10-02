@@ -253,5 +253,27 @@ class ModelVariantResolver:
         return saved
 
 
+def execution_identities_independent(
+    first_provider: ProviderResolution,
+    first_variant: ModelVariantResolution,
+    second_provider: ProviderResolution,
+    second_variant: ModelVariantResolution,
+) -> bool:
+    """Review independence: distinct family, or a provably distinct model in one family.
+
+    Effort alone is not an independent identity. When both providers are in the
+    same family, both model IDs must be explicit and unequal. Provider-local
+    aliases are compared literally because the kernel must not invent vendor
+    model equivalence.
+    """
+    if first_provider.family != second_provider.family:
+        return True
+    return bool(
+        first_variant.model
+        and second_variant.model
+        and first_variant.model != second_variant.model
+    )
+
+
 def config_for_variant(config: ProviderConfig, resolution: ModelVariantResolution) -> ProviderConfig:
     return config.model_copy(update={"model": resolution.model, "effort": resolution.effort})
