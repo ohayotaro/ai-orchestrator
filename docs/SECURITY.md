@@ -482,3 +482,19 @@ Operator-managed AGY scoped permissions may be adjusted outside Orchestrator and
 a new intake may then be attempted. The broad
 `--dangerously-skip-permissions` path remains explicit, high-risk and
 task/attempt-scoped; it is not inferred as a remedy for read-only intake phases.
+
+
+## HumanGate transport diagnostics
+
+Single-terminal HumanGates persist a content-free MCP transport record alongside
+the gate ledger. It may contain the client-reported name/version, negotiated MCP
+protocol version, whether elicitation/form/url capabilities were advertised,
+whether the server sent `elicitation/create`, whether a correlated response
+arrived, and a bounded outcome such as response/cancel, host error, timeout,
+origin-request cancellation or disconnect.
+
+The record does not store form response content beyond the action label, UI text,
+task content, credentials or arbitrary host error messages. A capability
+advertisement or `response_action=accept` is not proof that a human personally
+saw or clicked the form. These fields exist to diagnose host/server
+interoperability without weakening the HumanGate authority boundary.

@@ -104,6 +104,8 @@ class StdioServer:
         self.single_terminal = single_terminal
         self.gate_timeout = gate_timeout
         self.form_supported = False
+        self.client_info: dict[str, str] = {}
+        self.elicitation_capabilities: dict[str, bool] = {"advertised": False, "form": False, "url": False}
         self.session = uuid.uuid4().hex
         self.broker: HumanGateBroker | None = None
         self.pending: Pending | None = None
@@ -121,6 +123,19 @@ class StdioServer:
             self.auto_worker.kick()
         return self._result(original_id, result, result["gate_status"] in ("expired", "failed", "stale", "uncertain"))
 
+    def _record_gate_transport(self, gate: HumanGate, **values: Any) -> HumanGate:
+        if self.broker is None:
+            return gate
+        base = {
+            "schema_version": 1,
+            "client": dict(self.client_info),
+            "negotiated_protocol": self.protocol,
+            "elicitation_capabilities": dict(self.elicitation_capabilities),
+            "form_supported": self.form_supported,
+        }
+        base.update(values)
+        return self.broker.store.update_transport_diagnostics(gate.id, self.session, base)
+
     def _abort_gate(self, gate: HumanGate, status: str, reason: str) -> dict:
         try:
             return self.broker.abort(gate, status, reason)
@@ -136,13 +151,41 @@ class StdioServer:
             return None  # Unknown/late/duplicate responses never grant authority.
         self.pending = None  # Consume the transport correlation before doing any effect.
         if time.monotonic() >= pending.deadline:
-            result = self._abort_gate(pending.gate, "expired", "Host confirmation timed out; no operation authorized")
+            pending.gate = self._record_gate_transport(
+                pending.gate, outcome="timeout", response_received=True
+            )
+            result = self._abort_gate(
+                pending.gate, "expired", "Host confirmation timed out; no operation authorized"
+            )
         elif set(message) - {"jsonrpc", "id", "result", "error"} or ("result" in message) == ("error" in message):
+            pending.gate = self._record_gate_transport(
+                pending.gate, outcome="protocol_error", response_received=True
+            )
             result = self._abort_gate(pending.gate, "failed", "Malformed elicitation response; no operation authorized")
         elif "error" in message:
-            result = self._abort_gate(pending.gate, "failed", "Host could not present/complete confirmation; use operator CLI manually if needed")
+            error_value = message.get("error")
+            error_code = error_value.get("code") if isinstance(error_value, dict) and type(error_value.get("code")) is int else None
+            pending.gate = self._record_gate_transport(
+                pending.gate,
+                outcome="host_error",
+                response_received=True,
+                host_error_code=error_code,
+            )
+            result = self._abort_gate(
+                pending.gate,
+                "failed",
+                "Host could not present/complete confirmation; no operation authorized",
+            )
         else:
-            result = self.broker.resolve(pending.gate, message["result"])
+            response = message["result"]
+            action = response.get("action") if isinstance(response, dict) and isinstance(response.get("action"), str) else None
+            pending.gate = self._record_gate_transport(
+                pending.gate,
+                outcome="response",
+                response_received=True,
+                response_action=action,
+            )
+            result = self.broker.resolve(pending.gate, response)
         return self._gate_result(pending.original_id, result)
 
     def _poll_wait(self) -> list[dict]:
@@ -175,7 +218,12 @@ class StdioServer:
         if pending is None or time.monotonic() < pending.deadline:
             return None
         self.pending = None
-        result = self._abort_gate(pending.gate, "expired", "Host confirmation timed out; no operation authorized")
+        pending.gate = self._record_gate_transport(
+            pending.gate, outcome="timeout", response_received=False
+        )
+        result = self._abort_gate(
+            pending.gate, "expired", "Host confirmation timed out; no operation authorized"
+        )
         return self._gate_result(pending.original_id, result)
 
     def handle(self, message: Any) -> dict[str, Any] | None:
@@ -193,6 +241,9 @@ class StdioServer:
                 self.ready = True
             if method == "notifications/cancelled" and isinstance(params, dict) and self.pending and type(params.get("requestId")) is type(self.pending.original_id) and params.get("requestId") == self.pending.original_id:
                 pending, self.pending = self.pending, None
+                pending.gate = self._record_gate_transport(
+                    pending.gate, outcome="origin_request_cancelled", response_received=False
+                )
                 result = self._abort_gate(pending.gate, "cancelled", "Originating tool request cancelled; no operation authorized")
                 return self._gate_result(pending.original_id, result)
             if method == "notifications/cancelled" and isinstance(params, dict) and self.waiting and type(params.get("requestId")) is type(self.waiting.original_id) and params.get("requestId") == self.waiting.original_id:
@@ -214,7 +265,16 @@ class StdioServer:
             if not isinstance(version, str) or not isinstance(params.get("capabilities"), dict) or not isinstance(params.get("clientInfo"), dict) or not all(isinstance(params["clientInfo"].get(key), str) and params["clientInfo"][key] for key in ("name", "version")):
                 return error(request_id, -32602, "Missing initialization parameters")
             self.protocol = version if version in PROTOCOLS else PROTOCOLS[-1]
+            self.client_info = {
+                "name": str(params["clientInfo"].get("name", ""))[:128],
+                "version": str(params["clientInfo"].get("version", ""))[:128],
+            }
             elicitation = params["capabilities"].get("elicitation")
+            self.elicitation_capabilities = {
+                "advertised": isinstance(elicitation, dict),
+                "form": isinstance(elicitation, dict) and isinstance(elicitation.get("form"), dict),
+                "url": isinstance(elicitation, dict) and isinstance(elicitation.get("url"), dict),
+            }
             self.form_supported = self.protocol == "2025-06-18" and isinstance(elicitation, dict) and (not elicitation or isinstance(elicitation.get("form"), dict))
             if self.single_terminal:
                 self.broker = HumanGateBroker(self.service, self.session, params["clientInfo"], ttl=self.gate_timeout)
@@ -252,7 +312,7 @@ class StdioServer:
                 if name in GATE_TOOLS:
                     parsed = GATE_TOOLS[name][0].model_validate(arguments)
                     if not self.form_supported:
-                        raise OrchestratorError("client does not advertise supported form elicitation; no operation authorized. Use operator CLI manually; never substitute chat text or a tool-permission allowlist")
+                        raise OrchestratorError("client does not advertise supported form elicitation; no operation authorized. Use a host that supports the required HumanGate; never substitute chat text, CLI authority commands, or a tool-permission allowlist")
                     if name == "request_provider_change":
                         gate = self.broker.prepare_provider_change(parsed)
                     elif name == "request_provider_change_set":
@@ -268,6 +328,12 @@ class StdioServer:
                     if gate.status != "pending":
                         return self._gate_result(request_id, self.broker.describe(gate))
                     elicitation_id = "E-" + uuid.uuid4().hex
+                    gate = self._record_gate_transport(
+                        gate,
+                        elicitation_sent=True,
+                        response_received=False,
+                        outcome="pending",
+                    )
                     self.pending = Pending(request_id, elicitation_id, gate, time.monotonic() + self.gate_timeout)
                     return {"jsonrpc": "2.0", "id": elicitation_id, "method": "elicitation/create", "params": self.broker.form(gate)}
                 output = self.service.invoke(name, arguments)
@@ -276,7 +342,16 @@ class StdioServer:
                         self.auto_worker.kick()
                     if name == "inspect_project":
                         output["execution"] = "automatically managed separate workers; no host-session model recursion"
-                        output["host_confirmation"] = {"enabled": True, "form_supported": self.form_supported, "assurance": ASSURANCE}
+                        output["host_confirmation"] = {
+                            "enabled": True,
+                            "form_supported": self.form_supported,
+                            "assurance": ASSURANCE,
+                            "transport": {
+                                "client": dict(self.client_info),
+                                "negotiated_protocol": self.protocol,
+                                "elicitation_capabilities": dict(self.elicitation_capabilities),
+                            },
+                        }
                         output["worker"] = self.auto_worker.status()
                     if name in ("get_job", "propose_task", "run_task"):
                         output["poll_after_seconds"] = 2
@@ -314,6 +389,9 @@ class StdioServer:
         self.waiting = None
         if self.pending is not None and self.broker is not None:
             pending, self.pending = self.pending, None
+            pending.gate = self._record_gate_transport(
+                pending.gate, outcome="disconnect", response_received=False
+            )
             self._abort_gate(pending.gate, "cancelled", "MCP session closed before confirmation; no operation authorized")
         if self.broker:
             self.broker.close()

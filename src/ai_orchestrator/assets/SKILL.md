@@ -59,9 +59,15 @@ separately and explicitly requests that task/attempt-scoped high-risk authority;
 that grant is not a remedy for Supervisor/Planner read-only intake failures.
 
 If the host lacks supported forms, declines, cancels, disconnects or times out,
-STOP. Report the exact gate state. Do not fall back to executing approval commands
-through your shell, retry with fresh IDs until approved, or remove session guards.
-The user may explicitly choose the legacy operator-terminal workflow instead.
+STOP. Report the exact gate state and, when present, the gate's
+`transport_diagnostics`: client name/version, negotiated protocol, advertised
+elicitation form/url capability, whether `elicitation/create` was sent, whether
+a response arrived, and its action/outcome. Treat these as transport diagnostics,
+not proof that a human saw or clicked a form. Do not fall back to executing
+approval/configuration commands through shell or CLI, retry with fresh IDs until
+approved, or remove session guards. The user may explicitly choose the legacy
+operator-terminal workflow in a separate setup decision, not as a fallback from
+a failed HumanGate.
 
 In legacy mode (`host_confirmation` absent), the operator starts a separate
 worker and performs trust/start/approve/accept. Do not perform these actions for

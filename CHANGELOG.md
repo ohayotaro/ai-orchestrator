@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.2 — HumanGate interoperability diagnostics follow-up
+
+- Persist content-free MCP HumanGate transport diagnostics in the gate ledger:
+  client name/version, negotiated protocol, advertised form/url elicitation
+  capabilities, form-support decision, elicitation-send state and terminal
+  response outcome/action.
+- Distinguish explicit host cancel/decline, host protocol error, timeout,
+  originating-request cancellation and disconnect without storing form content
+  or provider/user payloads.
+- Expose the diagnostics through HumanGate results and `orchestrator gate G-ID`,
+  and include negotiated host capability data in `inspect_project`.
+- Remove CLI-authority fallback guidance when form elicitation is unsupported;
+  a failed HumanGate must not silently downgrade to another authority channel.
+
 ## 0.9.2 — alpha
 
 - Mark AGY Supervisor/Planner/Reviewer headless use as conditional support rather

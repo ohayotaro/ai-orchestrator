@@ -123,6 +123,7 @@ class HumanGate(Contract):
     status: Literal["pending", "applying", "applied", "declined", "cancelled", "expired", "stale", "failed", "uncertain"] = "pending"
     result: dict[str, Any] | None = None
     error: str | None = None
+    transport_diagnostics: dict[str, Any] | None = None
 
 
 def safe_display(value: dict[str, Any]) -> str:
@@ -444,6 +445,25 @@ class GateStore:
             self._save(gate, previous)
         return gate
 
+    def update_transport_diagnostics(
+        self, gate_id: str, session: str, values: dict[str, Any]
+    ) -> HumanGate:
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            gate = self.get(gate_id)
+            if gate.session != session or gate.local_uid != os.getuid():
+                raise OrchestratorError("gate is not owned by this session")
+            merged = dict(gate.transport_diagnostics or {})
+            merged.update(values)
+            gate.transport_diagnostics = merged
+            cursor = self.db.execute(
+                "UPDATE gates SET data=? WHERE id=? AND status=?",
+                (gate.model_dump_json(), gate.id, gate.status),
+            )
+            if cursor.rowcount != 1:
+                raise OrchestratorError("gate changed while recording transport diagnostics")
+        return gate
+
 
 class HumanGateBroker:
     def __init__(self, service: ApplicationService, session: str, client: dict[str, str], *, ttl: float = 120):
@@ -753,7 +773,8 @@ class HumanGateBroker:
     @staticmethod
     def describe(gate: HumanGate) -> dict[str, Any]:
         return {"gate_id": gate.id, "kind": gate.kind, "subject": gate.subject, "gate_status": gate.status,
-                "scope": gate.scope, "assurance": ASSURANCE, "result": gate.result, "error": gate.error}
+                "scope": gate.scope, "assurance": ASSURANCE, "result": gate.result, "error": gate.error,
+                "transport_diagnostics": gate.transport_diagnostics}
 
     def abort(self, gate: HumanGate, status: str, message: str) -> dict[str, Any]:
         updated = self.store.transition(gate.id, self.session, "pending", status, error=message)

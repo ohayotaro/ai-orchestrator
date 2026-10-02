@@ -162,7 +162,12 @@ state, current worktree and expiration, with a local audit record.
 
 **The protocol does not attest that a human personally answered.** Clients or
 Claude Code hooks can auto-answer elicitation. Enabling single-terminal mode
-therefore explicitly trusts the local client's response channel. Use an
+therefore explicitly trusts the local client's response channel. HumanGate
+records also retain content-free MCP transport diagnostics: client name/version,
+negotiated protocol, advertised form/url elicitation capability, whether the
+server sent `elicitation/create`, and whether the host returned
+accept/decline/cancel, an error, timeout, or disconnect. This is interoperability
+evidence, not human-presence attestation. Use an
 interactive client with approval automation disabled when personal confirmation
 is required. No authenticated live v0.4 client test is claimed by the offline suite.
 See [Single-terminal design and setup](docs/SINGLE_TERMINAL.md).
