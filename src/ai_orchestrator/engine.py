@@ -709,24 +709,46 @@ class Engine:
                                                 "adapter_api_version": resolution.adapter_api_version,
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
+        workspace_evidence: dict[str, object] = {}
         try:
             if role == "implementer":
-                raw = adapter.execute(RunRequest(
+                workspace_evidence.update({
+                    "mode": "shared_project",
+                    "outside_project": False,
+                    "control_dir_materialized": (self.project.root / ".orchestrator").exists(),
+                    "unchanged_verified": None,
+                    "cleaned": None,
+                })
+                request_value = RunRequest(
                     state.phase, self._prompt(state, role), self.project.root, config,
                     min(policy.call_timeout_seconds, remaining),
                     lambda: self.store.cancelled(state.spec.id),
                     result_model=model,
                     runtime_options=dict(variant.options),
-                ))
+                )
+                raw = adapter.execute(request_value)
             else:
-                with self.readonly_workspace(state.spec.id, state.attempt, role) as provider_workspace:
-                    raw = adapter.execute(RunRequest(
+                with self.readonly_workspace(
+                    state.spec.id, state.attempt, role, evidence=workspace_evidence
+                ) as provider_workspace:
+                    request_value = RunRequest(
                         state.phase, self._prompt(state, role), provider_workspace, config,
                         min(policy.call_timeout_seconds, remaining),
                         lambda: self.store.cancelled(state.spec.id),
                         result_model=model,
                         runtime_options=dict(variant.options),
-                    ))
+                    )
+                    raw = adapter.execute(request_value)
+            self.record_provider_provenance(
+                state,
+                self.dispatch_provenance(
+                    request_value,
+                    resolution,
+                    variant,
+                    role=role,
+                    workspace_evidence=workspace_evidence,
+                ),
+            )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
             state.elapsed_seconds += time.monotonic() - start
