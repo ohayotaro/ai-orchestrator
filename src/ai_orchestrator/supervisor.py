@@ -281,13 +281,16 @@ class Supervisor:
                 intake.calls += 1
                 self.store.save_intake(intake, "supervisor.started")
                 start = time.monotonic()
-                raw = adapter.execute(RunRequest(
-                    "supervise", prompt, self.project.root, config,
-                    min(remaining, policy.call_timeout_seconds),
-                    lambda: self.store.cancelled(intake.id),
-                    result_model=SupervisorResultScoped,
-                    runtime_options=dict(variant.options),
-                ))
+                with self.engine.readonly_workspace(
+                    intake.id, intake.round, "supervisor"
+                ) as provider_workspace:
+                    raw = adapter.execute(RunRequest(
+                        "supervise", prompt, provider_workspace, config,
+                        min(remaining, policy.call_timeout_seconds),
+                        lambda: self.store.cancelled(intake.id),
+                        result_model=SupervisorResultScoped,
+                        runtime_options=dict(variant.options),
+                    ))
                 if self.store.cancelled(intake.id):
                     raise OrchestratorError("Supervisor cancelled; no task was created")
                 self._check_profile(intake.profile_digest)
