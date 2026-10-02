@@ -63,6 +63,7 @@ def process_one(queue: JobQueue, *, registry: dict[str, ProviderAdapter] | None 
             intake = Supervisor(engine).ask(
                 params.request, task_id=params.task_id, advisory=params.advisory,
                 reply_to=params.reply_to, workflow_ref=params.workflow_ref,
+                supervisor_runtime_override=params.supervisor_runtime_override,
                 expected_workspace=job.workspace_snapshot,
             )
             job.result = Supervisor(engine).describe(intake.id)
