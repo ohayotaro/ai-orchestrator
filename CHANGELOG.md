@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.1 — alpha
+
+- Run Supervisor, Planner and Reviewer provider calls from disposable project
+  snapshots that exclude `.orchestrator` and ignored ambient files; reject writes
+  to those read-only snapshots and delete them after each call.
+- Keep AGY headless permission failures fail-closed. v0.9.1 does not auto-enable
+  `--dangerously-skip-permissions` for read-only phases merely to make a provider
+  accept shell commands.
+- Expand review independence beyond vendor-family separation: a reviewer is
+  independent when it uses a different provider family, or when both same-family
+  executions have explicit, unequal provider-local model IDs. Effort differences
+  alone do not count.
+- Preserve historical dynamic-routing diversity: unbound reviewer routing still
+  prefers a different provider family, while fixed/task-scoped bindings may use
+  distinct models from the same vendor.
+- Add regression coverage for same-family/different-model review, same-model
+  rejection, and read-only control-directory isolation.
+
 ## 0.9.0 — alpha
 
 - Add a versioned adapter runtime-option registry and a separate Model Variant
