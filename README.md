@@ -176,7 +176,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.9.0
+.venv/bin/orchestrator --version  # 0.9.1
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -480,6 +480,21 @@ verified resulting digest. No intermediate same-family provider configuration is
 created. Existing single-provider change tools remain available as compatibility
 wrappers.
 
+
+## v0.9.1 read-only provider hardening and model-level review independence
+
+Supervisor, Planner and Reviewer now run against disposable project snapshots that
+exclude `.orchestrator` and ignored ambient files. The controller rejects writes
+to these read-only snapshots and removes them after each call. Provider-native
+headless permission failures remain fail-closed; v0.9.1 does not silently grant
+broad AGY permissions.
+
+The compatibility policy `cross_provider_review: true` no longer requires two
+vendors in every configuration. Review independence is satisfied by either a
+different provider family or explicit unequal provider-local model IDs within the
+same family. Thus a single Claude provider slot may run, for example, Sonnet for
+implementation and Opus for review via task/node runtime overrides. Effort alone
+does not establish independence.
 
 ## v0.9.0 provider-local model and effort resolution
 
