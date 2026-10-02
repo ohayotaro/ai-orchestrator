@@ -241,12 +241,18 @@ def test_atomic_provider_swap_validates_final_profile_not_intermediate_states(wo
         engine.trust("operator")
         old_digest = engine.profile_digest
 
-        # Either single-slot half-swap violates cross-provider review.
-        with pytest.raises(OrchestratorError):
-            from ai_orchestrator.authority import provider_change_preview
-            provider_change_preview(engine, "engineering", "claude")
-        with pytest.raises(OrchestratorError):
-            provider_change_preview(engine, "reasoning", "agy")
+        # v0.9.1 authority validation no longer rejects a temporary same-family
+        # profile before task-level Model Variant Resolution exists.
+        from ai_orchestrator.authority import provider_change_preview
+        engineering_only = provider_change_preview(engine, "engineering", "claude")
+        assert engineering_only["ready"] is True
+        assert engineering_only["resolution_after"]["roles"]["implementer"]["family"] == "anthropic"
+        assert engineering_only["resolution_after"]["roles"]["reviewer"]["family"] == "anthropic"
+
+        reasoning_only = provider_change_preview(engine, "reasoning", "agy")
+        assert reasoning_only["ready"] is True
+        assert reasoning_only["resolution_after"]["roles"]["implementer"]["family"] == "google"
+        assert reasoning_only["resolution_after"]["roles"]["reviewer"]["family"] == "google"
 
         from ai_orchestrator.authority import provider_change_set_preview
         preview = provider_change_set_preview(
