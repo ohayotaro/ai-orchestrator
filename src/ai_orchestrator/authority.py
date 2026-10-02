@@ -26,26 +26,32 @@ def _assert_current_trusted(engine) -> str:
 
 
 def _validate_proposed_profile(engine, profile: Profile) -> dict[str, Any]:
-    # Workflow authority must still compile under the proposed profile.
+    """Validate persistent provider authority without pre-solving task runtime policy.
+
+    v0.9.1 review independence may be satisfied by task/node-scoped explicit model
+    choices after Provider Resolution. Adapter changes also reset vendor-specific
+    model/effort fields. Therefore a profile change must validate that every role
+    can resolve to a capable provider, but it must not reject a same-family
+    implementer/reviewer pair before the task's Model Variant Resolution exists.
+    Runtime preflight remains the fail-closed enforcement point.
+    """
     workflow_registry(profile)
     resolver = CapabilityResolver(profile, engine.registry)
     roles: dict[str, Any] = {}
-    implementer_family: str | None = None
     for role in ("supervisor", "planner", "implementer", "reviewer"):
         if role != "supervisor" and role not in profile.roles:
             continue
-        exclude = (
-            {implementer_family}
-            if role == "reviewer"
-            and profile.policy.cross_provider_review
-            and implementer_family
-            else None
-        )
-        resolution = resolver.resolve(role, exclude_families=exclude)
+        resolution = resolver.resolve(role)
         roles[role] = resolution.model_dump()
-        if role == "implementer":
-            implementer_family = resolution.family
-    return {"roles": roles, "providers": resolver.report()["providers"]}
+    return {
+        "roles": roles,
+        "providers": resolver.report()["providers"],
+        "review_independence": (
+            "task_preflight: different provider family or explicit distinct model IDs"
+            if profile.policy.cross_provider_review
+            else "disabled"
+        ),
+    }
 
 
 def binding_cleanup_preview(
