@@ -177,7 +177,14 @@ class AgyAdapter(CLIAdapter):
                     "Permission denial fails closed; do not auto-enable --dangerously-skip-permissions or rewrite the task prompt to bypass native permission policy.",
                 ],
             }
-        return super().role_compatibility(role)
+        report = super().role_compatibility(role)
+        if role == "implementer":
+            report["orchestrator_attests_permissions_sufficient"] = False
+            report["limitations"] = [
+                "AGY native permission policy may still deny implementation tools; denial fails closed.",
+                "Any Orchestrator broad-permission grant remains separate explicit task/attempt-scoped authority.",
+            ]
+        return report
 
     def command_line(self, request: RunRequest, schema: Path) -> list[str]:
         timeout_seconds = max(1, int(request.timeout))
