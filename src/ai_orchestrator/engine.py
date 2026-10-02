@@ -368,6 +368,67 @@ class Engine:
         adapter, config, variant = self._resolve_variant(resolution, frozen=frozen, override=override)
         return adapter, config, resolution, variant
 
+    def provider_compatibility_report(self) -> dict[str, Any]:
+        providers: dict[str, Any] = {}
+        for name, config in sorted(self.profile.providers.items()):
+            adapter = self.registry.get(config.adapter)
+            if adapter is None:
+                providers[name] = {
+                    "provider": name,
+                    "adapter": config.adapter,
+                    "error": "adapter is not installed",
+                }
+                continue
+            role_reports = {}
+            for role in ("supervisor", "planner", "implementer", "reviewer"):
+                if role != "supervisor" and role not in self.profile.roles:
+                    continue
+                compatibility = getattr(adapter, "role_compatibility", None)
+                role_reports[role] = (
+                    compatibility(role)
+                    if callable(compatibility)
+                    else {
+                        "status": "supported",
+                        "role": role,
+                        "adapter": config.adapter,
+                        "requires_native_scoped_permissions": False,
+                        "orchestrator_attests_permissions_sufficient": True,
+                        "limitations": [],
+                    }
+                )
+            providers[name] = {
+                "provider": name,
+                "adapter": config.adapter,
+                "roles": role_reports,
+            }
+
+        roles: dict[str, Any] = {}
+        for role in ("supervisor", "planner", "implementer", "reviewer"):
+            if role != "supervisor" and role not in self.profile.roles:
+                continue
+            try:
+                resolution = self.capability_resolver.resolve(role)
+                provider_report = providers.get(resolution.provider, {})
+                compatibility = provider_report.get("roles", {}).get(role)
+                roles[role] = {
+                    "provider": resolution.provider,
+                    "adapter": resolution.adapter,
+                    "family": resolution.family,
+                    "compatibility": compatibility,
+                }
+            except OrchestratorError as exc:
+                roles[role] = {"role": role, "error": str(exc)}
+
+        return {
+            "schema_version": 1,
+            "providers": providers,
+            "roles": roles,
+            "policy": (
+                "compatibility metadata is advisory capability evidence, not an authority grant; "
+                "conditional roles may execute and fail closed on provider-native permission denial"
+            ),
+        }
+
     def runtime_option_report(self) -> dict[str, Any]:
         providers: dict[str, Any] = {}
         for name, config in sorted(self.profile.providers.items()):
