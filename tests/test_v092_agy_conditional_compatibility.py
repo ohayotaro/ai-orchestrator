@@ -98,4 +98,4 @@ def test_skill_forbids_prompt_rewrite_auto_retry_after_agy_denial():
     assert "STOP after the denial" in text
     assert 'such as "do not use shell"' in text
     assert "explicitly start a new intake" in text
-    assert "not a Supervisor/Planner intake workaround" in text
+    assert "not a remedy for Supervisor/Planner read-only intake failures" in text
