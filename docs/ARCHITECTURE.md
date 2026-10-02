@@ -339,3 +339,25 @@ The Supervisor sees controller-generated runtime-option metadata and may emit
 runtime overrides only as task-scoped intent. Overrides are validated against
 actual agent roles/node IDs in the selected workflow and never mutate the trusted
 project profile. Persistent defaults remain project authority.
+
+
+## v0.9.1 read-only execution identity
+
+Read-only model phases no longer execute in the controller's project root.
+Supervisor, Planner and Reviewer receive a disposable Git-backed materialization
+of the project manifest. The materialization deliberately excludes
+`.orchestrator` and ignored ambient files, preserves the current tracked and
+nonignored-untracked project snapshot, rejects provider writes, and is removed
+after the call. The controller continues to bind approvals and validation to the
+real project snapshot.
+
+The compatibility policy field `cross_provider_review` now means independent
+execution identity rather than literally different vendors. Different provider
+families are independent. Within one family, independence is accepted only when
+both resolved model IDs are explicit and unequal. Provider-local model strings
+are compared literally; the kernel does not maintain a vendor alias-equivalence
+catalog. A difference in effort/reasoning level alone is not independence.
+
+Dynamic reviewer routing without a fixed provider retains the historical
+different-family preference. Fixed provider bindings and task/node runtime
+overrides can intentionally choose distinct models from the same family.

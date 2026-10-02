@@ -408,3 +408,26 @@ digest and resolved settings are frozen. Adapter metadata drift, profile drift o
 runtime override drift requires fresh task/approval authority rather than silent
 continuation. This consistency mechanism still does not defend against a hostile
 same-OS-user actor rewriting installed controller/provider code.
+
+
+## v0.9.1 read-only provider hardening
+
+Supervisor, Planner and Reviewer are given disposable project snapshots outside
+the controller worktree. `.orchestrator` and ignored ambient files are not
+materialized, project symlinks fail closed rather than being followed, and
+provider writes to the snapshot cause the call to fail. This
+reduces accidental control-plane discovery such as inspecting task/runtime files;
+it is not an OS security boundary. A provider command can still be subject to its
+own native permission policy and sandbox behavior.
+
+In particular, the controller does not automatically grant AGY
+`--dangerously-skip-permissions` to make headless read-only calls succeed.
+Provider-native permission denials remain fail-closed. Operators should not
+progressively widen global provider command permissions merely to accommodate
+model-generated shell syntax.
+
+Review independence is an error-diversity policy, not a security proof.
+Different provider families qualify. Same-family review qualifies only when both
+resolved provider-local model IDs are explicit and unequal. Aliases are compared
+literally, so two different strings can still refer to related or equivalent
+vendor models; operators remain responsible for model selection.

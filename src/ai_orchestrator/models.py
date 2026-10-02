@@ -128,6 +128,8 @@ class ValidatorConfig(Contract):
 
 class Policy(Contract):
     require_execution_approval: StrictBool = True
+    # Compatibility name: True now requires an independent execution identity:
+    # different provider family, or explicit distinct model IDs within one family.
     cross_provider_review: StrictBool = True
     protected_paths: list[str] = Field(default_factory=lambda: [".env"])
     max_attempts: int = Field(default=3, ge=1, le=10, strict=True)
