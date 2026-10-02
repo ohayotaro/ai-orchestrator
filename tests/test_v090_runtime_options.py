@@ -261,3 +261,81 @@ def test_frozen_runtime_metadata_drift_fails_closed(workspace):
         assert "model/effort/runtime-option resolution changed since task binding" in state.error
     finally:
         engine.close()
+
+
+def test_same_family_distinct_models_satisfy_independent_review(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "claude"
+    profile["providers"]["engineering"]["adapter"] = "claude"
+    profile["providers"]["reasoning"]["model"] = "deep-model"
+    profile["providers"]["engineering"]["model"] = "fast-model"
+    config_path.write_text(yaml.safe_dump(profile))
+
+    claude = RuntimeAdapter("anthropic")
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        engine.trust("test-operator")
+        state = engine.create(spec("same-family-model-review"))
+        state = engine.run(state.spec.id)
+        assert state.status == "awaiting_approval", state.error
+        implementer = state.model_variant_resolutions["implementer"]
+        reviewer = state.model_variant_resolutions["reviewer"]
+        assert implementer["model"] == "fast-model"
+        assert reviewer["model"] == "deep-model"
+        assert state.provider_resolutions["implementer"]["family"] == "anthropic"
+        assert state.provider_resolutions["reviewer"]["family"] == "anthropic"
+    finally:
+        engine.close()
+
+
+def test_same_family_same_model_fails_independent_review(workspace):
+    config_path = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config_path.read_text())
+    profile["providers"]["reasoning"]["adapter"] = "claude"
+    profile["providers"]["engineering"]["adapter"] = "claude"
+    profile["providers"]["reasoning"]["model"] = "deep-model"
+    profile["providers"]["engineering"]["model"] = "deep-model"
+    config_path.write_text(yaml.safe_dump(profile))
+
+    claude = RuntimeAdapter("anthropic")
+    engine = Engine(workspace, {"claude": claude})
+    try:
+        engine.trust("test-operator")
+        state = engine.create(spec("same-family-same-model"))
+        state = engine.run(state.spec.id)
+        assert state.status == "blocked"
+        assert "different provider family or explicit distinct model IDs" in state.error
+    finally:
+        engine.close()
+
+
+def test_read_only_workflow_nodes_do_not_see_orchestrator_control_dir(workspace):
+    class ObservingAdapter(RuntimeAdapter):
+        def __init__(self, family):
+            super().__init__(family)
+            self.control_visibility = []
+
+        def execute(self, request):
+            if request.phase in ("plan", "review"):
+                self.control_visibility.append(
+                    (request.phase, (request.workspace / ".orchestrator").exists())
+                )
+            return super().execute(request)
+
+    reasoning = ObservingAdapter("anthropic")
+    engineering = RuntimeAdapter("openai")
+    engine = Engine(workspace, {"claude": reasoning, "codex": engineering})
+    try:
+        engine.trust("test-operator")
+        state = engine.create(spec("readonly-control-isolation"))
+        state = engine.run(state.spec.id)
+        assert state.status == "awaiting_approval", state.error
+        assert ("plan", False) in reasoning.control_visibility
+
+        engine.approve(state.spec.id, engine.approval_scope(state), "test-operator")
+        state = engine.run(state.spec.id)
+        assert state.status == "awaiting_acceptance", state.error
+        assert ("review", False) in reasoning.control_visibility
+    finally:
+        engine.close()
