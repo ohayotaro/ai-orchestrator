@@ -223,11 +223,12 @@ get_artifact(task_id=..., kind=usage)
 get_artifact(task_id=..., kind=budget)
 ```
 
-HumanGate start/execution/acceptance previews include a compact budget summary.
-Execution and acceptance previews also bind the current normalized usage/budget
-objects into the exact scope digest. The full task state, profile digest,
-workspace/protected/control snapshots and normal approval invariants remain in
-force.
+HumanGate start/execution/acceptance previews include compact usage and budget
+summaries rather than embedding the full call ledger in the form payload. The
+complete Supervisor intake scope or TaskState/artifact hashes remain part of the
+exact gate scope, so compact presentation does not truncate the authority
+binding. Profile digest, workspace/protected/control snapshots and the normal
+approval invariants remain in force.
 
 ## Non-goals and evidence boundary
 
