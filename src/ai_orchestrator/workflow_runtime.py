@@ -488,6 +488,7 @@ class WorkflowExecutor:
         artifacts.append(result_name)
         if result.outcome == "blocked":
             raise OrchestratorError("agent reported blocked: " + result.summary)
+        engine.enforce_post_call_budget(state)
 
         node_state.status = "succeeded"
         node_state.artifact_kinds = artifacts
@@ -681,7 +682,6 @@ class WorkflowExecutor:
                             cancel_event.set()
 
             state.elapsed_seconds += time.monotonic() - started
-            budget_errors: list[Exception] = []
             for node in nodes:
                 item = prepared[node.id]
                 telemetry = item.get("telemetry") or {}
@@ -690,22 +690,19 @@ class WorkflowExecutor:
                         state, "provider.tool_telemetry",
                         {"node": node.id, "phase": "execute", **telemetry},
                     )
-                try:
-                    engine.record_usage(
-                        state,
-                        resolution=item["resolution"],
-                        variant=item["variant"],
-                        descriptor=item["usage_contract"],
-                        role=node.role,
-                        node=node.id,
-                        phase="execute",
-                        outcome="completed" if node.id in raw_results else "failed",
-                        elapsed_seconds=float(item.get("call_elapsed") or 0.0),
-                        raw=item.get("usage") or {},
-                        call_index=item["call_index"],
-                    )
-                except Exception as exc:
-                    budget_errors.append(exc)
+                engine.record_usage(
+                    state,
+                    resolution=item["resolution"],
+                    variant=item["variant"],
+                    descriptor=item["usage_contract"],
+                    role=node.role,
+                    node=node.id,
+                    phase="execute",
+                    outcome="completed" if node.id in raw_results else "failed",
+                    elapsed_seconds=float(item.get("call_elapsed") or 0.0),
+                    raw=item.get("usage") or {},
+                    call_index=item["call_index"],
+                )
             if engine.store.cancelled(state.spec.id):
                 raise OrchestratorError("execution cancelled")
             if errors:
@@ -716,8 +713,6 @@ class WorkflowExecutor:
                 raise OrchestratorError(
                     f"workflow node {node_id}: isolated provider failed: {provider_error}"
                 ) from provider_error
-            if budget_errors:
-                raise budget_errors[0]
             for node in nodes:
                 item = prepared[node.id]
                 workspace_evidence = {
@@ -803,6 +798,9 @@ class WorkflowExecutor:
                 raise OrchestratorError("protected project files changed while isolated workers were running; integration was not applied")
             if engine.project.control_snapshot() != root_controls:
                 raise OrchestratorError("orchestration control files changed while isolated workers were running; integration was not applied")
+            # Usage is accounted before integrating worker effects. Strict
+            # overrun/unknown evidence therefore stops the root-worktree effect.
+            engine.enforce_post_call_budget(state)
 
             integration = manager.integrate(patches)
             engine.store.save(
