@@ -4,7 +4,15 @@ from __future__ import annotations
 import pytest
 
 from ai_orchestrator.human_gates import HumanGate, HumanGateBroker
-from ai_orchestrator.providers import ProviderExecutionError, _classify_cli_failure
+from ai_orchestrator.models import ProviderConfig
+from ai_orchestrator.process import ProcessResult
+from ai_orchestrator.providers import (
+    ClaudeAdapter,
+    CodexAdapter,
+    ProviderExecutionError,
+    RunRequest,
+    _classify_cli_failure,
+)
 from ai_orchestrator.workspaces import WorkspaceManager
 from conftest import spec
 
@@ -203,3 +211,39 @@ def test_applying_human_gate_is_reported_as_uncertain_and_non_replayable():
     assert view["durability"]["effect_state"] == "uncertain"
     assert view["durability"]["automatic_replay"] is False
     assert view["durability"]["request_reuse_allowed"] is False
+
+
+def _provider_request(tmp_path, adapter: str) -> RunRequest:
+    return RunRequest(
+        "review",
+        "PRIVATE_PROMPT",
+        tmp_path,
+        ProviderConfig(adapter=adapter),
+        5,
+        lambda: False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("adapter", "stderr", "category"),
+    [
+        (CodexAdapter(), "HTTP 429 PRIVATE_RATE_DETAIL", "quota"),
+        (ClaudeAdapter(), "authentication required PRIVATE_AUTH_DETAIL", "authentication"),
+    ],
+)
+def test_builtin_cli_failure_category_does_not_retain_stderr(
+    tmp_path, monkeypatch, adapter, stderr, category
+):
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setattr(adapter, "executable", lambda _config: "provider-cli")
+    monkeypatch.setattr(
+        "ai_orchestrator.providers.run_process",
+        lambda *args, **kwargs: ProcessResult(1, "", stderr, 0.01),
+    )
+    with pytest.raises(ProviderExecutionError) as captured:
+        adapter.execute(_provider_request(tmp_path, adapter.command))
+
+    diagnostics = captured.value.diagnostics
+    assert diagnostics["failure_category"] == category
+    assert "stderr" not in diagnostics
+    assert "PRIVATE_" not in repr(diagnostics)
