@@ -60,7 +60,10 @@ Even then, recovery itself does not retry. The operator-only
 - records an immutable `recovery` artifact and recovery audit events; and
 - returns the task to `awaiting_approval`.
 
-A fresh execution HumanGate is required before any provider call can occur.
+A fresh execution HumanGate is required before any provider call can occur. If
+the user still explicitly requires AGY broad native permission, recovery has
+invalidated that grant too: request a fresh provider-permission HumanGate first,
+then the fresh execution HumanGate.
 
 ### `uncertain_effect`
 
