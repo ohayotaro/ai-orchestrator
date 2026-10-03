@@ -161,14 +161,23 @@ def test_provider_failure_taxonomy_is_content_free():
     assert _classify_cli_failure("provider exited unexpectedly") == "provider_process"
 
     error = ProviderExecutionError(
-        "structured output did not match the requested result contract",
-        {"provider": "fixture", "process_returncode": 0},
+        "fixture protocol failure",
+        {
+            "provider": "fixture",
+            "process_returncode": 0,
+            "failure_category": "protocol",
+        },
     )
     assert error.diagnostics == {
         "provider": "fixture",
         "process_returncode": 0,
         "failure_category": "protocol",
     }
+
+    # The base exception preserves custom adapter/fixture diagnostics exactly;
+    # only built-in adapter paths attach categories they can establish.
+    legacy = ProviderExecutionError("fixture failure", {"provider": "fixture"})
+    assert legacy.diagnostics == {"provider": "fixture"}
 
 
 def test_applying_human_gate_is_reported_as_uncertain_and_non_replayable():
