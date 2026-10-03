@@ -196,14 +196,15 @@ class Engine:
                 "budget_can_dispatch": status["can_dispatch"],
             },
         )
-        if normalized_outcome == "completed":
-            assert_post_call_budget(
-                self.profile.policy,
-                evidence,
-                calls=state.calls,
-                elapsed_seconds=state.elapsed_seconds,
-            )
         return status
+
+    def enforce_post_call_budget(self, state: TaskState) -> dict[str, Any]:
+        return assert_post_call_budget(
+            self.profile.policy,
+            self.usage_evidence(state),
+            calls=state.calls,
+            elapsed_seconds=state.elapsed_seconds,
+        )
 
     @contextmanager
     def readonly_workspace(
@@ -1076,6 +1077,7 @@ class Engine:
         self.store.save(state, "call.finished", {"role": role, "outcome": result.outcome, "snapshot": after})
         if result.outcome == "blocked":
             raise OrchestratorError("agent reported blocked: " + result.summary)
+        self.enforce_post_call_budget(state)
         return result
 
     def _validate(self, state: TaskState) -> bool:
