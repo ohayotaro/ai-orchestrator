@@ -71,7 +71,7 @@ def test_dynamic_priority_and_cross_family_review_are_deterministic(workspace):
         engine.create(spec())
         state = engine.run("task-1")
         assert state.status == "awaiting_approval", state.error
-        assert state.schema_version == 6
+        assert state.schema_version == 7
         assert state.provider_resolutions["implementer"]["provider"] == "engineering"
         assert state.provider_resolutions["implementer"]["source"] == "priority"
         assert state.provider_resolutions["reviewer"]["provider"] == "reasoning"
@@ -236,7 +236,7 @@ def test_cli_create_can_declare_task_capability(workspace, tmp_path, capsys):
                  "--require", "implementer=test_authoring"])
     assert code == 0, capsys.readouterr().err
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 6
+    assert payload["schema_version"] == 7
     assert payload["capability_requirements"] == {"implementer": ["test_authoring"]}
 
 
