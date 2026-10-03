@@ -138,9 +138,9 @@ Use a new bounded task, for example:
 > confirmation forms for start, execution and acceptance.
 
 The host should retrieve the proposal, then call `request_start` with the intake
-ID and a new idempotency key. The native form may render as a boolean toggle plus
-Accept/Decline rather than literal two buttons; exact UI is client-specific.
-Check the full preview and select Yes/accept. Planning is queued automatically.
+ID and a new idempotency key. The native form may render the Yes/No enum differently across clients; exact UI
+is client-specific. Check the full preview and select Yes/accept only for the
+exact displayed scope. Planning is queued automatically.
 At `awaiting_approval`, the next form authorizes the exact implementation attempt.
 After real validation and a non-blocking review, a final form accepts the result.
 Only `get_task.status == succeeded` and an acceptance artifact establish completion.
