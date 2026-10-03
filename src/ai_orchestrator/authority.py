@@ -221,6 +221,21 @@ def provider_change_set_preview(engine, changes: dict[str, str]) -> dict[str, An
             "reset_adapter_specific_fields": sorted(reset_fields),
         })
 
+    # Pricing is provider/model specific authority. An adapter change invalidates
+    # pricing metadata for the changed provider slot rather than silently applying
+    # an old vendor rate to a new adapter.
+    if isinstance(proposed_raw.get("pricing"), list):
+        changed_slots = set(normalized)
+        proposed_raw["pricing"] = [
+            item for item in proposed_raw["pricing"]
+            if not isinstance(item, dict) or item.get("provider") not in changed_slots
+        ]
+        for record in records:
+            record["reset_pricing_rules"] = sum(
+                1 for item in raw.get("pricing", [])
+                if isinstance(item, dict) and item.get("provider") == record["provider"]
+            )
+
     # Validate only the final, atomic profile. This deliberately does not
     # validate intermediate per-slot states, so policy-valid swaps are possible.
     proposed = Profile.model_validate(proposed_raw)
