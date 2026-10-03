@@ -498,3 +498,28 @@ task content, credentials or arbitrary host error messages. A capability
 advertisement or `response_action=accept` is not proof that a human personally
 saw or clicked the form. These fields exist to diagnose host/server
 interoperability without weakening the HumanGate authority boundary.
+
+## Interrupted-effect recovery boundary
+
+v0.11 recovery is conservative under crash ambiguity. The controller may return
+an interrupted task to a fresh execution gate only when a guarded/isolated
+pre-provider-dispatch checkpoint exists, the root snapshot is unchanged, the
+matching provider-dispatch marker is absent, and integration has not begun.
+Recovery itself never executes provider work.
+
+Once provider dispatch, validator execution, shared writes or aggregate patch
+integration may have started, missing completion evidence cannot establish that
+the effect did not occur. The task is therefore non-replayable and recovery
+terminalizes it without rolling back project files. This also applies to
+pre-v0.11 interrupted rows that lack the new checkpoint.
+
+Safe recovery atomically revokes old execution approvals while persisting the
+recovered task state and clears task-scoped provider-permission grants. A fresh
+HumanGate is required. HumanGate records left `applying` or `uncertain` are
+also treated as effect-uncertain and are never automatically replayed.
+
+These guarantees assume the same trusted-local/cooperating-process model as the
+rest of the application. SQLite WAL durability and event checkpoints are not an
+exactly-once protocol with remote model providers, validators, or the filesystem.
+See `RECOVERY.md` for the full marker/classification matrix.
+
