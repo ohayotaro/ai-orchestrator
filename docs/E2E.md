@@ -501,3 +501,46 @@ The completion claim does not attest provider-side receipt/compliance with
 model settings, cryptographic human identity, OS-level isolation, or universal
 AGY headless permission compatibility. Future AGY CLI permission improvements can
 be adopted at the adapter boundary without reopening the v0.9 architecture.
+
+
+### Antigravity host MCP / HumanGate interoperability
+
+After installing the packaged project Skill under
+`.agents/skills/ai-orchestrator/SKILL.md` and configuring the fixed-project MCP
+server, Antigravity was restarted and successfully used ai-orchestrator as the
+user-facing host.
+
+The live host run verified:
+
+- Skill discovery;
+- `inspect_project`, `propose_task`, `wait_job`, `get_intake`,
+  provider-change preview and HumanGate request tools through MCP;
+- client identity `antigravity-client v1.0.0`;
+- negotiated MCP protocol `2025-06-18`;
+- advertised `elicitation.form` and `elicitation.url`;
+- ai-orchestrator `form_supported=true`;
+- server emission of a correlated `elicitation/create` request.
+
+The provider-change HumanGate did not complete. Transport diagnostics recorded:
+
+```text
+elicitation_sent: true
+response_received: true
+response_action: cancel
+outcome: response
+host_error_code: none
+```
+
+No timeout, disconnect or JSON-RPC host error occurred. The client returned an
+explicit MCP elicitation `cancel` response. ai-orchestrator therefore left the
+provider change unapplied and did not downgrade authority to CLI commands, direct
+config editing or chat-text approval.
+
+This narrows the current Antigravity host boundary: MCP connectivity and
+elicitation negotiation/delivery work, while the tested client did not complete
+the HumanGate form interaction. The transport record is interoperability
+evidence only and does not prove whether a user-facing dialog was rendered.
+
+This limitation does not reopen the v0.9 milestone. Future Antigravity host
+changes can be re-tested through the same HumanGate transport diagnostics without
+weakening the authorization contract.
