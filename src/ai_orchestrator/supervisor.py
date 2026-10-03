@@ -368,6 +368,11 @@ class Supervisor:
             )
             self.store.save_intake(intake, "intake.created", create=True)
             start = None
+            usage_contract = None
+            usage_raw: dict[str, object] = {}
+            call_outcome = "failed"
+            resolution = None
+            variant = None
             try:
                 resolution = self.engine.capability_resolver.resolve("supervisor")
                 adapter, config, variant = self.engine._resolve_variant(
@@ -375,6 +380,17 @@ class Supervisor:
                 )
                 intake.supervisor_provider_resolution = resolution.model_dump()
                 intake.supervisor_model_variant_resolution = variant.model_dump()
+                usage_contract = usage_descriptor(adapter, config, self.project.root)
+                assert_dispatch_allowed(
+                    policy=self.engine.profile.policy,
+                    pricing=self.engine.profile.pricing,
+                    evidence=intake.usage_evidence,
+                    calls=intake.calls,
+                    elapsed_seconds=intake.elapsed_seconds,
+                    provider=resolution.provider,
+                    model=variant.model,
+                    descriptor=usage_contract,
+                )
                 adapter.doctor(config, self.project.root)
                 controls = self.project.control_snapshot()
                 protected = self.project.protected_snapshot(self.engine.profile)
@@ -394,8 +410,10 @@ class Supervisor:
                             lambda: self.store.cancelled(intake.id),
                             result_model=SupervisorResultScoped,
                             runtime_options=dict(variant.options),
+                            usage_sink=usage_raw.update,
                         )
                         raw = adapter.execute(request_value)
+                        call_outcome = "completed"
                 finally:
                     if request_value is not None:
                         intake.supervisor_dispatch_provenance = self.engine.dispatch_provenance(
@@ -468,7 +486,6 @@ class Supervisor:
                         )
                     intake.runtime_overrides = overrides or None
                 intake.result = SupervisorResult.model_validate(raw_result)
-                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
                 if intake.status == "proposed":
                     intake.task = self._normalize(intake)
@@ -480,7 +497,53 @@ class Supervisor:
                 intake.status, intake.error = ("cancelled" if self.store.cancelled(intake.id) else "failed"), str(exc)[:4000]
             finally:
                 if start is not None:
-                    intake.elapsed_seconds += time.monotonic() - start
+                    call_elapsed = time.monotonic() - start
+                    intake.elapsed_seconds += call_elapsed
+                    if resolution is not None and variant is not None and usage_contract is not None:
+                        record = normalize_usage(
+                            owner_id=intake.id,
+                            call_index=intake.calls,
+                            attempt=intake.round,
+                            role="supervisor",
+                            node=None,
+                            phase="supervise",
+                            provider=resolution.provider,
+                            adapter_name=resolution.adapter,
+                            family=resolution.family,
+                            model=variant.model,
+                            effort=variant.effort,
+                            outcome=(
+                                "cancelled"
+                                if self.store.cancelled(intake.id)
+                                else ("completed" if call_outcome == "completed" else "failed")
+                            ),
+                            elapsed_seconds=call_elapsed,
+                            raw=usage_raw,
+                            descriptor=usage_contract,
+                            pricing=self.engine.profile.pricing,
+                        )
+                        intake.usage_evidence = append_usage(intake.usage_evidence, record)
+                        intake.budget_status = budget_snapshot(
+                            self.engine.profile.policy,
+                            intake.usage_evidence,
+                            calls=intake.calls,
+                            elapsed_seconds=intake.elapsed_seconds,
+                        )
+                        if call_outcome == "completed":
+                            try:
+                                assert_post_call_budget(
+                                    self.engine.profile.policy,
+                                    intake.usage_evidence,
+                                    calls=intake.calls,
+                                    elapsed_seconds=intake.elapsed_seconds,
+                                )
+                            except OrchestratorError as budget_exc:
+                                intake.status = "failed"
+                                intake.error = str(budget_exc)[:4000]
+                if intake.result is not None and intake.artifact is None:
+                    intake.artifact = self.store.write_artifact(
+                        intake.id, intake.round, "supervisor", self._artifact_value(intake)
+                    )
                 self.store.save_intake(intake, "supervisor.finished")
                 # A successful conversational revision invalidates the earlier
                 # proposal so an old confirmation form cannot register stale work.
