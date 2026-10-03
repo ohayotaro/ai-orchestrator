@@ -309,7 +309,7 @@ def test_human_gate_execution_preview_binds_usage_and_budget(workspace):
     try:
         with broker.service.engine() as current:
             captured = broker.capture(current, "execution", "gate-budget")
-        assert captured["preview"]["usage"]["summary"]["calls"] == 1
+        assert captured["preview"]["usage_summary"]["summary"]["calls"] == 1
         assert captured["preview"]["budget"]["consumed"]["provider_calls"] == 1
         gate = broker.prepare("execution", "gate-budget", "usage-gate-request")
         summary = compact_gate_summary(gate)
