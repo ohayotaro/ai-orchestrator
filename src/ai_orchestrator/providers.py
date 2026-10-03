@@ -66,41 +66,6 @@ class CLIAdapter:
     effort_selection_mode = "unsupported"
     runtime_option_limitations: tuple[str, ...] = ()
 
-    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
-        return UsageDescriptor(
-            limitations=[
-                "Antigravity stream-json does not currently expose a stable, adapter-attested usage schema; explicit counters are recorded opportunistically but strict token/cost budgets fail closed."
-            ]
-        )
-
-    @staticmethod
-    def _usage_from_envelope(envelope: dict) -> dict[str, object]:
-        raw = envelope.get("usage")
-        tokens: dict[str, int] = {}
-        if isinstance(raw, dict):
-            source_map = {
-                "input_tokens": "input_tokens",
-                "output_tokens": "output_tokens",
-                "reasoning_tokens": "reasoning_tokens",
-                "cache_read_tokens": "cache_read_tokens",
-                "cache_write_tokens": "cache_write_tokens",
-                "total_tokens": "total_tokens",
-            }
-            for source, target in source_map.items():
-                value = raw.get(source)
-                if type(value) is int and value >= 0:
-                    tokens[target] = value
-        usage: dict[str, object] = {}
-        if tokens:
-            usage["tokens"] = tokens
-        duration = envelope.get("duration_api_ms")
-        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
-            usage["provider_elapsed_seconds"] = float(duration) / 1000.0
-        cost = envelope.get("total_cost_usd")
-        if isinstance(cost, (int, float, str)) and not isinstance(cost, bool):
-            usage["cost"] = {"amount": str(cost), "currency": "USD"}
-        return usage
-
     def role_compatibility(self, role: str) -> dict[str, object]:
         return {
             "status": "supported",
@@ -256,6 +221,41 @@ class AgyAdapter(CLIAdapter):
         "Antigravity model and effort catalogs are not assumed complete; configured values are passed through and attributed to this adapter contract.",
     )
     help_flags = ("--input-format", "--output-format", "--json-schema", "--sandbox", "--print-timeout", "--mode")
+
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
+        return UsageDescriptor(
+            limitations=[
+                "Antigravity stream-json does not currently expose a stable, adapter-attested usage schema; explicit counters are recorded opportunistically but strict token/cost budgets fail closed."
+            ]
+        )
+
+    @staticmethod
+    def _usage_from_envelope(envelope: dict) -> dict[str, object]:
+        raw = envelope.get("usage")
+        tokens: dict[str, int] = {}
+        if isinstance(raw, dict):
+            source_map = {
+                "input_tokens": "input_tokens",
+                "output_tokens": "output_tokens",
+                "reasoning_tokens": "reasoning_tokens",
+                "cache_read_tokens": "cache_read_tokens",
+                "cache_write_tokens": "cache_write_tokens",
+                "total_tokens": "total_tokens",
+            }
+            for source, target in source_map.items():
+                value = raw.get(source)
+                if type(value) is int and value >= 0:
+                    tokens[target] = value
+        usage: dict[str, object] = {}
+        if tokens:
+            usage["tokens"] = tokens
+        duration = envelope.get("duration_api_ms")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            usage["provider_elapsed_seconds"] = float(duration) / 1000.0
+        cost = envelope.get("total_cost_usd")
+        if isinstance(cost, (int, float, str)) and not isinstance(cost, bool):
+            usage["cost"] = {"amount": str(cost), "currency": "USD"}
+        return usage
 
     def role_compatibility(self, role: str) -> dict[str, object]:
         if role in ("supervisor", "planner", "reviewer"):
