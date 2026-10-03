@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import pytest
 
+from ai_orchestrator.human_gates import HumanGate, HumanGateBroker
+from ai_orchestrator.providers import ProviderExecutionError, _classify_cli_failure
 from ai_orchestrator.workspaces import WorkspaceManager
 from conftest import spec
 
@@ -149,3 +151,46 @@ def test_workspace_cleanup_is_idempotent_after_recovery(engine):
     assert WorkspaceManager.cleanup_task(controller.project, "never-started") == []
     assert WorkspaceManager.cleanup_task(controller.project, "never-started") == []
     assert controller.project.snapshot() == before
+
+
+def test_provider_failure_taxonomy_is_content_free():
+    assert _classify_cli_failure("HTTP 429 rate limit exceeded") == "quota"
+    assert _classify_cli_failure("authentication required: please sign in") == "authentication"
+    assert _classify_cli_failure("permission denied") == "permission"
+    assert _classify_cli_failure("invalid config value") == "configuration"
+    assert _classify_cli_failure("provider exited unexpectedly") == "provider_process"
+
+    error = ProviderExecutionError(
+        "structured output did not match the requested result contract",
+        {"provider": "fixture", "process_returncode": 0},
+    )
+    assert error.diagnostics == {
+        "provider": "fixture",
+        "process_returncode": 0,
+        "failure_category": "protocol",
+    }
+
+
+def test_applying_human_gate_is_reported_as_uncertain_and_non_replayable():
+    gate = HumanGate(
+        id="G-test",
+        session="session",
+        local_uid=1,
+        actor="operator",
+        client={"name": "fixture"},
+        request_id="request",
+        kind="execution",
+        subject="task-1",
+        task_id="task-1",
+        scope="display-scope",
+        kernel_scope="kernel-scope",
+        preview={},
+        authority_request=None,
+        created_at=1.0,
+        expires_at=9999999999.0,
+        status="applying",
+    )
+    view = HumanGateBroker.describe(gate)
+    assert view["durability"]["effect_state"] == "uncertain"
+    assert view["durability"]["automatic_replay"] is False
+    assert view["durability"]["request_reuse_allowed"] is False
