@@ -537,21 +537,37 @@ v0.10 does **not** include:
 - automatic replay of ambiguous effects;
 - weakening HumanGate, provider-permission or workspace isolation boundaries.
 
-### After v0.10 — Recovery & Durability hardening
+## v0.11 — Recovery & Durability hardening (completed 2026-10-03)
 
-Recovery remains deliberately separate from usage/budget enforcement.
+Recovery remains deliberately separate from usage/budget enforcement. v0.11
+implements the conservative boundary rather than broad resume semantics:
 
-Directional work after v0.10:
-
-- conservative resume for provably safe pre-effect failures;
-- richer interrupted-attempt classification;
-- more precise authentication/quota/configuration/protocol failure attribution;
-- persistence/migration hardening across stored contract versions;
-- recovery evidence that never converts an ambiguous prior effect into an
-  automatic replay.
+- guarded/isolated execution persists a pre-provider-dispatch root-snapshot
+  checkpoint;
+- interrupted `running` tasks are classified read-only before recovery;
+- only a checkpointed, unchanged-root, pre-dispatch interruption is retry-safe;
+- safe recovery releases only provably un-dispatched call reservations, cleans
+  disposable workspaces, atomically revokes old execution/provider-permission
+  approvals and returns to `awaiting_approval` for a fresh HumanGate;
+- provider dispatch, validator execution, shared writes, integration start,
+  workspace drift and pre-v0.11 interrupted rows are treated as uncertain and
+  are terminalized without replay or automatic root-worktree rollback;
+- every recovery writes immutable recovery evidence plus transition events;
+- HumanGate `applying` / `uncertain` states expose their effect ambiguity and
+  remain non-replayable;
+- Codex/Claude/AGY provider failures carry content-free
+  authentication/quota/permission/configuration/protocol/provider-process
+  categories where the adapter can establish them without retaining raw output;
+- persisted TaskState v1-v7 and runtime database versions remain readable; v0.11
+  does not require a TaskState or SQLite schema-version bump, and old interrupted
+  rows lacking the new checkpoint deliberately fail closed;
+- crash-injection regressions cover pre-dispatch recovery, post-dispatch
+  ambiguity, post-integration interruption, approval invalidation and
+  no-rollback behavior across the offline CI matrix.
 
 The invariant remains: interrupted or uncertain effects are inspected, not
-blindly replayed.
+blindly replayed. v0.11 does not add provider-side idempotency keys, external
+effect replay, distributed transactions, or general rollback.
 
 ## v1.0 — Stable control-plane contracts
 
