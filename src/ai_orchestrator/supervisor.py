@@ -262,6 +262,7 @@ class Supervisor:
             history = []
             revision_parent: IntakeState | None = None
             round_number, previous_calls, previous_elapsed = 1, 0, 0.0
+            previous_usage: dict[str, Any] = empty_usage()
             if workflow_ref is not None:
                 workflow_ref = identifier(workflow_ref)
                 self.engine.workflow_for_ref(workflow_ref)  # trusted-registry validation; no model call.
@@ -285,6 +286,11 @@ class Supervisor:
                     supervisor_runtime_override = RuntimeOverride.model_validate(parent.supervisor_runtime_override)
                 history = self._history(parent)
                 round_number, previous_calls, previous_elapsed = parent.round + 1, parent.calls, parent.elapsed_seconds
+                previous_usage = (
+                    dict(parent.usage_evidence)
+                    if parent.schema_version >= 4 and isinstance(parent.usage_evidence, dict)
+                    else empty_usage()
+                )
             intake_id = "I-" + uuid.uuid4().hex[:12]
             task_id = identifier(task_id or "task-" + intake_id[2:])
             if self.store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
@@ -310,6 +316,7 @@ class Supervisor:
                 "base_role_capabilities": {role: list(values) for role, values in DEFAULT_ROLE_CAPABILITIES.items() if role != "supervisor"},
                 "available_workflows": self.engine.workflow_registry_report(),
                 "available_runtime_options": self.engine.runtime_option_report(),
+                "budget_policy": self.engine.budget_policy_report(),
                 "default_workflow": self.engine.profile.workflow,
                 "requested_workflow_ref": workflow_ref,
                 "supervisor_runtime_override": (
@@ -333,6 +340,7 @@ class Supervisor:
                     "For non-advisory work only, when no listed trusted workflow suitably expresses the task structure, you may leave workflow_ref null and propose one task-scoped Workflow Schema v1 object in workflow. It is only a proposal for this task and is never installed or trusted automatically.",
                     "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, policies or permissions.",
                     "runtime_overrides are task-scoped only. Set them only when the user explicitly asks for a specific model, effort/reasoning level, or execution intensity; otherwise leave them empty. Never raise effort/cost on your own.",
+                    "budget_policy is trusted controller authority. Do not propose, relax, rewrite or work around it, and never switch provider/model/effort/workflow merely to reduce usage.",
                     "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Supervisor runtime is intake-scoped and supplied by the controller before this call; do not emit a supervisor key. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
                     "Do not set template_version/provenance in a proposed workflow. Keep it at most 16 nodes and within the stated task. Every isolated write_path must be one of task.allowed_paths; independent isolated writers must own disjoint files.",
                     "Use isolated parallel writers only when the task can actually be split by exact file ownership. Otherwise prefer a simpler sequential DAG.",
@@ -342,13 +350,20 @@ class Supervisor:
             if len(prompt.encode()) > MAX_CONTEXT_BYTES:
                 raise OrchestratorError("intake context exceeds 64 KiB; shorten the request or project context")
             intake = IntakeState(
-                schema_version=3, id=intake_id, task_id=task_id, request=request, advisory=advisory,
+                schema_version=4, id=intake_id, task_id=task_id, request=request, advisory=advisory,
                 reply_to=reply_to, round=round_number, calls=previous_calls,
                 elapsed_seconds=previous_elapsed, profile_digest=self.engine.profile_digest,
                 workspace_snapshot=snapshot, requested_workflow_ref=workflow_ref,
                 supervisor_runtime_override=(
                     supervisor_runtime_override.model_dump()
                     if supervisor_runtime_override is not None else None
+                ),
+                usage_evidence=previous_usage,
+                budget_status=budget_snapshot(
+                    self.engine.profile.policy,
+                    previous_usage,
+                    calls=previous_calls,
+                    elapsed_seconds=previous_elapsed,
                 ),
             )
             self.store.save_intake(intake, "intake.created", create=True)
