@@ -165,8 +165,14 @@ Each gate may also contain `transport_diagnostics`: negotiated protocol,
 advertised elicitation/form/url capability, whether `elicitation/create` was
 sent, whether a correlated response arrived, the response action, or a bounded
 outcome such as host error, timeout, origin-request cancellation or disconnect.
-Arbitrary host error messages and form content are not retained. These fields are
-interop evidence, not proof of human presence.
+v0.10.4 also records content-free transport observability for diagnosis:
+gate/request/correlation IDs, serialized request/form/schema/preview byte counts,
+message character/byte counts, schema field/depth/object counts, preview
+field/array/depth counts, timeout duration, send/response/timeout timestamps and
+elapsed milliseconds. The message, requested schema, preview body, arbitrary host
+error messages and provider/user content are not copied into diagnostics. These
+fields are interoperability evidence, not proof that a human saw or clicked a
+form.
 
 The scope covers the full task/intake state and kernel scope, current profile,
 worktree, protected files and non-runtime control files. Preview includes the
