@@ -232,7 +232,9 @@ releases only provably un-dispatched call reservations, invalidates prior
 execution/provider-permission authority, records a recovery artifact, and returns
 the task to `awaiting_approval`. After that state is visible, use the normal
 fresh `request_execution` HumanGate; never reuse the old gate/request ID or
-approval scope.
+approval scope. If the user still explicitly wants AGY broad native permission,
+request a fresh provider-permission HumanGate before that fresh execution gate;
+recovery deliberately cleared the old grant.
 
 `uncertain_effect` means provider dispatch, validator work, shared writes,
 integration, workspace drift, or legacy interrupted state cannot be proven
