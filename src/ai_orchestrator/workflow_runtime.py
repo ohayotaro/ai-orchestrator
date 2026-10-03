@@ -341,6 +341,9 @@ class WorkflowExecutor:
             frozen=node_state.model_variant_resolution,
             override=engine.runtime_override_for(state, node.role, node_id=node.id),
         )
+        usage_contract = engine.check_budget_before_dispatch(
+            state, resolution, variant, adapter, config
+        )
 
         before_files = engine.project.manifest()
         before = engine.project.snapshot()
@@ -374,6 +377,8 @@ class WorkflowExecutor:
         )
         started = time.monotonic()
         telemetry: dict[str, object] = {}
+        usage_raw: dict[str, object] = {}
+        call_outcome = "failed"
         workspace_evidence: dict[str, object] = {}
         try:
             if node.role == "implementer":
@@ -391,8 +396,10 @@ class WorkflowExecutor:
                     result_model=model,
                     runtime_options=dict(variant.options),
                     telemetry_sink=telemetry.update,
+                    usage_sink=usage_raw.update,
                 )
                 raw = adapter.execute(request_value)
+                call_outcome = "completed"
             else:
                 with engine.readonly_workspace(
                     state.spec.id, state.attempt, "readonly-" + node.id,
@@ -405,8 +412,10 @@ class WorkflowExecutor:
                         result_model=model,
                         runtime_options=dict(variant.options),
                         telemetry_sink=telemetry.update,
+                        usage_sink=usage_raw.update,
                     )
                     raw = adapter.execute(request_value)
+                    call_outcome = "completed"
             engine.record_provider_provenance(
                 state,
                 engine.dispatch_provenance(
@@ -420,12 +429,25 @@ class WorkflowExecutor:
             )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
         finally:
-            state.elapsed_seconds += time.monotonic() - started
+            call_elapsed = time.monotonic() - started
+            state.elapsed_seconds += call_elapsed
             if telemetry:
                 engine.store.save(
                     state, "provider.tool_telemetry",
                     {"node": node.id, "phase": phase, **telemetry},
                 )
+            engine.record_usage(
+                state,
+                resolution=resolution,
+                variant=variant,
+                descriptor=usage_contract,
+                role=node.role,
+                node=node.id,
+                phase=phase,
+                outcome=call_outcome,
+                elapsed_seconds=call_elapsed,
+                raw=usage_raw,
+            )
 
         engine._check(state)
         if engine.store.cancelled(state.spec.id):
@@ -533,6 +555,34 @@ class WorkflowExecutor:
                     frozen=node_state.model_variant_resolution,
                     override=engine.runtime_override_for(state, node.role, node_id=node.id),
                 )
+                usage_contract = engine.check_budget_before_dispatch(
+                    state, resolution, variant, adapter, config
+                )
+                # A concurrent batch has not produced usage records yet. Count
+                # already-prepared peers explicitly for provider/model call caps.
+                for limit in policy.budget.call_limits:
+                    if limit.provider != resolution.provider or (
+                        limit.model is not None and limit.model != variant.model
+                    ):
+                        continue
+                    existing = sum(
+                        1 for item in (engine.usage_evidence(state).get("records") or [])
+                        if isinstance(item, dict)
+                        and item.get("provider") == resolution.provider
+                        and (limit.model is None or item.get("model") == limit.model)
+                    )
+                    pending_same = sum(
+                        1 for item in prepared.values()
+                        if item["resolution"].provider == resolution.provider
+                        and (limit.model is None or item["variant"].model == limit.model)
+                    )
+                    if existing + pending_same + 1 > limit.max_calls:
+                        target = resolution.provider + (
+                            f"/{limit.model}" if limit.model else ""
+                        )
+                        raise OrchestratorError(
+                            f"provider/model call budget exhausted for {target}"
+                        )
                 workspace = workspaces[node.id]
                 workspace_project = Project(workspace)
                 model = result_contract("execute", 2)
@@ -562,6 +612,7 @@ class WorkflowExecutor:
                     },
                 )
                 telemetry: dict[str, object] = {}
+                usage_raw: dict[str, object] = {}
                 prepared[node.id] = {
                     "node": node,
                     "resolution": resolution,
@@ -573,6 +624,10 @@ class WorkflowExecutor:
                     "protected": workspace_project.protected_snapshot(engine.profile),
                     "controls": workspace_project.control_snapshot(),
                     "telemetry": telemetry,
+                    "usage": usage_raw,
+                    "usage_contract": usage_contract,
+                    "call_index": state.calls,
+                    "call_elapsed": 0.0,
                     "request": RunRequest(
                         "execute", self._prompt(state, node, resolution), workspace, config,
                         min(policy.call_timeout_seconds, remaining), cancel_event.is_set,
@@ -582,6 +637,7 @@ class WorkflowExecutor:
                         ),
                         runtime_options=dict(variant.options),
                         telemetry_sink=telemetry.update,
+                        usage_sink=usage_raw.update,
                     ),
                 }
 
@@ -597,10 +653,18 @@ class WorkflowExecutor:
 
             raw_results: dict[str, Any] = {}
             errors: dict[str, Exception] = {}
+
+            def execute_item(item: dict[str, Any]):
+                call_started = time.monotonic()
+                try:
+                    return item["adapter"].execute(item["request"])
+                finally:
+                    item["call_elapsed"] = time.monotonic() - call_started
+
             max_workers = min(policy.max_parallel_workers, len(nodes))
             with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="orchestrator-node") as pool:
                 futures = {
-                    pool.submit(item["adapter"].execute, item["request"]): node_id
+                    pool.submit(execute_item, item): node_id
                     for node_id, item in prepared.items()
                 }
                 pending = set(futures)
@@ -617,13 +681,31 @@ class WorkflowExecutor:
                             cancel_event.set()
 
             state.elapsed_seconds += time.monotonic() - started
+            budget_errors: list[Exception] = []
             for node in nodes:
-                telemetry = prepared[node.id].get("telemetry") or {}
+                item = prepared[node.id]
+                telemetry = item.get("telemetry") or {}
                 if telemetry:
                     engine.store.save(
                         state, "provider.tool_telemetry",
                         {"node": node.id, "phase": "execute", **telemetry},
                     )
+                try:
+                    engine.record_usage(
+                        state,
+                        resolution=item["resolution"],
+                        variant=item["variant"],
+                        descriptor=item["usage_contract"],
+                        role=node.role,
+                        node=node.id,
+                        phase="execute",
+                        outcome="completed" if node.id in raw_results else "failed",
+                        elapsed_seconds=float(item.get("call_elapsed") or 0.0),
+                        raw=item.get("usage") or {},
+                        call_index=item["call_index"],
+                    )
+                except Exception as exc:
+                    budget_errors.append(exc)
             if engine.store.cancelled(state.spec.id):
                 raise OrchestratorError("execution cancelled")
             if errors:
@@ -634,6 +716,8 @@ class WorkflowExecutor:
                 raise OrchestratorError(
                     f"workflow node {node_id}: isolated provider failed: {provider_error}"
                 ) from provider_error
+            if budget_errors:
+                raise budget_errors[0]
             for node in nodes:
                 item = prepared[node.id]
                 workspace_evidence = {
