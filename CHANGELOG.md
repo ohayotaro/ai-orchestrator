@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.4 — HumanGate transport observability
+
+- Persist content-free HumanGate request/correlation metadata so host
+  interoperability failures can be diagnosed without retaining form or provider
+  content.
+- Record gate/request/correlation IDs; serialized request/form/schema/preview
+  byte counts; message char/byte counts; schema field/depth/object counts;
+  preview field/array/depth counts; timeout duration; and send/response/timeout
+  timing with elapsed milliseconds.
+- Keep raw form messages, requested-schema bodies, preview bodies, arbitrary host
+  error strings and provider/user content out of transport diagnostics.
+- Preserve existing fail-closed behavior: timeout/cancel/disconnect never
+  authorizes an effect and expired Acceptance leaves TaskState awaiting
+  acceptance with no new provider calls or acceptance artifact.
+- Add protocol regressions for content-free request-shape metrics and Acceptance
+  timeout state integrity.
+- Update the single-terminal documentation and packaged Skill so agents report
+  the richer diagnostics without treating them as proof of human presence.
+
 ## 0.10.3 — Portable skill contract follow-up
 
 - Bring the packaged `ai-orchestrator` skill in line with the v0.10.2 Usage
