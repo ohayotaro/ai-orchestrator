@@ -26,7 +26,7 @@ from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, R
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.9.2 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.11 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -256,6 +256,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         elif args.command == "status":
             state = engine.store.get(args.task_id)
             result = state.model_dump()
+            if state.status == "running":
+                result["recovery"] = engine.recovery_status(args.task_id)
             if state.status == "awaiting_approval":
                 result["approval_scope"] = engine.approval_scope(state)
             return result, 0

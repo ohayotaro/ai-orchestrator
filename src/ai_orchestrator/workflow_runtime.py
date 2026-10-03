@@ -535,7 +535,15 @@ class WorkflowExecutor:
             state.status = "running"
             engine.store.save(
                 state, event_prefix + ".preparing",
-                {"nodes": [node.id for node in nodes], "attempt": state.attempt, "execution_kind": execution_kind},
+                {
+                    "nodes": [node.id for node in nodes],
+                    "attempt": state.attempt,
+                    "execution_kind": execution_kind,
+                    # v0.11 recovery proof: until the later ".started" event is
+                    # durable, no provider has been dispatched and the root
+                    # worktree must still match this exact snapshot.
+                    "root_snapshot": engine.project.snapshot(),
+                },
             )
             workspaces = manager.prepare([node.id for node in nodes])
             engine.store.save(

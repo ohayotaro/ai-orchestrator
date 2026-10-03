@@ -359,3 +359,32 @@ workaround.
 Re-export the packaged Skill after upgrade so the host learns the conditional
 compatibility and no-auto-retry contract. Plain `orchestrator serve` remains the
 default single-terminal registration.
+
+## v0.10.x to v0.11.0
+
+Stop active controllers/workers and back up the complete
+`.orchestrator/runtime/` directory before upgrading. Reinstall the package and
+run the offline test suite as usual.
+
+There is no TaskState or runtime-database schema migration in v0.11. TaskState
+v1-v7 remains readable, SQLite `user_version=2` remains current, and completed
+task/event/artifact history is not rewritten. An unchanged trusted profile does
+not need re-trust solely because the package version changed.
+
+Recovery evidence is new and intentionally cannot be synthesized for an old
+interrupted execution. A task already left in `status=running` by v0.10 or
+earlier lacks the v0.11 guarded/isolated root-snapshot checkpoint. It is therefore
+classified `uncertain_effect`; operator recovery cleans disposable workspaces and
+terminalizes it without replay or automatic root-worktree rollback. Do not edit
+SQLite/events to add a fake checkpoint.
+
+New v0.11 guarded/isolated writable attempts persist the checkpoint before
+provider dispatch. Only when the root snapshot is unchanged and no durable
+provider-dispatch/integration marker exists can `orchestrator recover` return a
+task to `awaiting_approval`. Old execution and provider-permission approvals are
+revoked atomically, so a new execution HumanGate is mandatory.
+
+Re-export the packaged Skill after upgrading so single-terminal hosts understand
+the read-only `get_task.recovery` diagnostics and do not try to replay an
+interrupted task. See `docs/RECOVERY.md`.
+

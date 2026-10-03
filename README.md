@@ -1,14 +1,15 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.10.2 alpha** adds Usage Observability & Budget Policy to the v0.9
-provider/model provenance chain. Provider calls now produce normalized
-known/unknown/unsupported usage evidence, deterministic call/node/attempt/task
-aggregation, explicit provider-reported or versioned controller-computed cost,
-and trusted budgets that fail closed when a strict metric cannot be proven.
-Budget pressure never silently changes provider, model, effort, validator,
-workflow or HumanGate authority. Supervisor, Planner and Reviewer retain the
-v0.9 disposable read-only workspace boundary. This remains a trusted-local
+**v0.11.0 alpha** adds Recovery & Durability Hardening to the v0.10 usage/budget
+control plane. Interrupted work is classified from durable checkpoints before
+any retry is allowed. Only a proven isolated/guarded pre-provider-dispatch
+interruption with an unchanged root snapshot can return to execution, and it
+always requires a fresh execution approval. Provider dispatch, validator
+execution, shared writes, patch integration, workspace drift and legacy
+interrupted rows without v0.11 recovery evidence remain uncertain and are never
+automatically replayed. Existing usage/budget, HumanGate, provider-permission and
+workspace-isolation boundaries remain in force. This remains a trusted-local
 application, not authenticated human identity, provider billing attestation or a
 general OS-isolated control plane.
 
@@ -36,6 +37,37 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.11 recovery and durability hardening
+
+A task left in durable `running` state after process/host loss is not silently
+rerun. `orchestrator status TASK_ID` and agent-facing `get_task` expose a
+read-only recovery classification. The operator-only `orchestrator recover
+TASK_ID` re-evaluates that evidence under the project lock before changing
+state.
+
+The only retry-safe class is `safe_pre_effect_retry`: a guarded/isolated write
+batch has persisted its root snapshot, the root still matches it, and the
+durable provider-dispatch marker does not exist. Recovery cleans disposable
+workspaces, releases only provably un-dispatched call reservations, atomically
+revokes prior execution/provider-permission approvals, records an immutable
+`recovery` artifact, and returns the task to `awaiting_approval`. Nothing is
+executed by recovery itself. If the attempt still requires AGY broad native
+permission, that dedicated provider-permission HumanGate must also be confirmed
+again before the fresh execution gate.
+
+Every ambiguous class is fail-closed. If provider dispatch may have happened,
+a validator may have run, a shared writer may have changed the project, aggregate
+patch integration may have begun, or the root snapshot drifted, recovery cleans
+only disposable workspaces and terminalizes the task as `failed`. It does not
+roll back the user's worktree and does not replay the prior effect. HumanGates
+left `applying` are likewise reported as effect-uncertain and non-replayable.
+
+Provider execution failures now retain a content-free
+`failure_category`—`authentication`, `quota`, `permission`,
+`configuration`, `protocol`, or `provider_process`—without persisting raw
+provider stderr. See **[Recovery & Durability](docs/RECOVERY.md)** for the
+checkpoint/effect matrix and migration behavior.
 
 ## v0.4.1 refinements
 
@@ -381,15 +413,15 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.9 is complete for its trusted-local alpha scope. It established separate
-Provider Resolution and Model Variant Resolution, provider-local model/effort
-overrides, read-only provider workspaces, same-family/different-model review
-identity, dispatch/failure provenance, single-terminal-by-default operation and
-HumanGate transport diagnostics.
+v0.11 is complete for its trusted-local alpha scope. The v0.9 provider/model
+control-plane foundation, v0.10 usage/budget policy, and v0.11 conservative
+recovery/durability boundary are now implemented without automatic provider
+fallback or replay of ambiguous effects.
 
-See **[ROADMAP.md](ROADMAP.md)** for the post-v0.9 path toward stable v1.0
-contracts. AGY native-permission and HumanGate host compatibility are explicit
-adapter/host boundaries rather than reasons to weaken authority controls.
+See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
+contracts. AGY native-permission, HumanGate host compatibility and remote
+provider exactly-once behavior remain explicit adapter/host boundaries rather
+than reasons to weaken authority controls.
 
 ## Verification / limitations
 

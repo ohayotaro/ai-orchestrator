@@ -831,9 +831,28 @@ class HumanGateBroker:
 
     @staticmethod
     def describe(gate: HumanGate) -> dict[str, Any]:
-        return {"gate_id": gate.id, "kind": gate.kind, "subject": gate.subject, "gate_status": gate.status,
-                "scope": gate.scope, "assurance": ASSURANCE, "result": gate.result, "error": gate.error,
-                "transport_diagnostics": gate.transport_diagnostics}
+        uncertain_effect = gate.status in ("applying", "uncertain")
+        return {
+            "gate_id": gate.id,
+            "kind": gate.kind,
+            "subject": gate.subject,
+            "gate_status": gate.status,
+            "scope": gate.scope,
+            "assurance": ASSURANCE,
+            "result": gate.result,
+            "error": gate.error,
+            "transport_diagnostics": gate.transport_diagnostics,
+            "durability": {
+                "effect_state": "uncertain" if uncertain_effect else "not_marked_uncertain",
+                "automatic_replay": False,
+                "request_reuse_allowed": False if uncertain_effect else None,
+                "operator_action": (
+                    "Inspect the exact kernel/task/worktree state; do not replay this gate automatically."
+                    if uncertain_effect
+                    else None
+                ),
+            },
+        }
 
     def abort(self, gate: HumanGate, status: str, message: str) -> dict[str, Any]:
         updated = self.store.transition(gate.id, self.session, "pending", status, error=message)

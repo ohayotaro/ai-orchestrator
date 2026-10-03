@@ -217,6 +217,42 @@ single-slot or atomic provider change may reset adapter-specific `executable`,
 Inspect and report those reset fields/rules in the preview/HumanGate. Never
 preserve stale vendor pricing by editing config directly.
 
+## v0.11 interrupted-task recovery
+
+Inspect `recovery_durability` from `inspect_project`. If `get_task` reports
+`status=running`, read its `recovery` diagnosis. Do not call `run_task`,
+request a new execution gate, create a transport retry, or infer that a missing
+provider result means no effect occurred.
+
+`recover` remains operator-only and is intentionally not an MCP mutation. The
+only retry-safe diagnosis is `safe_pre_effect_retry`: a v0.11 guarded/isolated
+write checkpoint proves the root worktree is unchanged and provider dispatch
+never durably started. An operator recovery cleans disposable workspaces,
+releases only provably un-dispatched call reservations, invalidates prior
+execution/provider-permission authority, records a recovery artifact, and returns
+the task to `awaiting_approval`. After that state is visible, use the normal
+fresh `request_execution` HumanGate; never reuse the old gate/request ID or
+approval scope. If the user still explicitly wants AGY broad native permission,
+request a fresh provider-permission HumanGate before that fresh execution gate;
+recovery deliberately cleared the old grant.
+
+`uncertain_effect` means provider dispatch, validator work, shared writes,
+integration, workspace drift, or legacy interrupted state cannot be proven
+effect-free. Recovery terminalizes that task without automatic replay or
+root-worktree rollback. Report the diagnosis and require operator/worktree
+inspection before a new task is proposed. Never edit runtime state to manufacture
+a safe classification.
+
+A HumanGate in `applying` or `uncertain` likewise has an uncertain effect.
+Its gate diagnostics set `automatic_replay=false`; inspect the canonical
+task/kernel state instead of resubmitting it.
+
+Provider failure evidence may expose only a content-free
+`failure_category`—`authentication`, `quota`, `permission`,
+`configuration`, `protocol`, or `provider_process`—in addition to existing
+sanitized adapter diagnostics. Treat the category as diagnosis, never as
+authority for an automatic retry. Do not reconstruct raw stderr/provider content.
+
 ## Native confirmation flow
 
 1. Show the proposed task, selected or task-scoped proposed workflow, allowed_paths,
