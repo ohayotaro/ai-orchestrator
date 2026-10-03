@@ -27,7 +27,7 @@ def test_complete_workflow_and_fresh_review(engine):
     events = controller.store.events("task-1")
     assert [event["sequence"] for event in events] == sorted(event["sequence"] for event in events)
     assert events[-1]["kind"] == "task.accepted"
-    assert {artifact.kind for artifact in state.artifacts} == {"plan", "execute", "validation", "review", "acceptance", "provider_provenance"}
+    assert {artifact.kind for artifact in state.artifacts} == {"plan", "execute", "validation", "review", "acceptance", "provider_provenance", "usage", "budget"}
 
 
 def test_t0_never_implements_or_runs_validators(engine):
