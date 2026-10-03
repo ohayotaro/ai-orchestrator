@@ -596,11 +596,25 @@ def assert_dispatch_allowed(
 
 def assert_post_call_budget(policy: Policy, evidence: dict[str, Any], *, calls: int, elapsed_seconds: float) -> dict[str, Any]:
     snapshot = budget_snapshot(policy, evidence, calls=calls, elapsed_seconds=elapsed_seconds)
-    if snapshot["blockers"]:
+    violations: list[dict[str, Any]] = []
+    for item in snapshot["blockers"]:
+        if item["status"] == "unprovable":
+            violations.append(item)
+            continue
+        observed, limit = item.get("observed"), item.get("limit")
+        if observed is None or limit is None:
+            continue
+        if item["dimension"] == "cost":
+            exceeded = _decimal(str(observed), "observed cost") > _decimal(str(limit), "cost limit")
+        else:
+            exceeded = float(observed) > float(limit)
+        if exceeded:
+            violations.append(item)
+    if violations:
         detail = ", ".join(
-            f"{item['dimension']}:{item['status']}" for item in snapshot["blockers"]
+            f"{item['dimension']}:{item['status']}" for item in violations
         )
         raise OrchestratorError(
-            f"budget reached after provider call ({detail}); stop before the next effect"
+            f"budget exceeded or became unprovable after provider call ({detail}); stop before the next effect"
         )
     return snapshot
