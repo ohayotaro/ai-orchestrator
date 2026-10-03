@@ -159,6 +159,10 @@ class ApplicationService:
         result = state.model_dump()
         result["usage"] = engine.usage_evidence(state)
         result["budget"] = engine.budget_status(state)
+        if state.status == "running":
+            # Read-only diagnosis only. Agent-facing APIs still cannot invoke
+            # recover or grant authority; an operator must apply recovery.
+            result["recovery"] = engine.recovery_status(task_id)
         if state.status == "awaiting_approval":
             result["approval_scope"] = engine.approval_scope(state)
         return result
@@ -193,6 +197,13 @@ class ApplicationService:
                         "runtime_options": engine.runtime_option_report(),
                         "usage_observability": engine.usage_observability_report(),
                         "budget_policy": engine.budget_policy_report(),
+                        "recovery_durability": {
+                            "policy": "conservative_explicit_recovery",
+                            "safe_retry_window": "isolated/guarded execution before durable provider dispatch with unchanged root snapshot",
+                            "ambiguous_effects": "terminal failure; no automatic replay or root-worktree rollback",
+                            "approval_reuse_after_recovery": False,
+                            "agent_can_recover": False,
+                        },
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
                         "adaptive_orchestration": {
