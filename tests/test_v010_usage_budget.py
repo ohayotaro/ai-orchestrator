@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from ai_orchestrator.engine import Engine
-from ai_orchestrator.human_gates import HumanGateBroker, compact_gate_summary
+from ai_orchestrator.human_gates import HumanGateBroker, ProfileChangeRequest, compact_gate_summary
 from ai_orchestrator.models import BudgetPolicy, OrchestratorError, Policy, PricingRule
 from ai_orchestrator.providers import AgyAdapter, ClaudeAdapter, CodexAdapter
 from ai_orchestrator.service import ApplicationService
@@ -409,3 +409,56 @@ def test_budget_snapshot_marks_unknown_cost_unprovable_without_zero_fill():
         "observed": None,
         "currency": "USD",
     }]
+
+
+def test_provider_adapter_change_invalidates_stale_pricing_authority(workspace):
+    config = workspace / ".orchestrator/config.yaml"
+    profile = yaml.safe_load(config.read_text())
+    profile["providers"]["engineering"]["model"] = "vendor-model"
+    profile["pricing"] = [{
+        "schema_version": 1,
+        "provider": "engineering",
+        "model": "vendor-model",
+        "currency": "USD",
+        "source": "test fixture",
+        "version": "v1",
+        "effective_from": "2026-10-03",
+        "input_per_million": "1.0",
+    }]
+    config.write_text(yaml.safe_dump(profile, sort_keys=False))
+
+    engine = Engine(workspace)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    service = ApplicationService(workspace)
+    preview = service.invoke(
+        "preview_provider_change",
+        {"provider": "engineering", "adapter": "agy"},
+    )
+    assert preview["change"]["reset_pricing_rules"] == 1
+
+    broker = HumanGateBroker(
+        service, "pricing-reset-session", {"name": "test", "version": "1"}
+    )
+    try:
+        gate = broker.prepare_provider_change(
+            ProfileChangeRequest(
+                provider="engineering",
+                adapter="agy",
+                request_id="pricing-reset",
+            )
+        )
+        result = broker.resolve(
+            gate, {"action": "accept", "content": {"decision": "yes"}}
+        )
+        assert result["gate_status"] == "applied"
+    finally:
+        broker.close()
+
+    updated = yaml.safe_load(config.read_text())
+    assert updated["providers"]["engineering"]["adapter"] == "agy"
+    assert "model" not in updated["providers"]["engineering"]
+    assert updated.get("pricing", []) == []
