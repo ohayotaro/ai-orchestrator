@@ -309,6 +309,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
                 continue
             before = item.get("before") or {}
             after = item.get("after") or {}
+            reset_pricing = item.get("reset_pricing_rules", 0)
             lines.append(
                 "  "
                 + _clean_inline(item.get("provider", "-"), 60)
@@ -316,6 +317,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
                 + _clean_inline(before.get("adapter", "-"), 60)
                 + " -> "
                 + _clean_inline(after.get("adapter", item.get("adapter", "-")), 60)
+                + (f" (reset pricing rules: {reset_pricing})" if reset_pricing else "")
             )
         lines += [
             f"New trusted profile: {_clean_inline((p.get('change_set') or {}).get('proposed_profile_digest', '-'), 72)}",
@@ -330,6 +332,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Provider slot: {_clean_inline(change.get('provider', gate.subject))}",
             f"Adapter: {_clean_inline(before.get('adapter', '-'))} -> {_clean_inline(after.get('adapter', change.get('adapter', '-')))}",
             f"Reset vendor-specific fields: {_csv(change.get('reset_adapter_specific_fields') or [])}",
+            f"Reset pricing rules: {change.get('reset_pricing_rules', 0)}",
             f"New trusted profile: {_clean_inline(change.get('proposed_profile_digest', '-'), 72)}",
             "Task effect: no task is executed or accepted by this confirmation.",
         ]
