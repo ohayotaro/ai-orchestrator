@@ -26,6 +26,7 @@ class UsageDescriptor(Contract):
     cache_read_tokens: SupportStatus = "unsupported"
     cache_write_tokens: SupportStatus = "unsupported"
     total_tokens: SupportStatus = "unsupported"
+    provider_elapsed_seconds: SupportStatus = "unsupported"
     provider_cost: SupportStatus = "unsupported"
     limitations: list[str] = Field(default_factory=list)
 
@@ -91,6 +92,7 @@ class UsageRecord(Contract):
     effort: str | None = None
     outcome: Literal["completed", "failed", "cancelled"]
     controller_elapsed_seconds: UsageSeconds
+    provider_elapsed_seconds: UsageSeconds
     input_tokens: UsageValue
     output_tokens: UsageValue
     reasoning_tokens: UsageValue
@@ -229,6 +231,16 @@ def normalize_usage(
         for name in TOKEN_FIELDS
     }
 
+    provider_elapsed_raw = payload.get("provider_elapsed_seconds")
+    if isinstance(provider_elapsed_raw, (int, float)) and not isinstance(provider_elapsed_raw, bool) and provider_elapsed_raw >= 0:
+        provider_elapsed = UsageSeconds(
+            status="known", value=float(provider_elapsed_raw), source="provider_reported"
+        )
+    else:
+        provider_elapsed = UsageSeconds(
+            status="unknown" if descriptor.provider_elapsed_seconds == "reported" else "unsupported"
+        )
+
     raw_cost = payload.get("cost")
     cost: CostEvidence
     if isinstance(raw_cost, dict) and raw_cost.get("amount") is not None and isinstance(raw_cost.get("currency"), str):
@@ -265,6 +277,7 @@ def normalize_usage(
         controller_elapsed_seconds=UsageSeconds(
             status="known", value=max(0.0, elapsed_seconds), source="controller_monotonic"
         ),
+        provider_elapsed_seconds=provider_elapsed,
         **values,
         cost=cost,
         limitations=list(dict.fromkeys(descriptor.limitations)),
@@ -290,6 +303,19 @@ def _aggregate_metric(records: list[UsageRecord], field: str) -> dict[str, Any]:
     if statuses == {"unsupported"}:
         return {"status": "unsupported", "value": None, "known_subtotal": 0}
     return {"status": "unknown", "value": None, "known_subtotal": known}
+
+
+def _aggregate_seconds(records: list[UsageRecord], field: str) -> dict[str, Any]:
+    if not records:
+        return {"status": "known", "value": 0.0, "known_subtotal": 0.0}
+    values = [getattr(record, field) for record in records]
+    known = sum(item.value or 0.0 for item in values if item.status == "known")
+    statuses = {item.status for item in values}
+    if statuses == {"known"}:
+        return {"status": "known", "value": round(known, 6), "known_subtotal": round(known, 6)}
+    if statuses == {"unsupported"}:
+        return {"status": "unsupported", "value": None, "known_subtotal": 0.0}
+    return {"status": "unknown", "value": None, "known_subtotal": round(known, 6)}
 
 
 def _aggregate_cost(records: list[UsageRecord]) -> dict[str, Any]:
@@ -332,6 +358,7 @@ def aggregate_usage(records: list[UsageRecord], *, include_groups: bool = True) 
             for record in records
             if record.controller_elapsed_seconds.status == "known"
         ), 6),
+        "provider_elapsed_seconds": _aggregate_seconds(records, "provider_elapsed_seconds"),
         **{field: _aggregate_metric(records, field) for field in TOKEN_FIELDS},
         "cost": _aggregate_cost(records),
     }
@@ -417,13 +444,21 @@ def budget_snapshot(policy: Policy, evidence: dict[str, Any] | None, *, calls: i
         _metric_limit(blockers, field, getattr(budget, f"max_{field}"), summary, budget.unknown_usage)
 
     if budget.max_provider_seconds is not None:
-        provider_elapsed = summary.get("controller_elapsed_seconds", 0.0)
-        if provider_elapsed >= budget.max_provider_seconds:
+        provider_elapsed = summary.get("provider_elapsed_seconds") or {}
+        if provider_elapsed.get("status") != "known":
+            if budget.unknown_usage == "fail_closed":
+                blockers.append({
+                    "dimension": "provider_elapsed_seconds",
+                    "status": "unprovable",
+                    "limit": budget.max_provider_seconds,
+                    "observed": None,
+                })
+        elif provider_elapsed.get("value", 0.0) >= budget.max_provider_seconds:
             blockers.append({
                 "dimension": "provider_elapsed_seconds",
                 "status": "exhausted",
                 "limit": budget.max_provider_seconds,
-                "observed": provider_elapsed,
+                "observed": provider_elapsed.get("value"),
             })
 
     if budget.max_cost is not None:
@@ -470,7 +505,7 @@ def budget_snapshot(policy: Policy, evidence: dict[str, Any] | None, *, calls: i
         "consumed": {
             "provider_calls": calls,
             "controller_elapsed_seconds": round(elapsed_seconds, 6),
-            "provider_elapsed_seconds": summary.get("controller_elapsed_seconds", 0.0),
+            "provider_elapsed_seconds": summary.get("provider_elapsed_seconds"),
             "input_tokens": summary.get("input_tokens"),
             "output_tokens": summary.get("output_tokens"),
             "reasoning_tokens": summary.get("reasoning_tokens"),
@@ -526,6 +561,8 @@ def assert_dispatch_allowed(
         for field in ("input_tokens", "output_tokens", "reasoning_tokens", "total_tokens"):
             if getattr(budget, f"max_{field}") is not None and getattr(descriptor, field) != "reported":
                 unsupported.append(field)
+        if budget.max_provider_seconds is not None and descriptor.provider_elapsed_seconds != "reported":
+            unsupported.append("provider_elapsed_seconds")
         if budget.max_cost is not None and not _descriptor_supports_cost(
             descriptor, pricing_rule(pricing, provider, model)
         ):
