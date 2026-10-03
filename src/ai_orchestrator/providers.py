@@ -16,6 +16,7 @@ from .models import AgentResult, Contract, OrchestratorError, ProviderConfig
 from .process import run_process
 from .project import encode, read_text
 from .runtime_options import RuntimeOptionsDescriptor, RuntimeValueDescriptor
+from .usage import UsageDescriptor
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class RunRequest:
     provider_permissions: frozenset[str] = frozenset()
     runtime_options: dict[str, str] = field(default_factory=dict)
     telemetry_sink: Callable[[dict[str, object]], None] | None = None
+    usage_sink: Callable[[dict[str, object]], None] | None = None
 
 
 class ProviderExecutionError(OrchestratorError):
@@ -49,6 +51,7 @@ class ProviderAdapter(Protocol):
 
     def doctor(self, config: ProviderConfig, workspace: Path) -> dict[str, str]: ...
     def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor: ...
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor: ...
     def execute(self, request: RunRequest) -> Contract: ...
 
 
@@ -63,6 +66,41 @@ class CLIAdapter:
     effort_selection_mode = "unsupported"
     runtime_option_limitations: tuple[str, ...] = ()
 
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
+        return UsageDescriptor(
+            limitations=[
+                "Antigravity stream-json does not currently expose a stable, adapter-attested usage schema; explicit counters are recorded opportunistically but strict token/cost budgets fail closed."
+            ]
+        )
+
+    @staticmethod
+    def _usage_from_envelope(envelope: dict) -> dict[str, object]:
+        raw = envelope.get("usage")
+        tokens: dict[str, int] = {}
+        if isinstance(raw, dict):
+            source_map = {
+                "input_tokens": "input_tokens",
+                "output_tokens": "output_tokens",
+                "reasoning_tokens": "reasoning_tokens",
+                "cache_read_tokens": "cache_read_tokens",
+                "cache_write_tokens": "cache_write_tokens",
+                "total_tokens": "total_tokens",
+            }
+            for source, target in source_map.items():
+                value = raw.get(source)
+                if type(value) is int and value >= 0:
+                    tokens[target] = value
+        usage: dict[str, object] = {}
+        if tokens:
+            usage["tokens"] = tokens
+        duration = envelope.get("duration_api_ms")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            usage["provider_elapsed_seconds"] = float(duration) / 1000.0
+        cost = envelope.get("total_cost_usd")
+        if isinstance(cost, (int, float, str)) and not isinstance(cost, bool):
+            usage["cost"] = {"amount": str(cost), "currency": "USD"}
+        return usage
+
     def role_compatibility(self, role: str) -> dict[str, object]:
         return {
             "status": "supported",
@@ -72,6 +110,13 @@ class CLIAdapter:
             "orchestrator_attests_permissions_sufficient": True,
             "limitations": [],
         }
+
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
+        return UsageDescriptor(
+            limitations=[
+                f"{self.command or 'adapter'} does not advertise reliable structured usage telemetry"
+            ]
+        )
 
     def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor:
         def domain(kind: str, mode: str) -> RuntimeValueDescriptor:
@@ -122,10 +167,57 @@ class CodexAdapter(CLIAdapter):
     runtime_option_limitations = (
         "Codex model identifiers and reasoning-effort values are provider/model dependent; the adapter records pass-through provenance instead of fabricating a catalog.",
     )
-    help_flags = ("--output-schema", "--output-last-message", "--sandbox", "--ephemeral")
+    help_flags = ("--output-schema", "--output-last-message", "--sandbox", "--ephemeral", "--json")
+
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
+        return UsageDescriptor(
+            input_tokens="reported",
+            output_tokens="reported",
+            reasoning_tokens="reported",
+            cache_read_tokens="reported",
+            cache_write_tokens="reported",
+            total_tokens="unsupported",
+            provider_elapsed_seconds="unsupported",
+            provider_cost="unsupported",
+            limitations=[
+                "Codex exec JSONL reports token counters on turn.completed; total cost and provider elapsed are not attributed unless the provider adds explicit fields."
+            ],
+        )
+
+    @staticmethod
+    def _usage_from_jsonl(stdout: str) -> dict[str, object]:
+        usage: dict[str, object] | None = None
+        for line in stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict) or event.get("type") != "turn.completed":
+                continue
+            candidate = event.get("usage")
+            if isinstance(candidate, dict):
+                usage = candidate
+        if usage is None:
+            return {}
+        source_map = {
+            "input_tokens": "input_tokens",
+            "output_tokens": "output_tokens",
+            "reasoning_output_tokens": "reasoning_tokens",
+            "cached_input_tokens": "cache_read_tokens",
+            "cache_write_input_tokens": "cache_write_tokens",
+            "total_tokens": "total_tokens",
+        }
+        tokens: dict[str, int] = {}
+        for source, target in source_map.items():
+            value = usage.get(source)
+            if type(value) is int and value >= 0:
+                tokens[target] = value
+        return {"tokens": tokens} if tokens else {}
 
     def command_line(self, request: RunRequest, schema: Path, output: Path) -> list[str]:
-        args = [request.config.executable or self.command, "exec", "--ephemeral", "--sandbox", "workspace-write" if request.phase == "execute" else "read-only", "-c", 'approval_policy="never"', "-c", 'web_search="disabled"', "-c", "sandbox_workspace_write.network_access=false", "--output-schema", str(schema), "--output-last-message", str(output), "--color", "never"]
+        args = [request.config.executable or self.command, "exec", "--ephemeral", "--json", "--sandbox", "workspace-write" if request.phase == "execute" else "read-only", "-c", 'approval_policy="never"', "-c", 'web_search="disabled"', "-c", "sandbox_workspace_write.network_access=false", "--output-schema", str(schema), "--output-last-message", str(output), "--color", "never"]
         if request.config.model:
             args += ["--model", request.config.model]
         if request.config.effort:
@@ -139,6 +231,8 @@ class CodexAdapter(CLIAdapter):
             argv = self.command_line(request, schema, output)
             argv[0] = self.executable(request.config)
             result = run_process(argv, cwd=request.workspace, input_text=request.prompt, timeout=request.timeout, cancel=request.cancel)
+            if request.usage_sink is not None:
+                request.usage_sink(self._usage_from_jsonl(result.stdout))
             if result.returncode != 0 or not output.is_file():
                 raise OrchestratorError(f"Codex failed (exit {result.returncode}); inspect CLI authentication/configuration, then create a new task")
             return request.result_model.model_validate_json(read_text(output))
@@ -418,6 +512,8 @@ class AgyAdapter(CLIAdapter):
             if request.telemetry_sink is not None:
                 request.telemetry_sink(telemetry)
             envelope = self._result_envelope(result.stdout)
+            if request.usage_sink is not None:
+                request.usage_sink(self._usage_from_envelope(envelope))
             diagnostics = self._safe_diagnostics(result, envelope, request)
             diagnostics["tool_names"] = telemetry["tool_names"]
             diagnostics["tool_call_count"] = telemetry["tool_call_count"]
@@ -506,6 +602,48 @@ class ClaudeAdapter(CLIAdapter):
     )
     help_flags = ("--json-schema", "--no-session-persistence", "--permission-mode", "--tools", "--strict-mcp-config", "--setting-sources", "--disable-slash-commands")
 
+    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor:
+        return UsageDescriptor(
+            input_tokens="reported",
+            output_tokens="reported",
+            reasoning_tokens="unsupported",
+            cache_read_tokens="reported",
+            cache_write_tokens="reported",
+            total_tokens="unsupported",
+            provider_elapsed_seconds="reported",
+            provider_cost="reported",
+            limitations=[
+                "Claude JSON output exposes API duration/cost and token counters but does not expose hidden reasoning tokens as a separately attestable counter."
+            ],
+        )
+
+    @staticmethod
+    def _usage_from_envelope(envelope: dict) -> dict[str, object]:
+        raw = envelope.get("usage")
+        tokens: dict[str, int] = {}
+        if isinstance(raw, dict):
+            source_map = {
+                "input_tokens": "input_tokens",
+                "output_tokens": "output_tokens",
+                "cache_read_input_tokens": "cache_read_tokens",
+                "cache_creation_input_tokens": "cache_write_tokens",
+                "total_tokens": "total_tokens",
+            }
+            for source, target in source_map.items():
+                value = raw.get(source)
+                if type(value) is int and value >= 0:
+                    tokens[target] = value
+        usage: dict[str, object] = {}
+        if tokens:
+            usage["tokens"] = tokens
+        duration = envelope.get("duration_api_ms")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            usage["provider_elapsed_seconds"] = float(duration) / 1000.0
+        cost = envelope.get("total_cost_usd")
+        if isinstance(cost, (int, float, str)) and not isinstance(cost, bool):
+            usage["cost"] = {"amount": str(cost), "currency": "USD"}
+        return usage
+
     def command_line(self, request: RunRequest, mcp: Path) -> list[str]:
         tools = "Read,Glob,Grep,Edit,Write" if request.phase == "execute" else "Read,Glob,Grep"
         settings = {"disableAllHooks": True, "autoMemoryEnabled": False}
@@ -529,6 +667,8 @@ class ClaudeAdapter(CLIAdapter):
             if result.returncode:
                 raise OrchestratorError(f"Claude failed (exit {result.returncode}); inspect CLI authentication/configuration")
             envelope = json.loads(result.stdout)
+            if isinstance(envelope, dict) and request.usage_sink is not None:
+                request.usage_sink(self._usage_from_envelope(envelope))
             if not isinstance(envelope, dict) or envelope.get("is_error") or envelope.get("permission_denials"):
                 raise OrchestratorError("Claude returned an error or denied tool request")
             if "structured_output" not in envelope:
