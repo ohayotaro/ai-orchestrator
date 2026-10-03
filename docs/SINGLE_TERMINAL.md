@@ -1,4 +1,4 @@
-# v0.4: single-terminal operation with explicit host confirmations
+# Single-terminal operation and HumanGate host integration
 
 ## Design decision: elicitation, not tool-permission heuristics
 
@@ -9,9 +9,10 @@ allowlists can skip it. v0.4 therefore uses the supported MCP form-elicitation
 channel: a request tool begins a scoped gate, the server sends `elicitation/create`,
 and the client responds to that specific server request with accept/decline/cancel.
 
-The form contains one required boolean (`confirm`, default false). Only
-`action: accept` with exactly `content: {confirm: true}` can authorize the current
-operation. No agent-callable tool accepts `approved`, `actor`, a decision or a
+The current form contains one required enum field, `decision`, with `yes` and
+`no` choices. Only a correlated MCP response with `action: accept` and exactly
+`content: {decision: "yes"}` can authorize the current operation. No
+agent-callable tool accepts `approved`, `actor`, a decision or a
 signature/token. User-visible strings and scope digests are not credentials.
 
 **This is client-mediated, not cryptographic human authentication.** The MCP
@@ -59,11 +60,12 @@ git pull --ff-only
 .venv/bin/orchestrator --version
 ```
 
-The version is 0.4.1. Existing task/profile/database contracts remain. A new
-`runtime/gates.sqlite3` stores host-mediated gate metadata separately. Unchanged
-profiles retain their trust digests. `skill --replace` is explicit, refuses
-symlinks, and preserves the old regular file in an adjacent `.bak-<random-id>`
-backup before writing the new packaged Skill.
+The current package version is 0.9.2. Existing task/profile/database contracts
+remain readable through their compatibility paths. `runtime/gates.sqlite3`
+stores host-mediated gate metadata separately. Unchanged profiles retain their
+trust digests. `skill --replace` is explicit, refuses symlinks, and preserves
+the old regular file in an adjacent `.bak-<random-id>` backup before writing the
+new packaged Skill.
 
 Update only the relevant host's existing MCP entry, preserving other servers.
 One registration is fixed to one absolute project root. Use the registration's
@@ -87,6 +89,25 @@ codex mcp add ai-orchestrator -- \
 "$ORCH" skill --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" --replace
 ```
 
+For Antigravity as the user-facing host, install the project Skill and configure
+the same fixed-project MCP server before starting a new AGY session:
+
+```bash
+cd "$PROJECT"
+"$ORCH" skill --output .agents/skills/ai-orchestrator/SKILL.md --replace
+```
+
+Antigravity also supports a global Skill location under
+`~/.gemini/config/skills/<skill-name>/SKILL.md`. Configure its MCP server entry
+(for example in `~/.gemini/config/mcp_config.json`) to launch:
+
+```text
+$ORCH --project $PROJECT serve
+```
+
+Fully restart AGY after changing MCP configuration; a running session may not
+dynamically acquire the new MCP tools.
+
 Restart/reload the host's MCP connection and Skill. Do not enter raw JSON into
 `serve`; its stdin/stdout belongs to the client protocol. To configure manually, plain `serve` is sufficient. Optional
 `--gate-timeout 120` sets a 0.1-600 second response deadline. Use
@@ -96,11 +117,17 @@ interactive Claude Code/Codex and disable hooks or settings that auto-answer
 forms when you require a personal Yes/No.
 
 Ask the host to call `inspect_project`. The response includes
-`host_confirmation.enabled`, `form_supported`, assurance, and auto-worker state.
-An `enabled` flag alone does not prove a client will display UI: the real gate
-must return an explicit form response. Antigravity/Grok and headless clients are
-not certified here. Legacy manual fallback remains available but must be chosen
-by the user, not silently executed by the host agent.
+`host_confirmation.enabled`, `form_supported`, assurance, auto-worker state and
+content-free transport negotiation metadata. An `enabled` or
+`form_supported=true` flag alone does not prove a client displayed UI: the real
+gate must return an explicit correlated form response.
+
+Live Antigravity host testing on `antigravity-client v1.0.0` verified MCP tool
+access, protocol `2025-06-18`, advertised `elicitation.form` and
+`elicitation.url`, and delivery of `elicitation/create`. That tested client
+returned `action=cancel` rather than completing the HumanGate. Treat this as a
+host-interoperability limitation. Do not replace a failed HumanGate with CLI
+authority commands or direct config edits.
 
 ## A new smoke test (no manual worker/start/approve/accept)
 
@@ -111,9 +138,9 @@ Use a new bounded task, for example:
 > confirmation forms for start, execution and acceptance.
 
 The host should retrieve the proposal, then call `request_start` with the intake
-ID and a new idempotency key. The native form may render as a boolean toggle plus
-Accept/Decline rather than literal two buttons; exact UI is client-specific.
-Check the full preview and select Yes/accept. Planning is queued automatically.
+ID and a new idempotency key. The native form may render the Yes/No enum differently across clients; exact UI
+is client-specific. Check the full preview and select Yes/accept only for the
+exact displayed scope. Planning is queued automatically.
 At `awaiting_approval`, the next form authorizes the exact implementation attempt.
 After real validation and a non-blocking review, a final form accepts the result.
 Only `get_task.status == succeeded` and an acceptance artifact establish completion.
@@ -133,6 +160,13 @@ actor label, untrusted client name/version, operation/subject, exact content sco
 expiry, preview, state and outcome. Client metadata and local username are audit
 labels, not authenticated end-user identity. Ordinary model-provided parameters
 cannot replace them.
+
+Each gate may also contain `transport_diagnostics`: negotiated protocol,
+advertised elicitation/form/url capability, whether `elicitation/create` was
+sent, whether a correlated response arrived, the response action, or a bounded
+outcome such as host error, timeout, origin-request cancellation or disconnect.
+Arbitrary host error messages and form content are not retained. These fields are
+interop evidence, not proof of human presence.
 
 The scope covers the full task/intake state and kernel scope, current profile,
 worktree, protected files and non-runtime control files. Preview includes the

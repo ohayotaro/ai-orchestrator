@@ -1,7 +1,7 @@
 # AI Orchestrator Roadmap
 
-This document describes the intended path from the completed v0.8 adaptive
-control-plane foundation toward stable v1.0 contracts. Version numbers describe sequencing and
+This document describes the intended path from the completed v0.9 control-plane
+foundation toward stable v1.0 contracts. Version numbers describe sequencing and
 design boundaries, not promised release dates. Live E2E evidence, security
 findings and implementation experience may change the details or order.
 
@@ -290,135 +290,111 @@ The invariant remains: the system may learn/reuse **structure**, but it cannot
 silently grant itself providers, validator commands, policies, permissions,
 external effects or project trust.
 
-See `docs/ADAPTIVE_ORCHESTRATION.md`. The next milestone is v0.9 operational
-observability, budgets and recovery hardening.
+See `docs/ADAPTIVE_ORCHESTRATION.md`. v0.9 subsequently completed the
+model/runtime-resolution, isolation and observability foundation described below.
 
-## v0.9 — Model/runtime policy, observability, budgets and recovery hardening
+## v0.9 — Model/runtime policy and observable execution — completed
 
-Before declaring public contracts stable, v0.9 makes execution **selectable,
-observable, budgeted and recoverable** without collapsing provider identity,
-model choice and resource policy into one opaque router.
+v0.9 is closed for the trusted-local alpha scope. The implemented line separates
+provider identity from provider-local model/runtime choice and makes the resulting
+execution observable without turning metrics into opaque automatic ranking.
 
-The v0.5.x design boundary remains authoritative:
+The retained resolution boundary is:
 
 ```text
 task / workflow node
   -> semantic capabilities
   -> Provider Resolution        # who
   -> Model Variant Resolution   # how
-  -> Budget Policy              # how much
   -> adapter execution
 ```
 
-Provider selection and model/effort selection are separate contracts. Concrete
-vendor model names are not kernel capabilities and must not be hard-coded into
-the Orchestrator release cycle.
+### v0.9.0 — Runtime option registry and Model Variant Resolution — completed
 
-### v0.9.0 — Runtime option registry and Model Variant Resolution
+Implemented:
 
-**Implementation status: completed in the v0.9.0 alpha baseline.**
+- adapter-advertised runtime-option metadata;
+- provider-local model/effort pass-through without a kernel-owned vendor catalog;
+- deterministic precedence:
+  task/node explicit override > trusted profile setting > adapter default;
+- frozen Model Variant Resolution provenance;
+- exact model/effort/runtime-option visibility in HumanGate/controller evidence;
+- task/node-scoped runtime overrides without persistent profile mutation;
+- explicit no-fallback behavior unless separately authorized by policy.
 
-Establish the adapter/runtime contract before adding cost-based policy. The
-implemented baseline also carries explicit raw task/node model and effort
-overrides through Supervisor intake and HumanGate scope; named execution classes
-and broader policy ergonomics remain follow-on work.
+### v0.9.1 — Read-only isolation, model-aware review identity and provenance — completed
 
-Goals:
+Implemented:
 
-- versioned adapter-advertised runtime-option metadata;
-- provider-local model identifiers and supported effort/reasoning values;
-- reliable provenance for how options were discovered or configured;
-- Model Variant Resolution after Provider Resolution, never instead of it;
-- deterministic resolution precedence:
-  **task/node explicit override > trusted profile policy > adapter default**;
-- explicit fail-closed behavior for unsupported model/effort values;
-- optional named execution classes such as `fast`, `balanced` or `deep`
-  that resolve to provider-local runtime settings without becoming semantic
-  capabilities;
-- frozen model/effort/runtime-option provenance in task/node state and approval
-  scope.
+- disposable read-only workspaces for Supervisor, Planner and Reviewer;
+- omission of `.orchestrator` and ignored ambient control/runtime material;
+- unchanged verification and cleanup evidence;
+- same-family independent review when implementation and review use explicit,
+  unequal provider-local model IDs;
+- intake-scoped Supervisor model/effort override;
+- content-free controller RunRequest dispatch provenance;
+- safe provider failure diagnostics;
+- user-language presentation separated from English control-plane protocol;
+- single-terminal as the standard `serve` mode.
 
-Adapters must only advertise runtime choices they can actually control or
-verify. If a CLI does not expose a reliable model list, the adapter may report
-that limitation rather than fabricating discovery.
+Live Claude-only Fresh-Write E2E verified Sonnet implementation + Opus review
+within one family, exact write ownership, deterministic pytest validation,
+read-only provenance, three HumanGates and final `succeeded`.
 
-### v0.9.1 — Named execution policy and authority UX
+### v0.9.2 — Compatibility boundaries and HumanGate interoperability diagnostics — completed
 
-Build on the v0.9.0 raw task/node model/effort override contract so users can
-express reusable execution intent without editing provider configuration for
-every task.
+Implemented:
 
-Examples of intended conversational requests:
+- AGY Supervisor/Planner/Reviewer represented as
+  `conditional_native_permissions`, not categorically unsupported;
+- provider compatibility surfaced independently from capability resolution;
+- AGY native permission denial remains fail-closed and does not trigger prompt
+  rewriting or automatic `--dangerously-skip-permissions`;
+- adapter-sanitized denied-action diagnostics without raw command arguments;
+- HumanGate transport diagnostics for client name/version, negotiated MCP
+  protocol, advertised form/url elicitation capability, send/response state and
+  cancel/error/timeout/disconnect outcomes;
+- plain `serve` remains managed single-terminal mode; legacy manual mode is an
+  explicit opt-out.
 
-```text
-"このタスクは品質優先で"
-"レビューだけ high effort にして"
-"実装はこの provider-local model、effort=xhigh で"
-"今回はコストを抑えて"
-```
+Live Antigravity-host testing verified MCP tool access and
+`elicitation/create` delivery. The tested `antigravity-client v1.0.0`
+advertised form/url elicitation but returned `action=cancel`; this is retained
+as a host-interoperability boundary rather than bypassed through another
+authority channel.
 
-Goals:
+### v0.9 completion boundary
 
-- retain the v0.9.0 task/node-scoped model and effort override contract;
-- add abstract execution-policy/class requests resolved deterministically;
-- extend the v0.9.0 Start/execution HumanGate summaries and exact resolved
-  provider/model/effort provenance for named policy classes;
-- changing model, effort or material runtime options after approval invalidates
-  the scope;
-- persistent model/effort policy changes use bounded authority-control rather
-  than arbitrary config editing;
-- task-scoped overrides do not silently mutate project profile authority.
+v0.9 intentionally does **not** claim:
 
-The Supervisor may propose execution policy within already trusted bounds, but
-must not silently escalate cost/effort or persist a new default.
+- provider-side attestation that requested model/effort settings were honored;
+- cryptographic proof of a human click;
+- OS-level isolation against a hostile same-user process;
+- universal AGY native-permission or HumanGate compatibility;
+- automatic performance/cost-based model ranking.
 
-### v0.9.2 — Usage telemetry and budgets
+Those boundaries are explicit evidence, not reasons to weaken HumanGate,
+workspace or provider-permission controls.
 
-Once model/effort provenance is explicit, add resource accounting and
-enforcement.
+## Post-v0.9 — usage, budgets and recovery hardening
 
-Goals:
+The following work remains directional rather than assigned to a completed v0.9
+patch release:
 
-- structured per-node/provider/model timing and call provenance;
-- token/input/output/reasoning usage where providers expose reliable data;
-- cost information only where pricing/usage data is sufficiently attributable;
+- structured token/input/output/reasoning usage where providers expose reliable
+  data;
+- cost attribution only when pricing/usage data is sufficiently attributable;
 - configurable call/time/token/cost budgets;
 - pre-call budget checks and post-call accounting;
-- validator/reviewer/repair statistics;
-- audit-friendly evidence graph linking task -> node -> provider -> model/effort
-  -> usage -> artifacts -> validation/review;
-- explicit behavior when usage/cost information is unavailable or estimated.
+- richer evidence graphs linking task -> node -> provider -> model -> usage ->
+  artifacts -> validation/review;
+- conservative resume/recovery for safe pre-effect failures;
+- more precise authentication/quota/configuration/protocol failure attribution;
+- migration/compatibility hardening across persisted versions.
 
-Budget policy is not a semantic capability and does not authorize a provider or
-model by itself.
-
-### v0.9.3 — Recovery, diagnostics and failure attribution
-
-Use the richer provenance to make failures diagnosable and safe to resume.
-
-Goals:
-
-- improved resume/recovery semantics for safe pre-effect failures;
-- queue/workflow diagnostics and precise failure attribution;
-- distinguish provider authentication/quota/configuration/permission/protocol
-  failures where safely observable;
-- retain content-free provider/tool diagnostics rather than raw sensitive
-  prompts, commands or responses;
-- conservative handling of interrupted effectful calls;
-- migration and compatibility testing across persisted versions;
-- explicit recovery plans rather than automatic replay of ambiguous effects.
-
-The live v0.8 series already supplied concrete v0.9 inputs: AGY
-`denied_actions`, content-free tool telemetry, Codex startup/config failures,
-stale binding lifecycle, and frontend `wait_job` heuristics.
-
-### v0.9 routing boundary
-
-Metrics are initially **provenance**, not an automatic leaderboard. v0.9 must
-not silently choose a model because historical statistics say it is "better".
-Any later performance/cost-aware routing policy must be explicit, inspectable,
-deterministic within its configured inputs, and separately authorized where it
-changes cost or capability expectations.
+Metrics remain provenance first, not an automatic leaderboard. Any later
+performance/cost-aware routing policy must be explicit, inspectable and
+separately authorized where it changes cost or execution expectations.
 
 ## v1.0 — Stable control-plane contracts
 

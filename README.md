@@ -169,7 +169,9 @@ server sent `elicitation/create`, and whether the host returned
 accept/decline/cancel, an error, timeout, or disconnect. This is interoperability
 evidence, not human-presence attestation. Use an
 interactive client with approval automation disabled when personal confirmation
-is required. No authenticated live v0.4 client test is claimed by the offline suite.
+is required. Live owner-reported HumanGate evidence exists for Claude Code/Codex;
+Antigravity host transport has been live-tested separately and currently returns
+an explicit elicitation cancel in the tested client.
 See [Single-terminal design and setup](docs/SINGLE_TERMINAL.md).
 
 ## Install / upgrade
@@ -203,7 +205,7 @@ interfaces; raw denied commands and arguments are not retained. Adaptive
 task-scoped DAGs and isolated parallel execution still cannot install new
 providers, validator commands, policies or external-effect authority.
 
-## Configure the existing calculator fixture
+## Host setup for the existing calculator fixture
 
 Use a normal terminal for this one-time host setup. Do not reinitialize or reset
 existing projects, tasks or uncommitted calculator changes.
@@ -213,43 +215,113 @@ ORCH=/Users/ohayotaro/ai-orchestrator/.venv/bin/orchestrator
 PROJECT=/Users/ohayotaro/ai-orchestrator-e2e
 ```
 
-A normal `serve` registration now defaults to single-terminal operation. The
+Plain `serve` is the standard single-terminal mode. The historical
 `--single-terminal` flag remains accepted for compatibility but is unnecessary.
-Use `serve --legacy-terminal` only when you deliberately want the old manual
-worker/operator-terminal flow. For Claude Code (local project scope):
+Use `serve --legacy-terminal` only when you deliberately want the older manual
+worker/operator-terminal flow.
+
+### Claude Code host
+
+Register the MCP server for the project and export the packaged Skill:
 
 ```bash
 cd "$PROJECT"
 claude mcp remove ai-orchestrator --scope local
 claude mcp add --transport stdio --scope local ai-orchestrator -- \
   "$ORCH" --project "$PROJECT" serve
-"$ORCH" skill --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" --replace
+
+"$ORCH" skill \
+  --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" \
+  --replace
 ```
 
-For Codex, update the existing registration:
+Restart/reload Claude Code after changing the MCP registration or Skill.
+
+### Codex host
+
+Register the MCP server and export the packaged Skill:
 
 ```bash
+cd "$PROJECT"
 codex mcp remove ai-orchestrator
 codex mcp add ai-orchestrator -- \
   "$ORCH" --project "$PROJECT" serve
-"$ORCH" skill --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" --replace
+
+"$ORCH" skill \
+  --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" \
+  --replace
 ```
 
-`skill --replace` makes an adjacent uniquely named backup before replacing a
-regular file. It refuses symlinks and never changes client configuration itself.
-Inspect registration scope before removing any existing server; do not remove an
-unrelated server. Reload/restart the client as needed after configuration changes.
+Restart/reload Codex after changing the MCP registration or Skill.
 
-An unchanged profile needs no new trust grant. If configuration changed, inspect
-it and explicitly retrust from the operator terminal. No MCP request grants
-project trust. A manual worker already running is reused; stop it before testing
-that automatic startup works. Do not run a second manual worker.
+### Antigravity (AGY) host
+
+Antigravity can discover project Skills from:
+
+```text
+<project>/.agents/skills/<skill-name>/SKILL.md
+```
+
+For the calculator fixture:
+
+```bash
+cd "$PROJECT"
+"$ORCH" skill \
+  --output .agents/skills/ai-orchestrator/SKILL.md \
+  --replace
+```
+
+A global Antigravity Skill may instead be installed under
+`~/.gemini/config/skills/ai-orchestrator/SKILL.md`.
+
+Configure the same fixed-project MCP server in Antigravity's MCP configuration
+(for example `~/.gemini/config/mcp_config.json`) so it launches:
+
+```text
+$ORCH --project $PROJECT serve
+```
+
+Then fully restart Antigravity: its current CLI session may not dynamically add
+new MCP tools after configuration changes. On startup, verify the connection by
+asking the host to call `inspect_project`; do not fall back to direct
+`.orchestrator` inspection or Orchestrator CLI authority commands if the MCP
+tools are unavailable.
+
+Observed v0.9.2 interoperability is intentionally split into two layers:
+
+- Antigravity host -> ai-orchestrator MCP tools: live-verified.
+- Antigravity host -> HumanGate form elicitation: the client advertises
+  `elicitation.form` and `elicitation.url`, receives `elicitation/create`,
+  but the tested `antigravity-client v1.0.0` returned `action=cancel` without a
+  successful confirmation. This is recorded as a host-interoperability limitation,
+  not treated as permission to bypass HumanGate through CLI/config edits.
+
+Use `inspect_project.host_confirmation.transport` and the gate's
+`transport_diagnostics` to distinguish capability negotiation, host cancel,
+timeout, disconnect and protocol error.
+
+### Skill replacement and trust
+
+`skill --replace` makes an adjacent uniquely named backup before replacing a
+regular file. It refuses symlinks and never edits client configuration itself.
+
+An unchanged project profile needs no new trust grant. If configuration changed,
+inspect it and explicitly re-trust from the operator context. No MCP request
+silently grants project trust.
 
 ## Ordinary use
 
-Ask the connected client to use ai-orchestrator for a small change. It calls
-`inspect_project` then `propose_task`. In opt-in mode, workers start automatically.
-The three request tools present native host confirmations:
+A normal request can stay concise:
+
+```text
+ai-orchestratorを使って、calculator.pyにsquare(value)を追加し、
+pytestテストも追加してください。実装はClaudeに担当させてください。
+```
+
+The user does not need to say "single-terminal mode", choose a DAG, name a
+workflow, or describe worker startup. The connected host calls
+`inspect_project`, proposes bounded work and uses the three HumanGate request
+tools when applicable:
 
 | Tool | What a confirmed response permits |
 | --- | --- |
@@ -257,61 +329,62 @@ The three request tools present native host confirmations:
 | `request_execution` | Authorize the exact implementation attempt and validators, then queue it |
 | `request_acceptance` | Accept the exact reviewed result; no commit/push/deployment |
 
-The client must show No/cancel as a real choice and must not answer for the user.
-If `inspect_project.host_confirmation.form_supported` is false, remain blocked
-or deliberately use the manual operator CLI. There is no silent CLI fallback.
+The host must not answer HumanGate forms for the user. If form elicitation is
+unsupported, cancelled, declined, expired or disconnected, the operation remains
+unauthorized. Do not downgrade authority by running `start`, `approve`,
+`accept`, editing `config.yaml`, or using chat text as approval.
 
-`get_job` reports queue operation state, not task completion. `get_task` is the
-canonical task state; `get_artifact` reads hash-verified evidence. A repair requires
-a fresh execution confirmation. Do not change files or run additional tests while
-an approval scope is pending. Read existing validation evidence instead.
+`get_job` reports queue-operation state, not task completion. `get_task` is the
+canonical task state; `get_artifact` reads hash-verified evidence. A repair
+requires a fresh execution confirmation. Do not change files or rerun validators
+merely to second-guess existing Orchestrator evidence.
 
 ## Compatibility / diagnostics
 
-Plain `orchestrator serve` retains the v0.3 manual-worker/operator-gate behavior.
-The existing `ask`, `create`, `start`, `approve`, `run`, `accept`, validator and
-knowledge commands remain supported. Persisted TaskState v1-v4 remains readable;
-trusted/manual workflows continue to create v4 state, while confirmed embedded
-adaptive DAGs use v5. Default v0.8 template metadata preserves an unchanged v0.7
-profile fingerprint. Gates are stored separately in `runtime/gates.sqlite3`;
-old artifacts are not rewritten. `orchestrator gate G-ID` reads the gate/audit metadata.
+Plain `orchestrator serve` is the managed single-terminal mode.
+`serve --legacy-terminal` explicitly selects the retained manual-worker/operator
+flow. Existing direct `ask`, `create`, `start`, `approve`, `run`,
+`accept`, validator and knowledge commands remain available for deliberate
+operator/manual workflows, diagnostics and recovery; they are not an automatic
+fallback from a failed HumanGate.
 
-Managed workers idle-exit after draining the queue. Their private log paths and
-startup errors appear in MCP job/inspection output. Repeated failed startups stop
-rather than looping indefinitely. Host disconnect does not undo already dispatched
-work; it cancels an unanswered confirmation, while the separate worker completes
-accepted queue work and idle-exits. Interrupted effects are never automatically
-replayed.
+Persisted older TaskState versions remain readable. Gates are stored separately in
+`runtime/gates.sqlite3`; `orchestrator gate G-ID` reads gate/audit metadata,
+including content-free HumanGate transport diagnostics.
+
+Managed workers idle-exit after draining the queue. Host disconnect does not undo
+already dispatched work; it cancels an unanswered confirmation, while an already
+authorized queued operation remains independently durable. Interrupted effects are
+never automatically replayed.
 
 ## Roadmap
 
-The current v0.8 baseline combines deterministic capability/provider resolution,
-declarative workflows, isolated parallel execution and adaptive task-scoped DAG
-proposal behind the existing HumanGate/evidence boundaries. The next development
-phase first separates provider-local model/effort/runtime-option resolution from
-provider identity, then layers usage observability, budgets and recovery
-hardening on top of that provenance.
+v0.9 is complete for its trusted-local alpha scope. It established separate
+Provider Resolution and Model Variant Resolution, provider-local model/effort
+overrides, read-only provider workspaces, same-family/different-model review
+identity, dispatch/failure provenance, single-terminal-by-default operation and
+HumanGate transport diagnostics.
 
-See **[ROADMAP.md](ROADMAP.md)** for the planned path from completed v0.5 provider resolution and v0.6 workflow DAGs, isolated parallel execution,
-adaptive/user-defined orchestration, observability and stable v1.0 contracts.
-The roadmap is directional rather than a release-date commitment and may be
-revised from measured E2E evidence.
+See **[ROADMAP.md](ROADMAP.md)** for the post-v0.9 path toward stable v1.0
+contracts. AGY native-permission and HumanGate host compatibility are explicit
+adapter/host boundaries rather than reasons to weaken authority controls.
 
 ## Verification / limitations
 
-Tests cover malformed/negative confirmations, correlation and replay, stale state,
-expiration, cancellation, native tool paths, worker lifecycle and subprocess wire
-E2E with model shims plus actual pytest. Optional official MCP SDK interoperability
-runs in CI via `.[interop]`. Those checks are not live Claude Code/Codex UI tests.
-The owner previously reported complete v0.3 flows from both clients; those do not
-verify v0.4 elicitation or new worker-environment behavior.
+The offline matrix covers malformed/negative confirmations, correlation/replay,
+stale state, expiration/cancellation/disconnect, worker lifecycle, provider
+resolution, model-variant provenance, workspace isolation and subprocess wire E2E.
+Optional official MCP SDK interoperability runs in CI via `.[interop]`.
 
-Read [v0.4 design/setup](docs/SINGLE_TERMINAL.md) and [changelog](CHANGELOG.md).
-Earlier [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md),
-[MCP v0.3 guide](docs/MCP.md) and [migration](docs/MIGRATION.md) describe the
-retained legacy mode; the v0.4 document supersedes their manual-only claims for
-explicit single-terminal mode. Trust/configuration changes remain operator-only
-in both modes. License remains to be determined.
+Live owner-reported v0.9 evidence includes Claude-only Fresh-Write completion and
+AGY host MCP-tool interoperability. HumanGate transport evidence is
+client-mediated and is not cryptographic proof that a person saw or clicked a
+form. The tested Antigravity client advertised form elicitation but returned
+`action=cancel` after receiving the server request.
+
+Read [Single-terminal design/setup](docs/SINGLE_TERMINAL.md),
+[security boundaries](docs/SECURITY.md), [live E2E evidence](docs/E2E.md),
+[changelog](CHANGELOG.md) and [migration guidance](docs/MIGRATION.md).
 
 
 ## v0.7 isolated parallel execution
