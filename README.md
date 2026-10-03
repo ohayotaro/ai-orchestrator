@@ -1,16 +1,16 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.9.2 alpha** closes the v0.9 line with provider-local model/effort resolution,
-read-only workspace hardening, observable dispatch provenance and explicit
-provider-compatibility boundaries. Supervisor, Planner and Reviewer execute
-against disposable project snapshots that omit `.orchestrator`. Independent
-review may use a different provider family or explicit unequal model IDs within
-one family. AGY read-only headless roles are conditionally supported: they may
-run when AGY native scoped permissions are sufficient, but Orchestrator does not
-modify or attest that permission policy and fails closed on denial. This remains
-a trusted-local application, not authenticated human identity or a general
-OS-isolated control plane.
+**v0.10.2 alpha** adds Usage Observability & Budget Policy to the v0.9
+provider/model provenance chain. Provider calls now produce normalized
+known/unknown/unsupported usage evidence, deterministic call/node/attempt/task
+aggregation, explicit provider-reported or versioned controller-computed cost,
+and trusted budgets that fail closed when a strict metric cannot be proven.
+Budget pressure never silently changes provider, model, effort, validator,
+workflow or HumanGate authority. Supervisor, Planner and Reviewer retain the
+v0.9 disposable read-only workspace boundary. This remains a trusted-local
+application, not authenticated human identity, provider billing attestation or a
+general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -152,6 +152,28 @@ agent tool can persist or trust a template.
 
 See **[Adaptive orchestration](docs/ADAPTIVE_ORCHESTRATION.md)**.
 
+## v0.10 usage observability and budget policy
+
+Usage is evidence, not an estimate. Each provider call records controller elapsed
+time plus only the token, provider-duration and cost fields the adapter can
+attribute. Missing provider counters stay `unknown` or `unsupported`; they are
+never replaced with text-length estimates or zero.
+
+Trusted project policy can cap provider calls, controller/provider elapsed time,
+reported token dimensions, exact provider/model call counts, and attributable
+cost. Existing `max_agent_calls` and `task_timeout_seconds` remain hard ceilings.
+A strict token/cost budget fails before dispatch when the selected adapter/model
+cannot provide the required evidence. Reaching a limit blocks the next provider
+effect; exceeding or losing proof after a call fails closed. There is no
+budget-driven provider/model/effort/workflow fallback.
+
+`get_task` exposes current `usage` and `budget` state. Hash-verified ledgers
+are available with `get_artifact(kind=usage)` and
+`get_artifact(kind=budget)`. Start/execution/acceptance HumanGate previews show
+material budget consumption and bind it into the exact confirmation scope.
+
+See **[Usage observability and budgets](docs/USAGE_BUDGETS.md)**.
+
 ## Important approval distinction
 
 v0.4 uses MCP `elicitation/create`, not ordinary tool permission prompts,
@@ -185,7 +207,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.9.2
+.venv/bin/orchestrator --version  # 0.10.2
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`

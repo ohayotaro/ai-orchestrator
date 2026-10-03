@@ -19,6 +19,16 @@ from .validators import ValidationFailure, changed_paths, inspect_validator, run
 from .workflow import compile_workflow, workflow_registry, workflow_registry_report
 from .workflow_runtime import WorkflowExecutor
 from .workspaces import ReadOnlyWorkspaceManager, WorkspaceManager
+from .usage import (
+    UsageDescriptor,
+    append_usage,
+    assert_dispatch_allowed,
+    assert_post_call_budget,
+    budget_snapshot,
+    empty_usage,
+    normalize_usage,
+    usage_descriptor,
+)
 
 
 class Engine:
@@ -37,6 +47,164 @@ class Engine:
 
     def close(self) -> None:
         self.store.close()
+
+    def usage_evidence(self, state: TaskState) -> dict[str, Any]:
+        value = self.store.latest(state, "usage")
+        return value if isinstance(value, dict) else empty_usage()
+
+    def budget_status(self, state: TaskState) -> dict[str, Any]:
+        return budget_snapshot(
+            self.profile.policy,
+            self.usage_evidence(state),
+            calls=state.calls,
+            elapsed_seconds=state.elapsed_seconds,
+        )
+
+    def usage_observability_report(self) -> dict[str, Any]:
+        providers: dict[str, Any] = {}
+        for name, config in sorted(self.profile.providers.items()):
+            adapter = self.registry.get(config.adapter)
+            if adapter is None:
+                providers[name] = {
+                    "provider": name,
+                    "adapter": config.adapter,
+                    "error": "adapter is not installed",
+                }
+                continue
+            providers[name] = {
+                "provider": name,
+                "adapter": config.adapter,
+                "family": adapter.family,
+                "usage": usage_descriptor(adapter, config, self.project.root).model_dump(),
+                "pricing": [
+                    rule.model_dump()
+                    for rule in self.profile.pricing
+                    if rule.provider == name
+                ],
+            }
+        return {
+            "schema_version": 1,
+            "providers": providers,
+            "truth_policy": (
+                "missing counters remain unknown/unsupported; token counts, hidden reasoning and cost are never inferred"
+            ),
+        }
+
+    def budget_policy_report(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "legacy_hard_limits": {
+                "max_agent_calls": self.profile.policy.max_agent_calls,
+                "task_timeout_seconds": self.profile.policy.task_timeout_seconds,
+            },
+            "budget": self.profile.policy.budget.model_dump(),
+            "pricing": [rule.model_dump() for rule in self.profile.pricing],
+            "fallback": "none",
+        }
+
+    def check_budget_before_dispatch(
+        self,
+        state: TaskState,
+        resolution: ProviderResolution,
+        variant: ModelVariantResolution,
+        adapter: ProviderAdapter,
+        config: Any,
+    ) -> UsageDescriptor:
+        descriptor = usage_descriptor(adapter, config, self.project.root)
+        assert_dispatch_allowed(
+            policy=self.profile.policy,
+            pricing=self.profile.pricing,
+            evidence=self.usage_evidence(state),
+            calls=state.calls,
+            elapsed_seconds=state.elapsed_seconds,
+            provider=resolution.provider,
+            model=variant.model,
+            descriptor=descriptor,
+        )
+        return descriptor
+
+    def record_usage(
+        self,
+        state: TaskState,
+        *,
+        resolution: ProviderResolution,
+        variant: ModelVariantResolution,
+        descriptor: UsageDescriptor,
+        role: str,
+        node: str | None,
+        phase: str,
+        outcome: str,
+        elapsed_seconds: float,
+        raw: dict[str, object] | None,
+        call_index: int | None = None,
+    ) -> dict[str, Any]:
+        normalized_outcome = (
+            "cancelled"
+            if self.store.cancelled(state.spec.id)
+            else ("completed" if outcome == "completed" else "failed")
+        )
+        record = normalize_usage(
+            owner_id=state.spec.id,
+            call_index=call_index if call_index is not None else state.calls,
+            attempt=state.attempt,
+            role=role,
+            node=node,
+            phase=phase,
+            provider=resolution.provider,
+            adapter_name=resolution.adapter,
+            family=resolution.family,
+            model=variant.model,
+            effort=variant.effort,
+            outcome=normalized_outcome,
+            elapsed_seconds=elapsed_seconds,
+            raw=raw,
+            descriptor=descriptor,
+            pricing=self.profile.pricing,
+        )
+        evidence = append_usage(self.usage_evidence(state), record)
+        self.store.artifact(state, "usage", evidence)
+        status = budget_snapshot(
+            self.profile.policy,
+            evidence,
+            calls=state.calls,
+            elapsed_seconds=state.elapsed_seconds,
+        )
+        self.store.artifact(state, "budget", status)
+        self.store.save(
+            state,
+            "usage.recorded",
+            {
+                "call_index": record.call_index,
+                "node": node,
+                "role": role,
+                "provider": resolution.provider,
+                "model": variant.model,
+                "attempt": state.attempt,
+                "outcome": normalized_outcome,
+                "token_status": {
+                    name: getattr(record, name).status
+                    for name in (
+                        "input_tokens",
+                        "output_tokens",
+                        "reasoning_tokens",
+                        "cache_read_tokens",
+                        "cache_write_tokens",
+                        "total_tokens",
+                    )
+                },
+                "cost_status": record.cost.status,
+                "budget_can_dispatch": status["can_dispatch"],
+            },
+        )
+        return status
+
+    def enforce_post_call_budget(self, state: TaskState) -> dict[str, Any]:
+        return assert_post_call_budget(
+            self.profile.policy,
+            self.usage_evidence(state),
+            calls=state.calls,
+            elapsed_seconds=state.elapsed_seconds,
+        )
 
     @contextmanager
     def readonly_workspace(
@@ -142,8 +310,14 @@ class Engine:
         if len(spec.nodes) > 16:
             raise OrchestratorError("Supervisor workflow proposals are limited to 16 nodes")
         agent_nodes = [node for node in spec.nodes if node.kind == "agent"]
-        if len(agent_nodes) > self.profile.policy.max_agent_calls:
-            raise OrchestratorError("proposed workflow requires more agent nodes than the task call budget")
+        effective_call_limit = min(
+            self.profile.policy.max_agent_calls,
+            self.profile.policy.budget.max_provider_calls
+            if self.profile.policy.budget.max_provider_calls is not None
+            else self.profile.policy.max_agent_calls,
+        )
+        if len(agent_nodes) > effective_call_limit:
+            raise OrchestratorError("proposed workflow requires more agent nodes than the provider-call budget")
         known = set(CAPABILITIES)
         for node in agent_nodes:
             if len(node.instructions) > 4000:
@@ -205,7 +379,7 @@ class Engine:
             for key, value in (runtime_overrides or {}).items():
                 identifier(key)
                 normalized_runtime[key] = RuntimeOverride.model_validate(value).model_dump()
-            state = TaskState(schema_version=6, spec=spec, profile_digest=self.profile_digest,
+            state = TaskState(schema_version=7, spec=spec, profile_digest=self.profile_digest,
                               capability_requirements=requested or None,
                               runtime_overrides=normalized_runtime or None)
             executor = self.bind_workflow(
@@ -589,6 +763,9 @@ class Engine:
         if state.schema_version >= 6:
             payload["model_variant_resolutions"] = state.model_variant_resolutions
             payload["runtime_overrides"] = state.runtime_overrides
+        if state.schema_version >= 7:
+            payload["budget"] = self.budget_status(state)
+            payload["usage_summary"] = self.usage_evidence(state).get("summary")
         if state.schema_version >= 4:
             payload["task_capability_requirements"] = state.task_capability_requirements
             payload["provider_permission_grants"] = {
@@ -791,6 +968,9 @@ class Engine:
         if remaining <= 0:
             raise OrchestratorError("task execution-time budget exhausted")
         adapter, config, resolution, variant = self._binding(role, state)
+        usage_contract = self.check_budget_before_dispatch(
+            state, resolution, variant, adapter, config
+        )
         before_files = self.project.manifest()
         before = self.project.snapshot()
         protected = self.project.protected_snapshot(self.profile)
@@ -807,6 +987,8 @@ class Engine:
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
         workspace_evidence: dict[str, object] = {}
+        usage_raw: dict[str, object] = {}
+        call_outcome = "failed"
         try:
             if role == "implementer":
                 workspace_evidence.update({
@@ -822,6 +1004,7 @@ class Engine:
                     lambda: self.store.cancelled(state.spec.id),
                     result_model=model,
                     runtime_options=dict(variant.options),
+                    usage_sink=usage_raw.update,
                 )
                 raw = adapter.execute(request_value)
             else:
@@ -834,6 +1017,7 @@ class Engine:
                         lambda: self.store.cancelled(state.spec.id),
                         result_model=model,
                         runtime_options=dict(variant.options),
+                        usage_sink=usage_raw.update,
                     )
                     raw = adapter.execute(request_value)
             self.record_provider_provenance(
@@ -847,8 +1031,22 @@ class Engine:
                 ),
             )
             result = model.model_validate(raw.model_dump() if isinstance(raw, Contract) else raw)
+            call_outcome = "completed"
         finally:
-            state.elapsed_seconds += time.monotonic() - start
+            call_elapsed = time.monotonic() - start
+            state.elapsed_seconds += call_elapsed
+            self.record_usage(
+                state,
+                resolution=resolution,
+                variant=variant,
+                descriptor=usage_contract,
+                role=role,
+                node=None,
+                phase=state.phase,
+                outcome=call_outcome,
+                elapsed_seconds=call_elapsed,
+                raw=usage_raw,
+            )
         self._check(state)
         if self.store.cancelled(state.spec.id):
             raise OrchestratorError("execution cancelled")
@@ -879,6 +1077,7 @@ class Engine:
         self.store.save(state, "call.finished", {"role": role, "outcome": result.outcome, "snapshot": after})
         if result.outcome == "blocked":
             raise OrchestratorError("agent reported blocked: " + result.summary)
+        self.enforce_post_call_budget(state)
         return result
 
     def _validate(self, state: TaskState) -> bool:

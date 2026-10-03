@@ -218,6 +218,53 @@ def _supervisor_runtime(preview: dict[str, Any]) -> str:
     )
 
 
+def _compact_usage(evidence: Any) -> dict[str, Any] | None:
+    if not isinstance(evidence, dict):
+        return None
+    summary = evidence.get("summary")
+    if not isinstance(summary, dict):
+        return None
+    keys = (
+        "calls",
+        "controller_elapsed_seconds",
+        "provider_elapsed_seconds",
+        "input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "total_tokens",
+        "cost",
+    )
+    return {
+        "schema_version": evidence.get("schema_version", 1),
+        "record_count": len(evidence.get("records") or []),
+        "summary": {key: summary.get(key) for key in keys},
+    }
+
+
+def _budget_summary(preview: dict[str, Any]) -> str:
+    budget = preview.get("budget") or {}
+    if not isinstance(budget, dict):
+        return "-"
+    consumed = budget.get("consumed") or {}
+    limits = budget.get("effective_limits") or {}
+    blockers = budget.get("blockers") or []
+    calls = consumed.get("provider_calls", "-")
+    max_calls = limits.get("provider_calls", "-")
+    elapsed = consumed.get("controller_elapsed_seconds", "-")
+    max_elapsed = limits.get("controller_elapsed_seconds", "-")
+    suffix = "blocked=" + _csv([
+        f"{item.get('dimension')}:{item.get('status')}"
+        for item in blockers if isinstance(item, dict)
+    ]) if blockers else "dispatchable"
+    return (
+        f"calls={_clean_inline(calls)}/{_clean_inline(max_calls)} "
+        f"elapsed={_clean_inline(elapsed)}s/{_clean_inline(max_elapsed)}s "
+        f"{suffix}"
+    )
+
+
 def _csv(values: Any, *, limit: int = 6) -> str:
     if not isinstance(values, list) or not values:
         return "-"
@@ -262,6 +309,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
                 continue
             before = item.get("before") or {}
             after = item.get("after") or {}
+            reset_pricing = item.get("reset_pricing_rules", 0)
             lines.append(
                 "  "
                 + _clean_inline(item.get("provider", "-"), 60)
@@ -269,6 +317,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
                 + _clean_inline(before.get("adapter", "-"), 60)
                 + " -> "
                 + _clean_inline(after.get("adapter", item.get("adapter", "-")), 60)
+                + (f" (reset pricing rules: {reset_pricing})" if reset_pricing else "")
             )
         lines += [
             f"New trusted profile: {_clean_inline((p.get('change_set') or {}).get('proposed_profile_digest', '-'), 72)}",
@@ -283,6 +332,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Provider slot: {_clean_inline(change.get('provider', gate.subject))}",
             f"Adapter: {_clean_inline(before.get('adapter', '-'))} -> {_clean_inline(after.get('adapter', change.get('adapter', '-')))}",
             f"Reset vendor-specific fields: {_csv(change.get('reset_adapter_specific_fields') or [])}",
+            f"Reset pricing rules: {change.get('reset_pricing_rules', 0)}",
             f"New trusted profile: {_clean_inline(change.get('proposed_profile_digest', '-'), 72)}",
             "Task effect: no task is executed or accepted by this confirmation.",
         ]
@@ -317,6 +367,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Write ownership: {_csv(ownership)}",
             f"Supervisor runtime: {_supervisor_runtime(p)}",
             f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
+            f"Budget: {_budget_summary(p)}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
     elif gate.kind == "execution":
@@ -342,6 +393,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Task runtime override(s): {_runtime_overrides(p.get('runtime_overrides'))}",
             f"Provider permission override(s): {_csv(grants)}",
             f"Validators: {_csv(list((p.get('validators') or {}).keys()))}",
+            f"Budget: {_budget_summary(p)}",
             "Effect: authorize this exact implementation attempt and queue execution to the next gate.",
         ]
     elif gate.kind == "acceptance":
@@ -355,6 +407,7 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Changed paths: {_csv(write_set.get('changed_paths') if isinstance(write_set, dict) else [])}",
             f"Validation passed: {validation.get('passed', '-') if isinstance(validation, dict) else '-'}",
             f"Review outcome: {_clean_inline(review.get('outcome', '-') if isinstance(review, dict) else '-')}",
+            f"Budget: {_budget_summary(p)}",
             "Effect: mark this exact reviewed worktree complete.",
             "Not authorized: commit, push, deployment, publication, or other external action.",
         ]
@@ -648,6 +701,8 @@ class HumanGateBroker:
                        "workflow_source": intake.workflow_source or "profile_default",
                        "workflow_persistence": workflow_persistence,
                        "workflow": workflow_report,
+                       "usage_summary": _compact_usage(intake.usage_evidence),
+                       "budget": intake.budget_status,
                        "supervisor_summary": intake.result.summary, "notes": intake.notes}
             state = intake.model_dump()
             if state.get("allowed_paths") is None:
@@ -674,6 +729,8 @@ class HumanGateBroker:
                            "provider_permissions": sorted(state_object.provider_permission_grants),
                            "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
                            "feedback": state_object.feedback,
+                           "usage_summary": _compact_usage(engine.usage_evidence(state_object)),
+                           "budget": engine.budget_status(state_object),
                            **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             elif kind == "acceptance":
                 if state_object.status != "awaiting_acceptance" or state_object.reviewed_snapshot != project.snapshot():
@@ -688,6 +745,8 @@ class HumanGateBroker:
                            "validation": engine.store.latest(state_object, "validation"),
                            "review": engine.store.latest(state_object, "review"),
                            "reviewed_snapshot": state_object.reviewed_snapshot,
+                           "usage_summary": _compact_usage(engine.usage_evidence(state_object)),
+                           "budget": engine.budget_status(state_object),
                            **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             else:
                 raise OrchestratorError("unknown gate kind")

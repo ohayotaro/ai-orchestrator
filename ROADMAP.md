@@ -376,7 +376,7 @@ v0.9 intentionally does **not** claim:
 Those boundaries are explicit evidence, not reasons to weaken HumanGate,
 workspace or provider-permission controls.
 
-## v0.10 — Usage Observability & Budget Policy — planned
+## v0.10 — Usage Observability & Budget Policy — implemented
 
 v0.10 extends the v0.9 execution/provenance chain with attributable usage and
 explicit resource limits:
@@ -409,7 +409,7 @@ authority.
 
 Establish a normalized usage evidence contract while preserving provider truth.
 
-Planned:
+Implemented:
 
 - adapter-level structured usage extraction where the provider exposes reliable
   input/output/reasoning/cache/token or call data;
@@ -458,7 +458,7 @@ execution is budget-constrained.
 
 Complete the evidence layer for auditable usage/cost reporting.
 
-Planned:
+Implemented:
 
 - pricing metadata with source/version/effective-time provenance rather than
   hard-coded unversioned cost constants;
@@ -472,6 +472,14 @@ Planned:
 
 Metrics remain provenance first. v0.10 does not introduce automatic
 performance/cost leaderboards or opaque model ranking.
+
+Completion output: normalized usage/cost contracts; adapter telemetry boundaries for
+Claude/Codex/AGY; TaskState v7 and IntakeState v4 accounting provenance;
+deterministic task/node/attempt/provider/model aggregation; trusted call/time/
+token/cost budgets; exact provider/model pricing provenance; pre-dispatch and
+post-call fail-closed enforcement; MCP/task/artifact inspection; and budget-aware
+HumanGate previews. Budget enforcement is non-routing: v0.10.2 contains no
+automatic provider/model/effort/workflow fallback.
 
 ### v0.10 non-goals
 

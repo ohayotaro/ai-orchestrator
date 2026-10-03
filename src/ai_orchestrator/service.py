@@ -157,6 +157,8 @@ class ApplicationService:
     def task_view(engine: Engine, task_id: str) -> dict[str, Any]:
         state = engine.store.get(task_id)
         result = state.model_dump()
+        result["usage"] = engine.usage_evidence(state)
+        result["budget"] = engine.budget_status(state)
         if state.status == "awaiting_approval":
             result["approval_scope"] = engine.approval_scope(state)
         return result
@@ -189,6 +191,8 @@ class ApplicationService:
                         "capabilities": engine.capability_report(),
                         "provider_compatibility": engine.provider_compatibility_report(),
                         "runtime_options": engine.runtime_option_report(),
+                        "usage_observability": engine.usage_observability_report(),
+                        "budget_policy": engine.budget_policy_report(),
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
                         "adaptive_orchestration": {
@@ -197,6 +201,7 @@ class ApplicationService:
                             "model_variant_resolution": "provider-local model/effort resolved after Provider Resolution and frozen into task/node provenance",
                             "provider_dispatch_provenance": "get_artifact(kind=provider_provenance) records content-free controller RunRequest dispatch and workspace evidence; Supervisor equivalent is returned by get_intake",
                             "provider_failure_diagnostics": "AGY/provider failures expose adapter-sanitized diagnostics through get_intake (Supervisor) or get_artifact(kind=provider_failure) after task registration; raw commands/arguments are not retained",
+                            "usage_budget_evidence": "get_task returns normalized usage/budget state; get_artifact(kind=usage|budget) returns hash-verified evidence. Unknown telemetry is never coerced to zero.",
                             "persistent_template_save": "operator-only after successful evidence-backed execution",
                             "profile_mutation_by_agent": "bounded provider-adapter changes only through dedicated HumanGate",
                         },

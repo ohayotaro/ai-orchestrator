@@ -131,7 +131,7 @@ class SupervisorResult(Contract):
 
 
 class IntakeState(Contract):
-    schema_version: Literal[1, 2, 3] = 1
+    schema_version: Literal[1, 2, 3, 4] = 1
     id: str
     task_id: str
     profile_digest: str
@@ -151,6 +151,10 @@ class IntakeState(Contract):
     supervisor_model_variant_resolution: dict[str, object] | None = None
     supervisor_dispatch_provenance: dict[str, object] | None = None
     provider_failure_diagnostics: dict[str, object] | None = None
+    # v0.10 carries Supervisor usage forward so task-level budgets account for
+    # intake work instead of restarting at task registration.
+    usage_evidence: dict[str, object] | None = None
+    budget_status: dict[str, object] | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None

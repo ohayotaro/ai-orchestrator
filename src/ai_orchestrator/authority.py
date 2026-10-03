@@ -221,6 +221,21 @@ def provider_change_set_preview(engine, changes: dict[str, str]) -> dict[str, An
             "reset_adapter_specific_fields": sorted(reset_fields),
         })
 
+    # Pricing is provider/model specific authority. An adapter change invalidates
+    # pricing metadata for the changed provider slot rather than silently applying
+    # an old vendor rate to a new adapter.
+    if isinstance(proposed_raw.get("pricing"), list):
+        changed_slots = set(normalized)
+        proposed_raw["pricing"] = [
+            item for item in proposed_raw["pricing"]
+            if not isinstance(item, dict) or item.get("provider") not in changed_slots
+        ]
+        for record in records:
+            record["reset_pricing_rules"] = sum(
+                1 for item in raw.get("pricing", [])
+                if isinstance(item, dict) and item.get("provider") == record["provider"]
+            )
+
     # Validate only the final, atomic profile. This deliberately does not
     # validate intermediate per-slot states, so policy-valid swaps are possible.
     proposed = Profile.model_validate(proposed_raw)
@@ -287,13 +302,24 @@ def apply_provider_change_set(
         slot["adapter"] = adapter
         for key in ("executable", "model", "effort"):
             slot.pop(key, None)
+    changed_slots = set(changes)
+    if isinstance(proposed_raw.get("pricing"), list):
+        proposed_raw["pricing"] = [
+            item for item in proposed_raw["pricing"]
+            if not isinstance(item, dict) or item.get("provider") not in changed_slots
+        ]
     proposed = Profile.model_validate(proposed_raw)
     # Re-run final semantic validation immediately before effect.
     _validate_proposed_profile(engine, proposed)
     new_text = yaml.safe_dump(proposed_raw, sort_keys=False)
 
     event_changes = [
-        {"provider": item["provider"], "from_adapter": item["before"]["adapter"], "to_adapter": item["after"]["adapter"]}
+        {
+            "provider": item["provider"],
+            "from_adapter": item["before"]["adapter"],
+            "to_adapter": item["after"]["adapter"],
+            "reset_pricing_rules": item.get("reset_pricing_rules", 0),
+        }
         for item in preview["changes"]
     ]
     with engine.store.db:
@@ -353,6 +379,7 @@ def provider_change_preview(engine, provider: str, adapter: str) -> dict[str, An
         "before": item["before"],
         "after": item["after"],
         "reset_adapter_specific_fields": item["reset_adapter_specific_fields"],
+        "reset_pricing_rules": item.get("reset_pricing_rules", 0),
     }
     return {
         **result,

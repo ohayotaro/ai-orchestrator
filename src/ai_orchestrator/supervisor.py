@@ -14,6 +14,15 @@ from .project import MAX_CONTEXT_BYTES, atomic_write, confined, digest, encode
 from .providers import ProviderExecutionError, RunRequest
 from .runtime_options import ModelVariantResolution, RuntimeOverride, execution_identities_independent
 from .validators import changed_paths, inspect_validator
+from .usage import (
+    append_usage,
+    assert_dispatch_allowed,
+    assert_post_call_budget,
+    budget_snapshot,
+    empty_usage,
+    normalize_usage,
+    usage_descriptor,
+)
 
 
 class Supervisor:
@@ -51,6 +60,8 @@ class Supervisor:
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **Supervisor._runtime_provenance(intake),
+            **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
+            **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -77,6 +88,8 @@ class Supervisor:
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **Supervisor._runtime_provenance(intake),
+            **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
+            **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -249,6 +262,7 @@ class Supervisor:
             history = []
             revision_parent: IntakeState | None = None
             round_number, previous_calls, previous_elapsed = 1, 0, 0.0
+            previous_usage: dict[str, Any] = empty_usage()
             if workflow_ref is not None:
                 workflow_ref = identifier(workflow_ref)
                 self.engine.workflow_for_ref(workflow_ref)  # trusted-registry validation; no model call.
@@ -272,6 +286,11 @@ class Supervisor:
                     supervisor_runtime_override = RuntimeOverride.model_validate(parent.supervisor_runtime_override)
                 history = self._history(parent)
                 round_number, previous_calls, previous_elapsed = parent.round + 1, parent.calls, parent.elapsed_seconds
+                previous_usage = (
+                    dict(parent.usage_evidence)
+                    if parent.schema_version >= 4 and isinstance(parent.usage_evidence, dict)
+                    else empty_usage()
+                )
             intake_id = "I-" + uuid.uuid4().hex[:12]
             task_id = identifier(task_id or "task-" + intake_id[2:])
             if self.store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
@@ -297,6 +316,7 @@ class Supervisor:
                 "base_role_capabilities": {role: list(values) for role, values in DEFAULT_ROLE_CAPABILITIES.items() if role != "supervisor"},
                 "available_workflows": self.engine.workflow_registry_report(),
                 "available_runtime_options": self.engine.runtime_option_report(),
+                "budget_policy": self.engine.budget_policy_report(),
                 "default_workflow": self.engine.profile.workflow,
                 "requested_workflow_ref": workflow_ref,
                 "supervisor_runtime_override": (
@@ -320,6 +340,7 @@ class Supervisor:
                     "For non-advisory work only, when no listed trusted workflow suitably expresses the task structure, you may leave workflow_ref null and propose one task-scoped Workflow Schema v1 object in workflow. It is only a proposal for this task and is never installed or trusted automatically.",
                     "A proposed workflow may use only planner/implementer/reviewer roles, advertised semantic capabilities and validator nodes. It cannot name providers, executables, policies or permissions.",
                     "runtime_overrides are task-scoped only. Set them only when the user explicitly asks for a specific model, effort/reasoning level, or execution intensity; otherwise leave them empty. Never raise effort/cost on your own.",
+                    "budget_policy is trusted controller authority. Do not propose, relax, rewrite or work around it, and never switch provider/model/effort/workflow merely to reduce usage.",
                     "runtime_overrides keys may be planner/implementer/reviewer or an exact agent node ID in the selected/proposed workflow. Supervisor runtime is intake-scoped and supplied by the controller before this call; do not emit a supervisor key. Model/effort values are provider-local runtime settings, not semantic capabilities; preserve the user's requested value and do not invent a vendor catalog.",
                     "Do not set template_version/provenance in a proposed workflow. Keep it at most 16 nodes and within the stated task. Every isolated write_path must be one of task.allowed_paths; independent isolated writers must own disjoint files.",
                     "Use isolated parallel writers only when the task can actually be split by exact file ownership. Otherwise prefer a simpler sequential DAG.",
@@ -329,7 +350,7 @@ class Supervisor:
             if len(prompt.encode()) > MAX_CONTEXT_BYTES:
                 raise OrchestratorError("intake context exceeds 64 KiB; shorten the request or project context")
             intake = IntakeState(
-                schema_version=3, id=intake_id, task_id=task_id, request=request, advisory=advisory,
+                schema_version=4, id=intake_id, task_id=task_id, request=request, advisory=advisory,
                 reply_to=reply_to, round=round_number, calls=previous_calls,
                 elapsed_seconds=previous_elapsed, profile_digest=self.engine.profile_digest,
                 workspace_snapshot=snapshot, requested_workflow_ref=workflow_ref,
@@ -337,9 +358,21 @@ class Supervisor:
                     supervisor_runtime_override.model_dump()
                     if supervisor_runtime_override is not None else None
                 ),
+                usage_evidence=previous_usage,
+                budget_status=budget_snapshot(
+                    self.engine.profile.policy,
+                    previous_usage,
+                    calls=previous_calls,
+                    elapsed_seconds=previous_elapsed,
+                ),
             )
             self.store.save_intake(intake, "intake.created", create=True)
             start = None
+            usage_contract = None
+            usage_raw: dict[str, object] = {}
+            call_outcome = "failed"
+            resolution = None
+            variant = None
             try:
                 resolution = self.engine.capability_resolver.resolve("supervisor")
                 adapter, config, variant = self.engine._resolve_variant(
@@ -347,6 +380,17 @@ class Supervisor:
                 )
                 intake.supervisor_provider_resolution = resolution.model_dump()
                 intake.supervisor_model_variant_resolution = variant.model_dump()
+                usage_contract = usage_descriptor(adapter, config, self.project.root)
+                assert_dispatch_allowed(
+                    policy=self.engine.profile.policy,
+                    pricing=self.engine.profile.pricing,
+                    evidence=intake.usage_evidence,
+                    calls=intake.calls,
+                    elapsed_seconds=intake.elapsed_seconds,
+                    provider=resolution.provider,
+                    model=variant.model,
+                    descriptor=usage_contract,
+                )
                 adapter.doctor(config, self.project.root)
                 controls = self.project.control_snapshot()
                 protected = self.project.protected_snapshot(self.engine.profile)
@@ -366,8 +410,10 @@ class Supervisor:
                             lambda: self.store.cancelled(intake.id),
                             result_model=SupervisorResultScoped,
                             runtime_options=dict(variant.options),
+                            usage_sink=usage_raw.update,
                         )
                         raw = adapter.execute(request_value)
+                        call_outcome = "completed"
                 finally:
                     if request_value is not None:
                         intake.supervisor_dispatch_provenance = self.engine.dispatch_provenance(
@@ -440,7 +486,6 @@ class Supervisor:
                         )
                     intake.runtime_overrides = overrides or None
                 intake.result = SupervisorResult.model_validate(raw_result)
-                intake.artifact = self.store.write_artifact(intake.id, intake.round, "supervisor", self._artifact_value(intake))
                 intake.status = intake.result.outcome
                 if intake.status == "proposed":
                     intake.task = self._normalize(intake)
@@ -452,7 +497,53 @@ class Supervisor:
                 intake.status, intake.error = ("cancelled" if self.store.cancelled(intake.id) else "failed"), str(exc)[:4000]
             finally:
                 if start is not None:
-                    intake.elapsed_seconds += time.monotonic() - start
+                    call_elapsed = time.monotonic() - start
+                    intake.elapsed_seconds += call_elapsed
+                    if resolution is not None and variant is not None and usage_contract is not None:
+                        record = normalize_usage(
+                            owner_id=intake.id,
+                            call_index=intake.calls,
+                            attempt=intake.round,
+                            role="supervisor",
+                            node=None,
+                            phase="supervise",
+                            provider=resolution.provider,
+                            adapter_name=resolution.adapter,
+                            family=resolution.family,
+                            model=variant.model,
+                            effort=variant.effort,
+                            outcome=(
+                                "cancelled"
+                                if self.store.cancelled(intake.id)
+                                else ("completed" if call_outcome == "completed" else "failed")
+                            ),
+                            elapsed_seconds=call_elapsed,
+                            raw=usage_raw,
+                            descriptor=usage_contract,
+                            pricing=self.engine.profile.pricing,
+                        )
+                        intake.usage_evidence = append_usage(intake.usage_evidence, record)
+                        intake.budget_status = budget_snapshot(
+                            self.engine.profile.policy,
+                            intake.usage_evidence,
+                            calls=intake.calls,
+                            elapsed_seconds=intake.elapsed_seconds,
+                        )
+                        if call_outcome == "completed":
+                            try:
+                                assert_post_call_budget(
+                                    self.engine.profile.policy,
+                                    intake.usage_evidence,
+                                    calls=intake.calls,
+                                    elapsed_seconds=intake.elapsed_seconds,
+                                )
+                            except OrchestratorError as budget_exc:
+                                intake.status = "failed"
+                                intake.error = str(budget_exc)[:4000]
+                if intake.result is not None and intake.artifact is None:
+                    intake.artifact = self.store.write_artifact(
+                        intake.id, intake.round, "supervisor", self._artifact_value(intake)
+                    )
                 self.store.save_intake(intake, "supervisor.finished")
                 # A successful conversational revision invalidates the earlier
                 # proposal so an old confirmation form cannot register stale work.
@@ -483,7 +574,7 @@ class Supervisor:
             compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=6,
+            state = TaskState(schema_version=7,
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
@@ -498,6 +589,18 @@ class Supervisor:
                 )
             if precondition is not None:
                 precondition()
+            if intake.usage_evidence is not None:
+                state.artifacts.append(
+                    self.store.write_artifact(
+                        state.spec.id, 0, "usage", intake.usage_evidence
+                    )
+                )
+            if intake.budget_status is not None:
+                state.artifacts.append(
+                    self.store.write_artifact(
+                        state.spec.id, 0, "budget", intake.budget_status
+                    )
+                )
             self.store.create_from_intake(state, intake, actor, scope)
             self.store.save(state, "workflow.bound", {
                 "selection_source": state.workflow_selection_source,
