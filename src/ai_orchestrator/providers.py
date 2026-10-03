@@ -42,26 +42,6 @@ class ProviderExecutionError(OrchestratorError):
         self.diagnostics = diagnostics or {}
 
 
-def _classify_cli_failure(stderr: str) -> str:
-    """Classify provider CLI diagnostics without persisting provider output."""
-    text = stderr.casefold()
-    if any(value in text for value in ("quota", "rate limit", "rate_limit", "too many requests", "429")):
-        return "quota"
-    if any(value in text for value in (
-        "unauthorized", "unauthenticated", "authentication", "not logged in",
-        "sign in", "sign-in", "credential", "api key",
-    )):
-        return "authentication"
-    if any(value in text for value in ("permission denied", "forbidden", "access denied", "403")):
-        return "permission"
-    if any(value in text for value in (
-        "configuration", "config error", "invalid config", "unknown option",
-        "unknown flag", "invalid option", "unsupported flag",
-    )):
-        return "configuration"
-    return "provider_process"
-
-
 class ProviderAdapter(Protocol):
     # Adapter v1 exposed only runtime capabilities. v2 adds semantic capabilities.
     api_version: int
@@ -218,31 +198,9 @@ class CodexAdapter(CLIAdapter):
             result = run_process(argv, cwd=request.workspace, input_text=request.prompt, timeout=request.timeout, cancel=request.cancel)
             if request.usage_sink is not None:
                 request.usage_sink(self._usage_from_jsonl(result.stdout))
-            diagnostics: dict[str, object] = {
-                "provider": "codex",
-                "process_returncode": result.returncode,
-                "result_file_present": output.is_file(),
-            }
-            if result.returncode != 0:
-                diagnostics["failure_category"] = _classify_cli_failure(result.stderr)
-                raise ProviderExecutionError(
-                    f"Codex failed (exit {result.returncode}); inspect provider diagnostics, then create a new task",
-                    diagnostics,
-                )
-            if not output.is_file():
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError(
-                    "Codex exited successfully without the required structured result file",
-                    diagnostics,
-                )
-            try:
-                return request.result_model.model_validate_json(read_text(output))
-            except Exception as exc:
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError(
-                    "Codex result did not match the requested result contract",
-                    diagnostics,
-                ) from exc
+            if result.returncode != 0 or not output.is_file():
+                raise OrchestratorError(f"Codex failed (exit {result.returncode}); inspect CLI authentication/configuration, then create a new task")
+            return request.result_model.model_validate_json(read_text(output))
 
 
 class AgyAdapter(CLIAdapter):
@@ -560,14 +518,9 @@ class AgyAdapter(CLIAdapter):
             diagnostics["tool_names"] = telemetry["tool_names"]
             diagnostics["tool_call_count"] = telemetry["tool_call_count"]
             if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                diagnostics["failure_category"] = (
-                    _classify_cli_failure(result.stderr)
-                    if result.returncode != 0
-                    else "provider_process"
-                )
                 raise ProviderExecutionError(
                     f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect provider diagnostics, then create a new task",
+                    "inspect CLI authentication/quota/permissions, then create a new task",
                     diagnostics,
                 )
             denied = envelope.get("denied_actions")
@@ -584,309 +537,6 @@ class AgyAdapter(CLIAdapter):
                             label += f"(executable={command['executable']})"
                         labels.append(label)
                 detail = ", ".join(labels) if labels else "one or more tools"
-                diagnostics["failure_category"] = "permission"
-                raise ProviderExecutionError(
-                    "Antigravity headless execution was permission-denied for "
-                    f"{detail}; status=SUCCESS does not mean the requested work completed. "
-                    "Do not use --dangerously-skip-permissions. Configure the provider's "
-                    "native scoped permission policy explicitly or select another writable provider.",
-                    diagnostics,
-                )
-
-            structured = envelope.get("structured_output")
-            if isinstance(structured, dict):
-                try:
-                    return request.result_model.model_validate(structured)
-                except Exception as exc:
-                    diagnostics["failure_category"] = "protocol"\nn"
-            result = run_process(
-                argv, cwd=request.workspace, input_text=input_text,
-                timeout=request.timeout, cancel=request.cancel,
-            )
-            telemetry = self._safe_tool_telemetry(result.stdout)
-            if request.telemetry_sink is not None:
-                request.telemetry_sink(telemetry)
-            envelope = self._result_envelope(result.stdout)
-            if request.usage_sink is not None:
-                request.usage_sink(self._usage_from_envelope(envelope))
-            diagnostics = self._safe_diagnostics(result, envelope, request)
-            diagnostics["tool_names"] = telemetry["tool_names"]
-            diagnostics["tool_call_count"] = telemetry["tool_call_count"]
-            if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                diagnostics["failure_category"] = (
-                    _classify_cli_failure(result.stderr)
-                    if result.returncode != 0
-                    else "provider_process"
-                )
-                raise ProviderExecutionError(
-                    f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect provider diagnostics, then create a new task",
-                    diagnostics,
-                )
-            denied = envelope.get("denied_actions")
-            if isinstance(denied, list) and denied:
-                summaries = diagnostics.get("denied_actions")
-                labels: list[str] = []
-                if isinstance(summaries, list):
-                    for item in summaries:
-                        if not isinstance(item, dict):
-                            continue
-                        label = str(item.get("action_type") or "action")
-                        command = item.get("command")
-                        if isinstance(command, dict) and command.get("executable"):
-                            label += f"(executable={command['executable']})"
-                        labels.append(label)
-                detail = ", ".join(labels) if labels else "one or more tools"
-                diagnostics["failure_category"] = "permission"
-                raise ProviderExecutionError(
-                    "Antigravity headless execution was permission-denied for "
-                    f"{detail}; status=SUCCESS does not mean the requested work completed. "
-                    "Do not use --dangerously-skip-permissions. Configure the provider's "
-                    "native scoped permission policy explicitly or select another writable provider.",
-                    diagnostics,
-                )
-
-            structured = envelope.get("structured_output")
-            if isinstance(structured, dict):
-                try:
-                    return request.result_model.model_validate(structured)
-                except Exception as exc:
-                    raise ProviderExecutionError(
-                        "Antigravity structured_output did not match the requested result contract",
-                        diagnostics,
-                    ) from exc
-
-            # AGY 1.2.14 has been observed in live headless execution to omit
-            # structured_output even with --json-schema. Its response may still
-            # contain the requested JSON object plus AGY presentation metadata
-            # (toolAction/toolSummary), as confirmed by a live protocol probe.
-            # Ignore only those known provider-owned presentation keys.
-            response = envelope.get("response")
-            if isinstance(response, str):
-                try:
-                    decoded = json.loads(response)
-                except json.JSONDecodeError:
-                    decoded = None
-                if isinstance(decoded, dict):
-                    model_fields = set(request.result_model.model_fields)
-                    extras = set(decoded) - model_fields
-                    if extras <= {"toolAction", "toolSummary"}:
-                        candidate = {key: decoded[key] for key in model_fields if key in decoded}
-                        try:
-                            return request.result_model.model_validate(candidate)
-                        except Exception as exc:
-                            diagnostics["failure_category"] = "protocol"\nnn"
-            result = run_process(
-                argv, cwd=request.workspace, input_text=input_text,
-                timeout=request.timeout, cancel=request.cancel,
-            )
-            telemetry = self._safe_tool_telemetry(result.stdout)
-            if request.telemetry_sink is not None:
-                request.telemetry_sink(telemetry)
-            envelope = self._result_envelope(result.stdout)
-            if request.usage_sink is not None:
-                request.usage_sink(self._usage_from_envelope(envelope))
-            diagnostics = self._safe_diagnostics(result, envelope, request)
-            diagnostics["tool_names"] = telemetry["tool_names"]
-            diagnostics["tool_call_count"] = telemetry["tool_call_count"]
-            if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                diagnostics["failure_category"] = (
-                    _classify_cli_failure(result.stderr)
-                    if result.returncode != 0
-                    else "provider_process"
-                )
-                raise ProviderExecutionError(
-                    f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect provider diagnostics, then create a new task",
-                    diagnostics,
-                )
-            denied = envelope.get("denied_actions")
-            if isinstance(denied, list) and denied:
-                summaries = diagnostics.get("denied_actions")
-                labels: list[str] = []
-                if isinstance(summaries, list):
-                    for item in summaries:
-                        if not isinstance(item, dict):
-                            continue
-                        label = str(item.get("action_type") or "action")
-                        command = item.get("command")
-                        if isinstance(command, dict) and command.get("executable"):
-                            label += f"(executable={command['executable']})"
-                        labels.append(label)
-                detail = ", ".join(labels) if labels else "one or more tools"
-                diagnostics["failure_category"] = "permission"
-                raise ProviderExecutionError(
-                    "Antigravity headless execution was permission-denied for "
-                    f"{detail}; status=SUCCESS does not mean the requested work completed. "
-                    "Do not use --dangerously-skip-permissions. Configure the provider's "
-                    "native scoped permission policy explicitly or select another writable provider.",
-                    diagnostics,
-                )
-
-            structured = envelope.get("structured_output")
-            if isinstance(structured, dict):
-                try:
-                    return request.result_model.model_validate(structured)
-                except Exception as exc:
-                    raise ProviderExecutionError(
-                        "Antigravity structured_output did not match the requested result contract",
-                        diagnostics,
-                    ) from exc
-
-            # AGY 1.2.14 has been observed in live headless execution to omit
-            # structured_output even with --json-schema. Its response may still
-            # contain the requested JSON object plus AGY presentation metadata
-            # (toolAction/toolSummary), as confirmed by a live protocol probe.
-            # Ignore only those known provider-owned presentation keys.
-            response = envelope.get("response")
-            if isinstance(response, str):
-                try:
-                    decoded = json.loads(response)
-                except json.JSONDecodeError:
-                    decoded = None
-                if isinstance(decoded, dict):
-                    model_fields = set(request.result_model.model_fields)
-                    extras = set(decoded) - model_fields
-                    if extras <= {"toolAction", "toolSummary"}:
-                        candidate = {key: decoded[key] for key in model_fields if key in decoded}
-                        try:
-                            return request.result_model.model_validate(candidate)
-                        except Exception as exc:
-                            raise ProviderExecutionError(
-                                "Antigravity omitted structured_output and projected response JSON did not match the requested contract",
-                                diagnostics,
-                            ) from exc
-                    try:
-                        return request.result_model.model_validate(decoded)
-                    except Exception as exc:
-                        diagnostics["failure_category"] = "protocol"\nnnn"
-            result = run_process(
-                argv, cwd=request.workspace, input_text=input_text,
-                timeout=request.timeout, cancel=request.cancel,
-            )
-            telemetry = self._safe_tool_telemetry(result.stdout)
-            if request.telemetry_sink is not None:
-                request.telemetry_sink(telemetry)
-            envelope = self._result_envelope(result.stdout)
-            if request.usage_sink is not None:
-                request.usage_sink(self._usage_from_envelope(envelope))
-            diagnostics = self._safe_diagnostics(result, envelope, request)
-            diagnostics["tool_names"] = telemetry["tool_names"]
-            diagnostics["tool_call_count"] = telemetry["tool_call_count"]
-            if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                diagnostics["failure_category"] = (
-                    _classify_cli_failure(result.stderr)
-                    if result.returncode != 0
-                    else "provider_process"
-                )
-                raise ProviderExecutionError(
-                    f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect provider diagnostics, then create a new task",
-                    diagnostics,
-                )
-            denied = envelope.get("denied_actions")
-            if isinstance(denied, list) and denied:
-                summaries = diagnostics.get("denied_actions")
-                labels: list[str] = []
-                if isinstance(summaries, list):
-                    for item in summaries:
-                        if not isinstance(item, dict):
-                            continue
-                        label = str(item.get("action_type") or "action")
-                        command = item.get("command")
-                        if isinstance(command, dict) and command.get("executable"):
-                            label += f"(executable={command['executable']})"
-                        labels.append(label)
-                detail = ", ".join(labels) if labels else "one or more tools"
-                diagnostics["failure_category"] = "permission"
-                raise ProviderExecutionError(
-                    "Antigravity headless execution was permission-denied for "
-                    f"{detail}; status=SUCCESS does not mean the requested work completed. "
-                    "Do not use --dangerously-skip-permissions. Configure the provider's "
-                    "native scoped permission policy explicitly or select another writable provider.",
-                    diagnostics,
-                )
-
-            structured = envelope.get("structured_output")
-            if isinstance(structured, dict):
-                try:
-                    return request.result_model.model_validate(structured)
-                except Exception as exc:
-                    raise ProviderExecutionError(
-                        "Antigravity structured_output did not match the requested result contract",
-                        diagnostics,
-                    ) from exc
-
-            # AGY 1.2.14 has been observed in live headless execution to omit
-            # structured_output even with --json-schema. Its response may still
-            # contain the requested JSON object plus AGY presentation metadata
-            # (toolAction/toolSummary), as confirmed by a live protocol probe.
-            # Ignore only those known provider-owned presentation keys.
-            response = envelope.get("response")
-            if isinstance(response, str):
-                try:
-                    decoded = json.loads(response)
-                except json.JSONDecodeError:
-                    decoded = None
-                if isinstance(decoded, dict):
-                    model_fields = set(request.result_model.model_fields)
-                    extras = set(decoded) - model_fields
-                    if extras <= {"toolAction", "toolSummary"}:
-                        candidate = {key: decoded[key] for key in model_fields if key in decoded}
-                        try:
-                            return request.result_model.model_validate(candidate)
-                        except Exception as exc:
-                            raise ProviderExecutionError(
-                                "Antigravity omitted structured_output and projected response JSON did not match the requested contract",
-                                diagnostics,
-                            ) from exc
-                    try:
-                        return request.result_model.model_validate(decoded)
-                    except Exception as exc:
-                        raise ProviderExecutionError(
-                            "Antigravity omitted structured_output and response JSON did not match the requested contract",
-                            diagnostics,
-                        ) from exc
-            diagnostics["failure_category"] = "protocol"\nnnnn"
-            result = run_process(
-                argv, cwd=request.workspace, input_text=input_text,
-                timeout=request.timeout, cancel=request.cancel,
-            )
-            telemetry = self._safe_tool_telemetry(result.stdout)
-            if request.telemetry_sink is not None:
-                request.telemetry_sink(telemetry)
-            envelope = self._result_envelope(result.stdout)
-            if request.usage_sink is not None:
-                request.usage_sink(self._usage_from_envelope(envelope))
-            diagnostics = self._safe_diagnostics(result, envelope, request)
-            diagnostics["tool_names"] = telemetry["tool_names"]
-            diagnostics["tool_call_count"] = telemetry["tool_call_count"]
-            if result.returncode != 0 or envelope.get("status") != "SUCCESS":
-                diagnostics["failure_category"] = (
-                    _classify_cli_failure(result.stderr)
-                    if result.returncode != 0
-                    else "provider_process"
-                )
-                raise ProviderExecutionError(
-                    f"Antigravity failed (exit {result.returncode}, status {envelope.get('status', 'missing')}); "
-                    "inspect provider diagnostics, then create a new task",
-                    diagnostics,
-                )
-            denied = envelope.get("denied_actions")
-            if isinstance(denied, list) and denied:
-                summaries = diagnostics.get("denied_actions")
-                labels: list[str] = []
-                if isinstance(summaries, list):
-                    for item in summaries:
-                        if not isinstance(item, dict):
-                            continue
-                        label = str(item.get("action_type") or "action")
-                        command = item.get("command")
-                        if isinstance(command, dict) and command.get("executable"):
-                            label += f"(executable={command['executable']})"
-                        labels.append(label)
-                detail = ", ".join(labels) if labels else "one or more tools"
-                diagnostics["failure_category"] = "permission"
                 raise ProviderExecutionError(
                     "Antigravity headless execution was permission-denied for "
                     f"{detail}; status=SUCCESS does not mean the requested work completed. "
@@ -1014,46 +664,16 @@ class ClaudeAdapter(CLIAdapter):
             if os.environ.get("CLAUDECODE"):
                 raise OrchestratorError("run the controller from a separate terminal, outside Claude Code")
             result = run_process(argv, cwd=request.workspace, input_text=request.prompt, timeout=request.timeout, cancel=request.cancel)
-            diagnostics: dict[str, object] = {
-                "provider": "claude",
-                "process_returncode": result.returncode,
-            }
             if result.returncode:
-                diagnostics["failure_category"] = _classify_cli_failure(result.stderr)
-                raise ProviderExecutionError(
-                    f"Claude failed (exit {result.returncode}); inspect provider diagnostics",
-                    diagnostics,
-                )
-            try:
-                envelope = json.loads(result.stdout)
-            except json.JSONDecodeError as exc:
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError("Claude returned invalid JSON", diagnostics) from exc
+                raise OrchestratorError(f"Claude failed (exit {result.returncode}); inspect CLI authentication/configuration")
+            envelope = json.loads(result.stdout)
             if isinstance(envelope, dict) and request.usage_sink is not None:
                 request.usage_sink(self._usage_from_envelope(envelope))
-            if not isinstance(envelope, dict):
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError("Claude returned a non-object JSON envelope", diagnostics)
-            if envelope.get("permission_denials"):
-                diagnostics["failure_category"] = "permission"
-                raise ProviderExecutionError("Claude denied one or more tool requests", diagnostics)
-            if envelope.get("is_error"):
-                diagnostics["failure_category"] = "provider_process"
-                raise ProviderExecutionError("Claude returned a provider error envelope", diagnostics)
+            if not isinstance(envelope, dict) or envelope.get("is_error") or envelope.get("permission_denials"):
+                raise OrchestratorError("Claude returned an error or denied tool request")
             if "structured_output" not in envelope:
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError(
-                    "Claude returned no structured output; incompatible CLI or model",
-                    diagnostics,
-                )
-            try:
-                return request.result_model.model_validate(envelope["structured_output"])
-            except Exception as exc:
-                diagnostics["failure_category"] = "protocol"
-                raise ProviderExecutionError(
-                    "Claude structured output did not match the requested result contract",
-                    diagnostics,
-                ) from exc
+                raise OrchestratorError("Claude returned no structured output; incompatible CLI or model")
+            return request.result_model.model_validate(envelope["structured_output"])
 
 
 def default_registry() -> dict[str, ProviderAdapter]:
