@@ -218,6 +218,31 @@ def _supervisor_runtime(preview: dict[str, Any]) -> str:
     )
 
 
+def _compact_usage(evidence: Any) -> dict[str, Any] | None:
+    if not isinstance(evidence, dict):
+        return None
+    summary = evidence.get("summary")
+    if not isinstance(summary, dict):
+        return None
+    keys = (
+        "calls",
+        "controller_elapsed_seconds",
+        "provider_elapsed_seconds",
+        "input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "total_tokens",
+        "cost",
+    )
+    return {
+        "schema_version": evidence.get("schema_version", 1),
+        "record_count": len(evidence.get("records") or []),
+        "summary": {key: summary.get(key) for key in keys},
+    }
+
+
 def _budget_summary(preview: dict[str, Any]) -> str:
     budget = preview.get("budget") or {}
     if not isinstance(budget, dict):
@@ -673,7 +698,7 @@ class HumanGateBroker:
                        "workflow_source": intake.workflow_source or "profile_default",
                        "workflow_persistence": workflow_persistence,
                        "workflow": workflow_report,
-                       "usage": intake.usage_evidence,
+                       "usage_summary": _compact_usage(intake.usage_evidence),
                        "budget": intake.budget_status,
                        "supervisor_summary": intake.result.summary, "notes": intake.notes}
             state = intake.model_dump()
@@ -701,7 +726,7 @@ class HumanGateBroker:
                            "provider_permissions": sorted(state_object.provider_permission_grants),
                            "attempt": state_object.attempt, "plan": engine.store.latest(state_object, "plan"),
                            "feedback": state_object.feedback,
-                           "usage": engine.usage_evidence(state_object),
+                           "usage_summary": _compact_usage(engine.usage_evidence(state_object)),
                            "budget": engine.budget_status(state_object),
                            **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             elif kind == "acceptance":
@@ -717,7 +742,7 @@ class HumanGateBroker:
                            "validation": engine.store.latest(state_object, "validation"),
                            "review": engine.store.latest(state_object, "review"),
                            "reviewed_snapshot": state_object.reviewed_snapshot,
-                           "usage": engine.usage_evidence(state_object),
+                           "usage_summary": _compact_usage(engine.usage_evidence(state_object)),
                            "budget": engine.budget_status(state_object),
                            **({"workflow": engine.workflow_gate_context(state_object)} if state_object.schema_version >= 4 else {})}
             else:
