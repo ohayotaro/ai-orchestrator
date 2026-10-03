@@ -62,8 +62,11 @@ If the host lacks supported forms, declines, cancels, disconnects or times out,
 STOP. Report the exact gate state and, when present, the gate's
 `transport_diagnostics`: client name/version, negotiated protocol, advertised
 elicitation form/url capability, whether `elicitation/create` was sent, whether
-a response arrived, and its action/outcome. Treat these as transport diagnostics,
-not proof that a human saw or clicked a form. Do not fall back to executing
+a response arrived, its action/outcome, correlation identifier, content-free
+request/form/schema/preview sizes and shapes, and send/response/timeout timing.
+Those metrics deliberately omit form message/schema/preview bodies and provider/
+user content. Treat them as transport diagnostics, not proof that a human saw or
+clicked a form. Do not fall back to executing
 approval/configuration commands through shell or CLI, retry with fresh IDs until
 approved, or remove session guards. The user may explicitly choose the legacy
 operator-terminal workflow in a separate setup decision, not as a fallback from
