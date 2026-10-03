@@ -159,6 +159,61 @@ report the durable job ID/state; do not build a shell polling loop. In legacy mo
 where wait_job is not advertised, use get_job at most 10 times per response and
 respect poll_after_seconds. Never create a new job merely to check progress.
 
+## v0.10 usage evidence and budget authority
+
+Treat usage accounting as evidence, not an estimate. The control-plane order is:
+
+`Task -> Workflow Node -> Provider Resolution -> Model Variant Resolution -> Execution -> Usage Evidence -> Budget Evaluation`.
+
+These are separate decisions. Budget Evaluation must never silently rewrite
+capability requirements, provider identity, model/effort, validators, workflow or
+HumanGate authority. Do not select a cheaper provider/model, lower effort or a
+different workflow merely to fit a budget.
+
+Inspect `usage_observability` and `budget_policy` from `inspect_project`.
+After task registration, `get_task` exposes current usage/budget summaries.
+Use hash-verified `get_artifact(kind=usage)` and
+`get_artifact(kind=budget)` when complete accounting evidence is needed.
+HumanGate Start/Execution/Acceptance forms expose material compact budget
+information, but the compact form is not the complete usage ledger.
+
+Provider usage fields have explicit `known`, `unknown` or `unsupported`
+states. Preserve those states. Never coerce missing/unknown/unsupported telemetry
+to zero, estimate token counts from prompt/response length, or infer hidden
+reasoning tokens. Keep controller-measured elapsed time distinct from
+provider-reported elapsed time.
+
+Cost is attributable only when explicitly supported. Preserve whether it is
+`provider_reported` or `controller_computed`. Controller-computed cost requires
+an exact provider-slot/model pricing rule with source/version/effective-time
+provenance and known values for every configured rate-bearing usage dimension.
+Do not invent a price or cost when evidence is incomplete.
+
+Budget configuration is trusted controller policy, not model-authored authority.
+Do not propose, relax, rewrite or work around it. With strict/fail-closed
+handling, a configured token/cost/provider-duration limit whose required
+telemetry cannot be proven for the selected provider/model blocks dispatch.
+Exact exhaustion may complete the call that consumed the remaining allowance but
+blocks the next provider effect. A numeric overrun or strict metric becoming
+unprovable after a call fails closed before the next effect.
+
+Current built-in evidence boundaries are conservative:
+
+- Codex: use only structured token counters explicitly returned in
+  `turn.completed` usage. Do not infer provider elapsed time or cost when absent.
+- Claude: use only explicit usage counters, API duration and provider-reported
+  cost exposed by its JSON result. Do not infer separately attributable hidden
+  reasoning tokens.
+- AGY: the current stream-json contract is not treated as a stable
+  adapter-attested usage schema. Unsupported usage must not be reconstructed;
+  strict token/cost/provider-duration budgets may therefore fail closed.
+
+Provider-adapter authority changes are also pricing-authority changes. A bounded
+single-slot or atomic provider change may reset adapter-specific `executable`,
+`model`, `effort` and stale pricing rules for every changed provider slot.
+Inspect and report those reset fields/rules in the preview/HumanGate. Never
+preserve stale vendor pricing by editing config directly.
+
 ## Native confirmation flow
 
 1. Show the proposed task, selected or task-scoped proposed workflow, allowed_paths,
