@@ -24,6 +24,12 @@
   task-row persistence and make recovery approval revocation transactional.
 - Add crash-injection regressions for pre-dispatch safe recovery, post-dispatch
   ambiguity and interruption after root integration.
+- Complete owner-reported live Claude Code E2E with real worker/provider process
+  kills: pre-dispatch recovery returned to a fresh execution gate and succeeded;
+  post-dispatch and post-integration interruptions failed closed without replay,
+  and the integrated root change was not rolled back. Normal Start -> Execution
+  -> Acceptance also succeeded after a timed-out Acceptance was re-requested
+  with a new request ID.
 
 ## 0.10.4 — HumanGate transport observability
 
