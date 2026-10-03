@@ -14,6 +14,15 @@ from .project import MAX_CONTEXT_BYTES, atomic_write, confined, digest, encode
 from .providers import ProviderExecutionError, RunRequest
 from .runtime_options import ModelVariantResolution, RuntimeOverride, execution_identities_independent
 from .validators import changed_paths, inspect_validator
+from .usage import (
+    append_usage,
+    assert_dispatch_allowed,
+    assert_post_call_budget,
+    budget_snapshot,
+    empty_usage,
+    normalize_usage,
+    usage_descriptor,
+)
 
 
 class Supervisor:
@@ -51,6 +60,8 @@ class Supervisor:
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **Supervisor._runtime_provenance(intake),
+            **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
+            **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -77,6 +88,8 @@ class Supervisor:
             **({"allowed_paths": intake.allowed_paths} if intake.allowed_paths is not None else {}),
             **({"capability_requirements": intake.capability_requirements} if intake.capability_requirements is not None else {}),
             **Supervisor._runtime_provenance(intake),
+            **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
+            **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
