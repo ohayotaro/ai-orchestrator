@@ -1,9 +1,10 @@
 # AI Orchestrator Roadmap
 
-This document describes the intended path from the completed v0.9 control-plane
-foundation toward stable v1.0 contracts. Version numbers describe sequencing and
-design boundaries, not promised release dates. Live E2E evidence, security
-findings and implementation experience may change the details or order.
+This document describes the implemented path through the completed v0.11
+recovery/durability milestone and the remaining path toward stable v1.0
+contracts. Version numbers describe sequencing and design boundaries, not
+promised release dates. Live E2E evidence, security findings and implementation
+experience may change the details or order.
 
 ## Vision
 
