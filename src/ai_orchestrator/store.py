@@ -53,7 +53,21 @@ class Store:
             raise OrchestratorError(f"unknown task: {task_id}")
         return TaskState.model_validate_json(row[0])
 
-    def save(self, state: TaskState, kind: str, payload: dict[str, Any] | None = None, *, create: bool = False) -> None:
+    def save(
+        self,
+        state: TaskState,
+        kind: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        create: bool = False,
+        clear_approvals: bool = False,
+    ) -> None:
+        """Persist task state and its transition event in one transaction.
+
+        Recovery may revoke approvals in the same transaction as the recovered
+        state. This prevents a crash between "make runnable again" and
+        "invalidate old authority" from leaving a replayable approval behind.
+        """
         with self.db:
             if create:
                 try:
@@ -62,6 +76,13 @@ class Store:
                     raise OrchestratorError(f"task already exists: {state.spec.id}") from exc
             else:
                 self.db.execute("UPDATE tasks SET data=? WHERE id=?", (state.model_dump_json(), state.spec.id))
+            if clear_approvals:
+                cursor = self.db.execute("DELETE FROM approvals WHERE task_id=?", (state.spec.id,))
+                self._event(
+                    state.spec.id,
+                    "execution.approvals_revoked",
+                    {"count": cursor.rowcount, "reason": kind},
+                )
             self._event(state.spec.id, kind, payload or {"status": state.status, "phase": state.phase})
 
     def _event(self, task_id: str | None, kind: str, payload: dict[str, Any]) -> None:
