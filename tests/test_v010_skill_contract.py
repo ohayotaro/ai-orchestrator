@@ -25,6 +25,7 @@ def test_packaged_skill_carries_v010_usage_budget_safety_contract():
         "Codex: use only structured token counters",
         "Claude: use only explicit usage counters",
         "AGY: the current stream-json contract is not treated as a stable",
+        "content-free request/form/schema/preview sizes and shapes",
     ]
     for phrase in required:
         assert phrase in text

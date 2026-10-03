@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-orchestrator-kernel"
-version = "0.10.3"
+version = "0.10.4"
 description = "Project-driven, provider-neutral CLI orchestration with explicit approval and knowledge promotion."
 readme = "README.md"
 requires-python = ">=3.11"

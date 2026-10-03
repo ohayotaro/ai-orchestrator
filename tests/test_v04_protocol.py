@@ -1,5 +1,6 @@
 """Full-duplex gate correlation, native Yes/No behavior and legacy negotiation."""
 import io
+import json
 import time
 
 import pytest
@@ -284,6 +285,127 @@ def test_gate_transport_diagnostics_capture_advertised_form_and_cancel(gate_setu
         assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     finally:
         server.close()
+
+
+def test_gate_transport_diagnostics_record_content_free_request_shape(server_setup):
+    server, _, intake, _, _, _ = server_setup
+    prompt = tool(
+        server,
+        "request_start",
+        {"intake_id": intake.id, "request_id": "diag-shape"},
+        id="shape-origin",
+    )
+    gate = server.broker.store.get(server.pending.gate.id)
+    diagnostics = gate.transport_diagnostics
+
+    expected_request_bytes = len(
+        json.dumps(
+            prompt,
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    expected_form_bytes = len(
+        json.dumps(
+            prompt["params"],
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    expected_schema_bytes = len(
+        json.dumps(
+            prompt["params"]["requestedSchema"],
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+    assert diagnostics["gate_kind"] == "start"
+    assert diagnostics["gate_id"] == gate.id
+    assert diagnostics["gate_request_id"] == "diag-shape"
+    assert diagnostics["transport_correlation_id"] == prompt["id"]
+    assert diagnostics["request_serialized_bytes"] == expected_request_bytes
+    assert diagnostics["form_serialized_bytes"] == expected_form_bytes
+    assert diagnostics["message_chars"] == len(prompt["params"]["message"])
+    assert diagnostics["message_bytes"] == len(
+        prompt["params"]["message"].encode("utf-8")
+    )
+    assert diagnostics["schema_serialized_bytes"] == expected_schema_bytes
+    assert diagnostics["schema_field_count"] == 1
+    assert diagnostics["schema_max_depth"] >= 2
+    assert diagnostics["schema_object_count"] >= 3
+    assert diagnostics["preview_serialized_bytes"] > 0
+    assert diagnostics["preview_field_count"] > 0
+    assert diagnostics["preview_array_count"] >= 0
+    assert diagnostics["preview_max_depth"] > 0
+    assert diagnostics["timeout_seconds"] == 120
+    assert diagnostics["elicitation_sent_at"] > 0
+    assert "message" not in diagnostics
+    assert "requestedSchema" not in diagnostics
+    assert "preview" not in diagnostics
+
+
+def test_acceptance_timeout_records_correlation_timing_and_preserves_state(server_setup):
+    server, manager, intake, engine, broker, providers = server_setup
+    prompt = tool(
+        server,
+        "request_start",
+        {"intake_id": intake.id, "request_id": "diag-accept-start"},
+    )
+    confirm(server, prompt)
+    run_queued(broker, providers)
+
+    prompt = tool(
+        server,
+        "request_execution",
+        {"task_id": "host-task", "request_id": "diag-accept-execution"},
+    )
+    confirm(server, prompt)
+    run_queued(broker, providers)
+
+    before = engine.store.get("host-task")
+    assert before.status == "awaiting_acceptance"
+    calls = before.calls
+    reviewed_snapshot = before.reviewed_snapshot
+    artifact_kinds = [artifact.kind for artifact in before.artifacts]
+    assert "acceptance" not in artifact_kinds
+
+    prompt = tool(
+        server,
+        "request_acceptance",
+        {"task_id": "host-task", "request_id": "diag-accept-timeout"},
+        id="accept-origin",
+    )
+    pending = server.pending
+    gate_id = pending.gate.id
+    pending.deadline = time.monotonic() - 1
+    expired = server.expire()["result"]["structuredContent"]
+
+    assert expired["gate_status"] == "expired"
+    diagnostics = expired["transport_diagnostics"]
+    assert diagnostics["gate_kind"] == "acceptance"
+    assert diagnostics["gate_id"] == gate_id
+    assert diagnostics["gate_request_id"] == "diag-accept-timeout"
+    assert diagnostics["transport_correlation_id"] == prompt["id"]
+    assert diagnostics["elicitation_sent"] is True
+    assert diagnostics["response_received"] is False
+    assert diagnostics["outcome"] == "timeout"
+    assert diagnostics["timeout_at"] > 0
+    assert diagnostics["elicitation_elapsed_ms"] >= 0
+    assert diagnostics["request_serialized_bytes"] > 0
+    assert diagnostics["message_bytes"] > 0
+    assert diagnostics["schema_field_count"] == 1
+
+    after = engine.store.get("host-task")
+    assert after.status == "awaiting_acceptance"
+    assert after.calls == calls
+    assert after.reviewed_snapshot == reviewed_snapshot
+    assert [artifact.kind for artifact in after.artifacts] == artifact_kinds
+    assert "acceptance" not in [artifact.kind for artifact in after.artifacts]
+    assert manager.kicks == 2
 
 
 def test_gate_transport_diagnostics_distinguish_timeout_and_host_error(gate_setup):
