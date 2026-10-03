@@ -129,6 +129,30 @@ returned `action=cancel` rather than completing the HumanGate. Treat this as a
 host-interoperability limitation. Do not replace a failed HumanGate with CLI
 authority commands or direct config edits.
 
+Live v0.10.4 A/B testing on 2026-10-03 separated kernel behavior from host
+interoperability:
+
+- `claude-code 2.1.284` completed Start, Execution and Acceptance with
+  correlated `accept` responses under protocol `2025-06-18`. The delegated
+  run used Claude Supervisor/Planner/Reviewer and Codex Implementer, passed all
+  26 pytest checks, review approved, and the task reached `succeeded` with
+  hash-verified usage, budget, write-set, validation, review, provider-provenance
+  and acceptance evidence.
+- `codex-mcp-client 0.160.0` completed Start but, across separate runs, timed
+  out waiting for a correlated response at Execution or Acceptance. v0.10.4
+  diagnostics showed the same one-field form schema and wire request/form sizes
+  of roughly 1.4–1.6 KiB; the timeout gate was not fixed to one operation kind.
+  This makes a Codex-host interoperability issue the leading explanation, but
+  the evidence still cannot prove whether the UI failed to present the form or a
+  displayed form went unanswered/lost.
+- `antigravity-client 1.0.0` remains a distinct limitation: it advertises the
+  form capability and receives the server request but returns `action=cancel`.
+
+These host results do not weaken fail-closed semantics. A timeout/cancel leaves
+the current intake/task phase unchanged and never authorizes the next effect.
+Do not retry with fresh IDs merely to obtain approval and do not substitute CLI
+authority or direct state/config edits.
+
 ## A new smoke test (no manual worker/start/approve/accept)
 
 Use a new bounded task, for example:

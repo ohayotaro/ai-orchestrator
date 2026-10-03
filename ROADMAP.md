@@ -473,6 +473,49 @@ Implemented:
 Metrics remain provenance first. v0.10 does not introduce automatic
 performance/cost leaderboards or opaque model ranking.
 
+### v0.10 closure — live verification
+
+**Closed 2026-10-03.** The v0.10 kernel and evidence contracts were validated
+end-to-end with the intended mixed-provider assignment:
+
+- Supervisor / Planner / Reviewer: Claude;
+- Implementer: Codex;
+- Usage evidence preserved explicit `known` / `unknown` / `unsupported`
+  states across Claude and Codex live calls, including provider-reported Claude
+  duration/cost and structured Codex token counters without inference;
+- Supervisor usage survived Intake -> Task registration and remained in task
+  aggregation;
+- Budget accounting remained non-routing with no provider/model/effort/workflow
+  fallback;
+- hash-verified usage, budget, write-set, validation, review,
+  provider-provenance and acceptance artifacts were observed;
+- configured pytest completed with 26 passing tests and independent review
+  approved;
+- on `claude-code 2.1.284`, Start -> Execution -> Acceptance all completed as
+  separate correlated HumanGates and the task reached `succeeded`.
+
+Host interoperability is tracked separately from v0.10 kernel completion:
+
+- `codex-mcp-client 0.160.0` showed intermittent no-response timeouts at
+  Execution or Acceptance across separate runs despite the same protocol,
+  one-field form schema and approximately 1.4–1.6 KiB wire forms. v0.10.4
+  content-free diagnostics preserve correlation, size/shape and timing evidence;
+  current evidence makes a host-specific issue likely but cannot distinguish UI
+  non-presentation from an unanswered/lost response.
+- `antigravity-client 1.0.0` advertises MCP form/url elicitation and receives
+  `elicitation/create`, but returned `action=cancel` in live testing.
+
+Non-blocking follow-up observations:
+
+- attempt aggregation currently uses numeric attempt keys across phases, so a
+  Supervisor `attempt=1` and task execution `attempt=1` may share one
+  `by_attempt` bucket; a phase/owner-qualified grouping could improve audit
+  readability without changing raw call evidence;
+- usage `controller_elapsed_seconds` is the sum of provider-call controller
+  measurements, while budget/task elapsed is wall-clock controller consumption;
+  small differences are expected and should remain explicitly documented rather
+  than forced to match.
+
 Completion output: normalized usage/cost contracts; adapter telemetry boundaries for
 Claude/Codex/AGY; TaskState v7 and IntakeState v4 accounting provenance;
 deterministic task/node/attempt/provider/model aggregation; trusted call/time/

@@ -18,6 +18,25 @@
   timeout state integrity.
 - Update the single-terminal documentation and packaged Skill so agents report
   the richer diagnostics without treating them as proof of human presence.
+- Live A/B verification on 2026-10-03 completed the v0.10 kernel E2E on
+  `claude-code 2.1.284`: Start, Execution and Acceptance HumanGates all
+  returned correlated `accept` responses; Codex implementation, pytest
+  (`26 passed`), independent Claude review, final `succeeded`, usage/budget
+  evidence and artifact hash verification all completed successfully.
+- The same kernel/profile/form schema showed intermittent host-side HumanGate
+  timeouts on `codex-mcp-client 0.160.0` (Execution in one v0.10.4 run;
+  Acceptance in an earlier run). Request/form sizes remained about 1.4–1.6 KiB
+  with the same one-field schema, while Claude Code completed all three gates.
+  Treat Codex as a host-interoperability follow-up rather than a v0.10 kernel
+  blocker; current evidence does not distinguish UI non-presentation from a
+  lost/unanswered response.
+- `antigravity-client 1.0.0` continues to advertise form/url elicitation and
+  receive `elicitation/create` but returns `action=cancel`; keep this recorded
+  as a separate host-interoperability limitation.
+- Close the v0.10 Usage Observability & Budget Policy milestone. Follow-up
+  observations are non-blocking: attempt aggregation currently shares numeric
+  attempt keys across Supervisor/task phases, and provider-call controller
+  elapsed is intentionally distinct from task/budget wall-clock elapsed.
 
 ## 0.10.3 — Portable skill contract follow-up
 
