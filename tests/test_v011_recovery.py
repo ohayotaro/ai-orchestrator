@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from ai_orchestrator.engine import Engine
 from ai_orchestrator.human_gates import HumanGate, HumanGateBroker
 from ai_orchestrator.models import ProviderConfig
 from ai_orchestrator.process import ProcessResult
@@ -32,7 +33,7 @@ def _approved_scoped_task(controller, task_id: str):
 
 
 def test_pre_dispatch_interruption_can_recover_only_with_fresh_approval(engine, monkeypatch):
-    controller, _reasoning, _engineering = engine
+    controller, reasoning, engineering = engine
     task_id = "recover-before-dispatch"
     approved, old_scope = _approved_scoped_task(controller, task_id)
     calls_before_execute = approved.calls
@@ -54,34 +55,43 @@ def test_pre_dispatch_interruption_can_recover_only_with_fresh_approval(engine, 
         with pytest.raises(SystemExit, match="before provider dispatch"):
             controller.run(task_id)
 
-    interrupted = controller.store.get(task_id)
-    assert interrupted.status == "running"
-    assert interrupted.calls == calls_before_execute + 1
+    # Recover through a new controller/store connection. The proof must come
+    # from SQLite/events/worktree state, not from transient in-process objects.
+    restarted = Engine(
+        controller.project.root,
+        {"claude": reasoning, "codex": engineering},
+    )
+    try:
+        interrupted = restarted.store.get(task_id)
+        assert interrupted.status == "running"
+        assert interrupted.calls == calls_before_execute + 1
 
-    diagnosis = controller.recovery_status(task_id)
-    assert diagnosis["classification"] == "safe_pre_effect_retry"
-    assert diagnosis["retry_safe"] is True
-    assert diagnosis["requires_execution_reapproval"] is True
-    assert diagnosis["automatic_replay"] is False
-    assert diagnosis["evidence"]["provider_dispatch_started"] is False
-    assert diagnosis["evidence"]["reserved_calls"] == 1
+        diagnosis = restarted.recovery_status(task_id)
+        assert diagnosis["classification"] == "safe_pre_effect_retry"
+        assert diagnosis["retry_safe"] is True
+        assert diagnosis["requires_execution_reapproval"] is True
+        assert diagnosis["automatic_replay"] is False
+        assert diagnosis["evidence"]["provider_dispatch_started"] is False
+        assert diagnosis["evidence"]["reserved_calls"] == 1
 
-    recovered = controller.recover(task_id)
-    assert recovered.status == "awaiting_approval"
-    assert recovered.phase == "execute"
-    assert recovered.calls == calls_before_execute
-    assert recovered.workflow_nodes["implement"].status == "pending"
-    assert not controller.store.approved(task_id, old_scope)
+        recovered = restarted.recover(task_id)
+        assert recovered.status == "awaiting_approval"
+        assert recovered.phase == "execute"
+        assert recovered.calls == calls_before_execute
+        assert recovered.workflow_nodes["implement"].status == "pending"
+        assert not restarted.store.approved(task_id, old_scope)
 
-    recovery_artifact = controller.store.latest(recovered, "recovery")
-    assert recovery_artifact["classification"] == "safe_pre_effect_retry"
-    assert recovery_artifact["automatic_replay"] is False
+        recovery_artifact = restarted.store.latest(recovered, "recovery")
+        assert recovery_artifact["classification"] == "safe_pre_effect_retry"
+        assert recovery_artifact["automatic_replay"] is False
 
-    fresh_scope = controller.approval_scope(recovered)
-    assert fresh_scope != old_scope
-    controller.approve(task_id, fresh_scope, "test-operator")
-    completed = controller.run(task_id)
-    assert completed.status == "awaiting_acceptance", completed.error
+        fresh_scope = restarted.approval_scope(recovered)
+        assert fresh_scope != old_scope
+        restarted.approve(task_id, fresh_scope, "test-operator")
+        completed = restarted.run(task_id)
+        assert completed.status == "awaiting_acceptance", completed.error
+    finally:
+        restarted.close()
 
 
 def test_provider_dispatch_interruption_is_not_replayed(engine, monkeypatch):
