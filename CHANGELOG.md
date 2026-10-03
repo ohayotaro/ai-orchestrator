@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.10.2 — Usage Observability & Budget Policy
+
+- Add normalized per-call usage evidence with explicit `known` / `unknown` /
+  `unsupported` token, provider-duration and cost states. Missing telemetry is
+  never inferred from prompt/response length or silently treated as zero.
+- Add deterministic aggregation by node, attempt, provider and exact model,
+  while retaining per-call Provider Resolution / Model Variant / attempt
+  provenance and controller-measured elapsed time.
+- Add adapter usage descriptors and conservative extraction boundaries: Codex
+  `turn.completed` JSONL token counters, Claude JSON usage/API-duration/
+  provider-cost fields, and opportunistic AGY counters without claiming a stable
+  strict-budget schema.
+- Add trusted `policy.budget` limits for provider calls, controller/provider
+  elapsed time, exposed token dimensions, exact provider/model call counts and
+  attributable cost. Existing `max_agent_calls` / `task_timeout_seconds`
+  remain hard ceilings.
+- Fail closed before dispatch when a strict constrained metric cannot be proven
+  for the selected provider/model. Exact exhaustion blocks the next provider
+  effect; numeric overrun or lost proof after a call fails before the next
+  effect. No budget path silently changes provider, model, effort, validator or
+  workflow.
+- Carry Supervisor usage across clarification rounds and into TaskState v7 so
+  task accounting does not reset at Start confirmation. IntakeState v4 freezes
+  the same evidence in the immutable Supervisor artifact/scope.
+- Add exact provider-slot/model pricing rules with mandatory source, version and
+  effective-time provenance. Provider-reported cost takes precedence;
+  controller-computed cost uses decimal arithmetic only when all configured
+  rate-bearing usage dimensions are known.
+- Invalidate pricing metadata for a provider slot when its adapter is changed,
+  alongside existing adapter-specific executable/model/effort resets.
+- Persist hash-verified `usage` and `budget` artifacts, expose live summaries
+  through `get_task` and adapter/policy capability data through
+  `inspect_project`.
+- Include material usage/budget scope in Start, Execution and Acceptance
+  HumanGate previews without weakening existing profile/worktree/control/effect
+  bindings.
+- Preserve historical profile trust when the new budget/pricing settings are
+  absent; explicit budget/pricing changes are normal profile-authority changes.
+- Add v0.10 regression coverage for unknown telemetry, pricing provenance,
+  aggregation, strict enforcement, no-fallback behavior, adapter parsers and
+  HumanGate/MCP visibility.
+
 ## 0.9.2 — HumanGate interoperability diagnostics follow-up
 
 - Persist content-free MCP HumanGate transport diagnostics in the gate ledger:
