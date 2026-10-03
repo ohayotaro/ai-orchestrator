@@ -14,7 +14,7 @@ def test_packaged_skill_carries_v010_usage_budget_safety_contract():
     required = [
         "Task -> Workflow Node -> Provider Resolution -> Model Variant Resolution -> Execution -> Usage Evidence -> Budget Evaluation",
         "known`, `unknown` or `unsupported",
-        "Never coerce missing/unknown/unsupported telemetry to zero",
+        "Never coerce missing/unknown/unsupported telemetry\n        to zero",
         "Do not select a cheaper provider/model",
         "Controller-computed cost requires",
         "Budget configuration is trusted controller policy",
