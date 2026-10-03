@@ -126,6 +126,79 @@ class ValidatorConfig(Contract):
         return value
 
 
+class BudgetCallLimit(Contract):
+    provider: str
+    model: str | None = None
+    max_calls: int = Field(ge=1, le=10000, strict=True)
+
+    @field_validator("provider")
+    @classmethod
+    def valid_provider(cls, value: str) -> str:
+        return identifier(value)
+
+    @field_validator("model")
+    @classmethod
+    def valid_model(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or len(value) > 256):
+            raise ValueError("budget model must be a nonblank provider-local identifier")
+        return value
+
+
+class BudgetPolicy(Contract):
+    schema_version: Literal[1] = 1
+    max_provider_calls: int | None = Field(default=None, ge=1, le=10000, strict=True)
+    max_controller_elapsed_seconds: float | None = Field(default=None, gt=0, le=86400)
+    max_provider_seconds: float | None = Field(default=None, gt=0, le=86400)
+    max_input_tokens: int | None = Field(default=None, ge=1, strict=True)
+    max_output_tokens: int | None = Field(default=None, ge=1, strict=True)
+    max_reasoning_tokens: int | None = Field(default=None, ge=1, strict=True)
+    max_total_tokens: int | None = Field(default=None, ge=1, strict=True)
+    max_cost: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+    currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
+    unknown_usage: Literal["fail_closed", "allow"] = "fail_closed"
+    call_limits: list[BudgetCallLimit] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def unique_call_limits(self) -> "BudgetPolicy":
+        keys = [(item.provider, item.model) for item in self.call_limits]
+        if len(keys) != len(set(keys)):
+            raise ValueError("budget call_limits must be unique per provider/model")
+        return self
+
+
+class PricingRule(Contract):
+    schema_version: Literal[1] = 1
+    provider: str
+    model: str = Field(min_length=1, max_length=256)
+    currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
+    source: str = Field(min_length=1, max_length=500)
+    version: str = Field(min_length=1, max_length=200)
+    effective_from: str = Field(min_length=1, max_length=100)
+    input_per_million: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+    output_per_million: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+    reasoning_per_million: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+    cache_read_per_million: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+    cache_write_per_million: str | None = Field(default=None, pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+
+    @field_validator("provider")
+    @classmethod
+    def valid_provider(cls, value: str) -> str:
+        return identifier(value)
+
+    @model_validator(mode="after")
+    def has_rate(self) -> "PricingRule":
+        rates = (
+            self.input_per_million,
+            self.output_per_million,
+            self.reasoning_per_million,
+            self.cache_read_per_million,
+            self.cache_write_per_million,
+        )
+        if not any(value is not None for value in rates):
+            raise ValueError("pricing rule requires at least one explicit rate")
+        return self
+
+
 class Policy(Contract):
     require_execution_approval: StrictBool = True
     # Compatibility name: True now requires an independent execution identity:
@@ -138,6 +211,9 @@ class Policy(Contract):
     task_timeout_seconds: int = Field(default=3600, ge=1, le=86400, strict=True)
     # v0.7 parallelism is explicitly opt-in. A value of 1 preserves v0.6 scheduling.
     max_parallel_workers: int = Field(default=1, ge=1, le=8, strict=True)
+    # v0.10 adds explicit resource budgets. Legacy max_agent_calls/task_timeout_seconds
+    # remain hard ceilings; a budget can only tighten them.
+    budget: BudgetPolicy = Field(default_factory=BudgetPolicy)
 
     @field_validator("protected_paths")
     @classmethod
@@ -294,6 +370,9 @@ class Profile(Contract):
     validators: dict[str, ValidatorConfig] = Field(default_factory=dict)
     workflow: str = "build-review"
     workflows: dict[str, WorkflowSpec] = Field(default_factory=dict)
+    # Exact provider-slot/model pricing. No global vendor price table is embedded
+    # in the kernel; source/version/effective-time provenance is mandatory.
+    pricing: list[PricingRule] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def bindings(self) -> Profile:
@@ -314,6 +393,16 @@ class Profile(Contract):
                     raise ValueError(f"unknown provider candidate: {candidate}")
             if role.provider is None and not role.candidates and not self.providers:
                 raise ValueError("dynamic role resolution requires at least one provider")
+        price_keys: list[tuple[str, str]] = []
+        for rule in self.pricing:
+            if rule.provider not in self.providers:
+                raise ValueError(f"pricing references unknown provider slot: {rule.provider}")
+            price_keys.append((rule.provider, rule.model))
+        if len(price_keys) != len(set(price_keys)):
+            raise ValueError("pricing must contain at most one rule per exact provider/model")
+        for limit in self.policy.budget.call_limits:
+            if limit.provider not in self.providers:
+                raise ValueError(f"budget call limit references unknown provider slot: {limit.provider}")
         return self
 
 
@@ -375,8 +464,9 @@ class ProviderPermissionGrant(Contract):
 
 class TaskState(Contract):
     # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows,
-    # v6 freezes provider-local model/effort/runtime-option provenance.
-    schema_version: Literal[1, 2, 3, 4, 5, 6] = 1
+    # v6 freezes provider-local model/effort/runtime-option provenance, and v7
+    # binds usage/budget evidence.
+    schema_version: Literal[1, 2, 3, 4, 5, 6, 7] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
