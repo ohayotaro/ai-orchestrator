@@ -290,8 +290,8 @@ The invariant remains: the system may learn/reuse **structure**, but it cannot
 silently grant itself providers, validator commands, policies, permissions,
 external effects or project trust.
 
-See `docs/ADAPTIVE_ORCHESTRATION.md`. The next milestone is v0.9 operational
-observability, budgets and recovery hardening.
+See `docs/ADAPTIVE_ORCHESTRATION.md`. v0.9 subsequently completed the
+model/runtime-resolution, isolation and observability foundation described below.
 
 ## v0.9 — Model/runtime policy and observable execution — completed
 
