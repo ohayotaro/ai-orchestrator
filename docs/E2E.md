@@ -544,3 +544,135 @@ evidence only and does not prove whether a user-facing dialog was rendered.
 This limitation does not reopen the v0.9 milestone. Future Antigravity host
 changes can be re-tested through the same HumanGate transport diagnostics without
 weakening the authorization contract.
+
+## Owner-reported live v0.11 Recovery & Durability E2E (2026-10-04 JST)
+
+The owner completed the v0.11 live recovery series from Claude Code against the
+calculator fixture using single-terminal mode. These runs used actual worker /
+provider process termination and subsequent controller/worker restart behavior,
+rather than only synthetic in-process exceptions. Together with the offline
+crash-injection suite, this closes the v0.11 Recovery & Durability milestone for
+its trusted-local alpha scope.
+
+### Case 1 — pre-dispatch interruption: safe recovery
+
+Task: `v011-c2-postdispatch-cube` (the original case labels were swapped after
+the first monitor attempt missed the pre-dispatch window).
+
+The crash monitor observed `workflow.guarded_write.preparing` and froze/killed
+the worker approximately 35 ms later. No later durable workflow event was
+recorded. Recovery diagnosis reported:
+
+- `classification=safe_pre_effect_retry`;
+- `provider_dispatch_started=false`;
+- root snapshot equal to the checkpoint snapshot;
+- no automatic replay.
+
+After the operator ran `orchestrator recover`, the task returned to
+`awaiting_approval`. The old execution approval was no longer usable and the
+next Execution HumanGate had a different scope. After fresh approval, execution
+completed normally: the guarded write produced no write-set violations, pytest
+reported **29 passed**, independent review returned `approved`, Acceptance was
+confirmed, and the task reached `succeeded`.
+
+This verifies that a proven pre-effect interruption can survive a real process
+kill/restart and return only to a fresh authority boundary, not directly to
+execution.
+
+### Case 2 — post-dispatch interruption: replay prohibited
+
+Task: `v011-c1-predispatch-square`.
+
+The initial pre-dispatch monitor could not open the SQLite/WAL state under the
+host sandbox, so this task had already reached provider execution. The worker /
+provider process tree was then killed while Codex was running, after the durable
+batch `.started` marker existed.
+
+Recovery diagnosis reported `classification=uncertain_effect` because provider
+dispatch may already have occurred. After operator recovery:
+
+- task state became `failed`;
+- the prior approval was revoked;
+- disposable worktrees were removed;
+- the root worktree remained unchanged; and
+- no automatic provider re-execution occurred.
+
+This verifies that missing provider completion evidence is not treated as proof
+that dispatch had no effect.
+
+### Case 3 — interruption after root integration: no replay and no rollback
+
+Task: `v011-c3-postintegration-double-b`.
+
+The monitor killed the worker approximately 27 ms after
+`workspace.integrated`; validation had not yet started. The root snapshot
+matched the integrated snapshot and contained the new `double` implementation.
+
+Recovery diagnosis reported `classification=uncertain_effect`, with integration
+already started/acknowledged. After operator recovery:
+
+- task state became `failed`;
+- no automatic implementation replay occurred;
+- disposable runtime workspaces were cleaned; and
+- the integrated `double` change remained in the root worktree.
+
+This directly verifies the v0.11 invariant that recovery never guesses a
+root-worktree rollback after an ambiguous or already-applied effect.
+
+### Case 4 — normal-path regression
+
+Task: `v011-c4-normal-negate-b`.
+
+No crash was injected. The task completed the normal flow:
+
+`Start -> Execution -> pytest -> independent review -> Acceptance -> succeeded`.
+
+The write set covered the two intended calculator/test files with zero
+violations, pytest reported **35 passed**, and Claude review returned
+`approved`.
+
+The first Acceptance HumanGate timed out after roughly 120 seconds with
+`elicitation_sent=true`, `response_received=false`, and no authorization
+effect. The task correctly remained `awaiting_acceptance`. A new Acceptance
+request ID was then issued against the unchanged task/worktree scope; the user
+confirmed it and the task reached `succeeded`. This also reconfirms the
+HumanGate timeout/retry boundary: expiration authorizes nothing, and retry is a
+new host request rather than replay of the expired gate.
+
+### Worker / job durability observations
+
+For every crash case, the managed `serve` process started a replacement worker
+after the killed worker disappeared. The interrupted job was recorded as
+`interrupted` and was not automatically re-queued. Task recovery remained a
+separate explicit operator action.
+
+`recover` was exercised only from a separate normal terminal because it remains
+operator-only and is intentionally absent from the agent-facing mutation
+surface.
+
+### v0.11 live completion boundary
+
+The live series therefore verifies the four acceptance cases targeted for
+v0.11:
+
+| Case | Recovery classification | Result |
+| --- | --- | --- |
+| Pre-dispatch crash | `safe_pre_effect_retry` | fresh Execution approval required, then `succeeded` |
+| Post-dispatch crash | `uncertain_effect` | `failed`, no replay |
+| Post-integration crash | `uncertain_effect` | `failed`, no replay and no rollback |
+| Normal path | n/a | `succeeded` |
+
+The observed result is consistent with the v0.11 design: only a durable,
+unchanged-root, pre-provider-dispatch checkpoint is recoverable to a fresh
+approval gate. Any uncertain prior effect is terminalized without automatic
+replay, and applied root changes are not automatically rolled back.
+
+This completion claim remains within the trusted-local model. It does not claim
+provider-side exactly-once execution, distributed transactions, cryptographic
+human identity, or recovery of external effects.
+
+One operational follow-up remains outside the kernel milestone: the installed
+Skill copies under the tested Claude Code / agent locations were older than the
+repository's packaged v0.11 Skill and should be re-exported/synchronized before
+future host runs.
+
