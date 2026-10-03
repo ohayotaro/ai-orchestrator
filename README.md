@@ -169,7 +169,9 @@ server sent `elicitation/create`, and whether the host returned
 accept/decline/cancel, an error, timeout, or disconnect. This is interoperability
 evidence, not human-presence attestation. Use an
 interactive client with approval automation disabled when personal confirmation
-is required. No authenticated live v0.4 client test is claimed by the offline suite.
+is required. Live owner-reported HumanGate evidence exists for Claude Code/Codex;
+Antigravity host transport has been live-tested separately and currently returns
+an explicit elicitation cancel in the tested client.
 See [Single-terminal design and setup](docs/SINGLE_TERMINAL.md).
 
 ## Install / upgrade
