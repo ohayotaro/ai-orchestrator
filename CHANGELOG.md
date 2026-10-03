@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.0 — Recovery & Durability hardening
+
+- Add durable pre-provider-dispatch root-snapshot checkpoints for guarded and
+  isolated writable execution.
+- Classify interrupted `running` tasks as retry-safe only when the controller can
+  prove provider dispatch never started and the root worktree is unchanged.
+- Make safe recovery explicit and non-executing: clean disposable workspaces,
+  release only un-dispatched call reservations, atomically revoke old execution
+  and provider-permission approvals, persist recovery evidence, and require a
+  fresh execution approval.
+- Fail closed on ambiguous provider/validator/shared-write/integration effects,
+  workspace drift, and legacy interrupted rows without a v0.11 checkpoint.
+  Recovery never automatically replays or rolls back the user's root worktree.
+- Expose read-only recovery diagnosis through CLI task status and agent-facing
+  `get_task`; `recover` remains operator-only.
+- Mark HumanGate `applying` / `uncertain` records as effect-uncertain and
+  explicitly non-replayable in gate diagnostics.
+- Add content-free provider failure categories for authentication, quota,
+  permission, configuration, protocol and generic provider-process failures
+  without persisting raw provider stderr.
+- Keep TaskState and runtime SQLite schema versions backward-compatible; harden
+  task-row persistence and make recovery approval revocation transactional.
+- Add crash-injection regressions for pre-dispatch safe recovery, post-dispatch
+  ambiguity and interruption after root integration.
+
 ## 0.10.4 — HumanGate transport observability
 
 - Persist content-free HumanGate request/correlation metadata so host
