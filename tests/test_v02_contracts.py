@@ -17,7 +17,7 @@ from conftest import approve_and_run, spec
 def test_new_tasks_use_explicit_v2_role_contracts(engine):
     controller, reasoning, engineering = engine
     state = controller.create(spec())
-    assert state.schema_version == 6
+    assert state.schema_version == 7
     state = approve_and_run(controller)
     assert state.status == "awaiting_acceptance"
     assert reasoning.requests[0].result_model is PlanResult
@@ -109,9 +109,11 @@ def test_empty_v2_validator_defaults_preserve_v1_profile_digest(workspace):
     for role in old["roles"].values():
         role.pop("capabilities", None)
         role.pop("candidates", None)
-    # v0.7 parallelism defaults to one and is digest-compatible with the
-    # pre-v0.7 sequential policy.
+    # v0.7/v0.10 empty defaults are digest-compatible with older trusted
+    # profiles when no explicit parallelism, budget or pricing authority exists.
     old["policy"].pop("max_parallel_workers", None)
+    old["policy"].pop("budget", None)
+    old.pop("pricing", None)
     old.pop("workflows", None)
     assert digest({"profile": old, "context": context}) == actual
 
