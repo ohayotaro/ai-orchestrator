@@ -136,6 +136,7 @@ class Engine:
         outcome: str,
         elapsed_seconds: float,
         raw: dict[str, object] | None,
+        call_index: int | None = None,
     ) -> dict[str, Any]:
         normalized_outcome = (
             "cancelled"
@@ -144,7 +145,7 @@ class Engine:
         )
         record = normalize_usage(
             owner_id=state.spec.id,
-            call_index=state.calls,
+            call_index=call_index if call_index is not None else state.calls,
             attempt=state.attempt,
             role=role,
             node=node,
