@@ -376,25 +376,131 @@ v0.9 intentionally does **not** claim:
 Those boundaries are explicit evidence, not reasons to weaken HumanGate,
 workspace or provider-permission controls.
 
-## Post-v0.9 — usage, budgets and recovery hardening
+## v0.10 — Usage Observability & Budget Policy — planned
 
-The following work remains directional rather than assigned to a completed v0.9
-patch release:
+v0.10 extends the v0.9 execution/provenance chain with attributable usage and
+explicit resource limits:
 
-- structured token/input/output/reasoning usage where providers expose reliable
-  data;
-- cost attribution only when pricing/usage data is sufficiently attributable;
-- configurable call/time/token/cost budgets;
-- pre-call budget checks and post-call accounting;
-- richer evidence graphs linking task -> node -> provider -> model -> usage ->
-  artifacts -> validation/review;
-- conservative resume/recovery for safe pre-effect failures;
+```text
+Task
+  -> Node
+  -> Provider
+  -> Model Variant
+  -> Execution
+  -> Usage
+  -> Budget
+  -> Evidence
+```
+
+The architectural distinction is:
+
+```text
+Capabilities  = what
+Provider      = who
+Model Variant = how
+Budget        = how much
+```
+
+Usage/budget policy is a separate control-plane concern. It must not silently
+rewrite capability requirements, provider identity, model choice or HumanGate
+authority.
+
+### v0.10.0 — Usage Accounting
+
+Establish a normalized usage evidence contract while preserving provider truth.
+
+Planned:
+
+- adapter-level structured usage extraction where the provider exposes reliable
+  input/output/reasoning/cache/token or call data;
+- explicit `known` / `unknown` / `unsupported` representation rather than
+  estimating missing provider counters;
+- per-call and per-node usage records linked to Provider Resolution, Model
+  Variant Resolution, attempts and artifacts;
+- deterministic aggregation from call -> node -> attempt -> task;
+- elapsed controller/provider time recorded separately from token usage;
+- content-free usage provenance suitable for `get_artifact`, inspection and
+  later budget accounting;
+- adapter capability/limitation reporting when a provider does not expose a
+  reliable usage field.
+
+Usage accounting must not infer hidden reasoning tokens, fabricate token counts
+from text length, or treat incomplete provider telemetry as zero.
+
+### v0.10.1 — Budget Policy & Enforcement
+
+Add explicit, inspectable limits over attributable execution resources.
+
+Planned budget dimensions:
+
+- provider/model call count;
+- wall-clock/provider execution time where reliably attributable;
+- input/output/reasoning/total tokens where exposed;
+- cost only when the required usage and pricing attribution are trustworthy.
+
+Enforcement principles:
+
+- budget configuration is trusted policy, not model-authored authority;
+- check enforceable remaining budget before dispatch where possible;
+- account actual usage after each provider call;
+- stop before the next effect when an enforceable budget is exhausted;
+- never silently switch to a cheaper provider/model, lower effort, weaker
+  validator or different workflow to stay within budget;
+- any policy that permits a budget-driven fallback must be separately explicit,
+  inspectable and provenance-recorded;
+- unknown telemetry must remain unknown. A strict budget that cannot be proven
+  safe to enforce fails closed rather than guessing.
+
+HumanGate previews should expose material budget scope when the authorized
+execution is budget-constrained.
+
+### v0.10.2 — Cost Attribution & Usage Evidence
+
+Complete the evidence layer for auditable usage/cost reporting.
+
+Planned:
+
+- pricing metadata with source/version/effective-time provenance rather than
+  hard-coded unversioned cost constants;
+- provider/model-specific cost calculation only when usage dimensions map
+  unambiguously to the pricing contract;
+- explicit distinction between provider-reported cost, controller-computed cost
+  and unavailable cost;
+- task/node/provider/model usage summaries linked to validation/review evidence;
+- budget-consumption artifacts suitable for post-run inspection;
+- clear rounding/currency semantics where monetary accounting is supported.
+
+Metrics remain provenance first. v0.10 does not introduce automatic
+performance/cost leaderboards or opaque model ranking.
+
+### v0.10 non-goals
+
+v0.10 does **not** include:
+
+- automatic cheapest-model/provider selection;
+- silent quality/effort degradation to satisfy a budget;
+- guessed token/cost values when providers do not report enough information;
+- billing-system reconciliation or financial-ledger guarantees;
+- provider-side attestation beyond evidence actually returned by the provider;
+- general recovery/resume of interrupted execution;
+- automatic replay of ambiguous effects;
+- weakening HumanGate, provider-permission or workspace isolation boundaries.
+
+### After v0.10 — Recovery & Durability hardening
+
+Recovery remains deliberately separate from usage/budget enforcement.
+
+Directional work after v0.10:
+
+- conservative resume for provably safe pre-effect failures;
+- richer interrupted-attempt classification;
 - more precise authentication/quota/configuration/protocol failure attribution;
-- migration/compatibility hardening across persisted versions.
+- persistence/migration hardening across stored contract versions;
+- recovery evidence that never converts an ambiguous prior effect into an
+  automatic replay.
 
-Metrics remain provenance first, not an automatic leaderboard. Any later
-performance/cost-aware routing policy must be explicit, inspectable and
-separately authorized where it changes cost or execution expectations.
+The invariant remains: interrupted or uncertain effects are inspected, not
+blindly replayed.
 
 ## v1.0 — Stable control-plane contracts
 
