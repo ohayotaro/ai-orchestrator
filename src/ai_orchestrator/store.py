@@ -75,7 +75,12 @@ class Store:
                 except sqlite3.IntegrityError as exc:
                     raise OrchestratorError(f"task already exists: {state.spec.id}") from exc
             else:
-                self.db.execute("UPDATE tasks SET data=? WHERE id=?", (state.model_dump_json(), state.spec.id))
+                cursor = self.db.execute(
+                    "UPDATE tasks SET data=? WHERE id=?",
+                    (state.model_dump_json(), state.spec.id),
+                )
+                if cursor.rowcount != 1:
+                    raise OrchestratorError(f"task disappeared during durable state update: {state.spec.id}")
             if clear_approvals:
                 cursor = self.db.execute("DELETE FROM approvals WHERE task_id=?", (state.spec.id,))
                 self._event(
