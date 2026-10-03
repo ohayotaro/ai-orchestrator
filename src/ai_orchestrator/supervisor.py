@@ -574,7 +574,7 @@ class Supervisor:
             compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=6,
+            state = TaskState(schema_version=7,
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
@@ -589,6 +589,18 @@ class Supervisor:
                 )
             if precondition is not None:
                 precondition()
+            if intake.usage_evidence is not None:
+                state.artifacts.append(
+                    self.store.write_artifact(
+                        state.spec.id, 0, "usage", intake.usage_evidence
+                    )
+                )
+            if intake.budget_status is not None:
+                state.artifacts.append(
+                    self.store.write_artifact(
+                        state.spec.id, 0, "budget", intake.budget_status
+                    )
+                )
             self.store.create_from_intake(state, intake, actor, scope)
             self.store.save(state, "workflow.bound", {
                 "selection_source": state.workflow_selection_source,
