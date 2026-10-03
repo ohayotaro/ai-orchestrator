@@ -75,12 +75,73 @@ def error(request_id: str | int | None, code: int, message: str) -> dict[str, An
     return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
 
+def _serialized_bytes(value: Any) -> int:
+    """Return deterministic UTF-8 JSON size without retaining payload content."""
+    return len(
+        json.dumps(
+            value,
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+
+def _json_shape(value: Any, *, depth: int = 0) -> dict[str, int]:
+    """Content-free structural metrics for transport diagnostics."""
+    metrics = {
+        "object_count": 0,
+        "field_count": 0,
+        "array_count": 0,
+        "array_item_count": 0,
+        "max_depth": depth,
+    }
+    if isinstance(value, dict):
+        metrics["object_count"] = 1
+        metrics["field_count"] = len(value)
+        for child in value.values():
+            nested = _json_shape(child, depth=depth + 1)
+            for key in ("object_count", "field_count", "array_count", "array_item_count"):
+                metrics[key] += nested[key]
+            metrics["max_depth"] = max(metrics["max_depth"], nested["max_depth"])
+    elif isinstance(value, list):
+        metrics["array_count"] = 1
+        metrics["array_item_count"] = len(value)
+        for child in value:
+            nested = _json_shape(child, depth=depth + 1)
+            for key in ("object_count", "field_count", "array_count", "array_item_count"):
+                metrics[key] += nested[key]
+            metrics["max_depth"] = max(metrics["max_depth"], nested["max_depth"])
+    return metrics
+
+
+def _schema_field_count(value: Any) -> int:
+    """Count declared JSON-Schema object properties recursively."""
+    if not isinstance(value, dict):
+        return 0
+    count = 0
+    properties = value.get("properties")
+    if isinstance(properties, dict):
+        count += len(properties)
+        for child in properties.values():
+            count += _schema_field_count(child)
+    items = value.get("items")
+    if isinstance(items, dict):
+        count += _schema_field_count(items)
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        variants = value.get(keyword)
+        if isinstance(variants, list):
+            count += sum(_schema_field_count(item) for item in variants)
+    return count
+
+
 @dataclass
 class Pending:
     original_id: str | int
     elicitation_id: str
     gate: HumanGate
     deadline: float
+    started_monotonic: float
 
 
 @dataclass
@@ -150,16 +211,25 @@ class StdioServer:
         if pending is None or message.get("id") != pending.elicitation_id or type(message.get("id")) is not str:
             return None  # Unknown/late/duplicate responses never grant authority.
         self.pending = None  # Consume the transport correlation before doing any effect.
-        if time.monotonic() >= pending.deadline:
+        now_monotonic = time.monotonic()
+        response_at = time.time()
+        response_metrics = {
+            "response_received_at": response_at,
+            "elicitation_elapsed_ms": round(
+                max(0.0, now_monotonic - pending.started_monotonic) * 1000.0, 3
+            ),
+        }
+        if now_monotonic >= pending.deadline:
             pending.gate = self._record_gate_transport(
-                pending.gate, outcome="timeout", response_received=True
+                pending.gate, outcome="timeout", response_received=True, **response_metrics
             )
             result = self._abort_gate(
                 pending.gate, "expired", "Host confirmation timed out; no operation authorized"
             )
         elif set(message) - {"jsonrpc", "id", "result", "error"} or ("result" in message) == ("error" in message):
             pending.gate = self._record_gate_transport(
-                pending.gate, outcome="protocol_error", response_received=True
+                pending.gate, outcome="protocol_error", response_received=True,
+                **response_metrics,
             )
             result = self._abort_gate(pending.gate, "failed", "Malformed elicitation response; no operation authorized")
         elif "error" in message:
@@ -170,6 +240,7 @@ class StdioServer:
                 outcome="host_error",
                 response_received=True,
                 host_error_code=error_code,
+                **response_metrics,
             )
             result = self._abort_gate(
                 pending.gate,
@@ -184,6 +255,7 @@ class StdioServer:
                 outcome="response",
                 response_received=True,
                 response_action=action,
+                **response_metrics,
             )
             result = self.broker.resolve(pending.gate, response)
         return self._gate_result(pending.original_id, result)
@@ -218,8 +290,15 @@ class StdioServer:
         if pending is None or time.monotonic() < pending.deadline:
             return None
         self.pending = None
+        now_monotonic = time.monotonic()
         pending.gate = self._record_gate_transport(
-            pending.gate, outcome="timeout", response_received=False
+            pending.gate,
+            outcome="timeout",
+            response_received=False,
+            timeout_at=time.time(),
+            elicitation_elapsed_ms=round(
+                max(0.0, now_monotonic - pending.started_monotonic) * 1000.0, 3
+            ),
         )
         result = self._abort_gate(
             pending.gate, "expired", "Host confirmation timed out; no operation authorized"
@@ -242,7 +321,13 @@ class StdioServer:
             if method == "notifications/cancelled" and isinstance(params, dict) and self.pending and type(params.get("requestId")) is type(self.pending.original_id) and params.get("requestId") == self.pending.original_id:
                 pending, self.pending = self.pending, None
                 pending.gate = self._record_gate_transport(
-                    pending.gate, outcome="origin_request_cancelled", response_received=False
+                    pending.gate,
+                    outcome="origin_request_cancelled",
+                    response_received=False,
+                    cancelled_at=time.time(),
+                    elicitation_elapsed_ms=round(
+                        max(0.0, time.monotonic() - pending.started_monotonic) * 1000.0, 3
+                    ),
                 )
                 result = self._abort_gate(pending.gate, "cancelled", "Originating tool request cancelled; no operation authorized")
                 return self._gate_result(pending.original_id, result)
@@ -328,14 +413,51 @@ class StdioServer:
                     if gate.status != "pending":
                         return self._gate_result(request_id, self.broker.describe(gate))
                     elicitation_id = "E-" + uuid.uuid4().hex
+                    form = self.broker.form(gate)
+                    elicitation = {
+                        "jsonrpc": "2.0",
+                        "id": elicitation_id,
+                        "method": "elicitation/create",
+                        "params": form,
+                    }
+                    message_text = form.get("message") if isinstance(form.get("message"), str) else ""
+                    schema = form.get("requestedSchema")
+                    schema_shape = _json_shape(schema)
+                    preview_shape = _json_shape(gate.preview)
+                    started_monotonic = time.monotonic()
+                    sent_at = time.time()
                     gate = self._record_gate_transport(
                         gate,
+                        gate_kind=gate.kind,
+                        gate_id=gate.id,
+                        gate_request_id=gate.request_id,
+                        transport_correlation_id=elicitation_id,
                         elicitation_sent=True,
+                        elicitation_sent_at=sent_at,
                         response_received=False,
                         outcome="pending",
+                        timeout_seconds=self.gate_timeout,
+                        request_serialized_bytes=_serialized_bytes(elicitation),
+                        form_serialized_bytes=_serialized_bytes(form),
+                        message_chars=len(message_text),
+                        message_bytes=len(message_text.encode("utf-8")),
+                        schema_serialized_bytes=_serialized_bytes(schema),
+                        schema_field_count=_schema_field_count(schema),
+                        schema_max_depth=schema_shape["max_depth"],
+                        schema_object_count=schema_shape["object_count"],
+                        preview_serialized_bytes=_serialized_bytes(gate.preview),
+                        preview_field_count=preview_shape["field_count"],
+                        preview_array_count=preview_shape["array_count"],
+                        preview_max_depth=preview_shape["max_depth"],
                     )
-                    self.pending = Pending(request_id, elicitation_id, gate, time.monotonic() + self.gate_timeout)
-                    return {"jsonrpc": "2.0", "id": elicitation_id, "method": "elicitation/create", "params": self.broker.form(gate)}
+                    self.pending = Pending(
+                        request_id,
+                        elicitation_id,
+                        gate,
+                        started_monotonic + self.gate_timeout,
+                        started_monotonic,
+                    )
+                    return elicitation
                 output = self.service.invoke(name, arguments)
                 if self.single_terminal:
                     if name in ("propose_task", "run_task") and output.get("status") in ("queued", "running"):
@@ -390,7 +512,13 @@ class StdioServer:
         if self.pending is not None and self.broker is not None:
             pending, self.pending = self.pending, None
             pending.gate = self._record_gate_transport(
-                pending.gate, outcome="disconnect", response_received=False
+                pending.gate,
+                outcome="disconnect",
+                response_received=False,
+                disconnected_at=time.time(),
+                elicitation_elapsed_ms=round(
+                    max(0.0, time.monotonic() - pending.started_monotonic) * 1000.0, 3
+                ),
             )
             self._abort_gate(pending.gate, "cancelled", "MCP session closed before confirmation; no operation authorized")
         if self.broker:
