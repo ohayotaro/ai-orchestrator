@@ -411,15 +411,15 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.9 is complete for its trusted-local alpha scope. It established separate
-Provider Resolution and Model Variant Resolution, provider-local model/effort
-overrides, read-only provider workspaces, same-family/different-model review
-identity, dispatch/failure provenance, single-terminal-by-default operation and
-HumanGate transport diagnostics.
+v0.11 is complete for its trusted-local alpha scope. The v0.9 provider/model
+control-plane foundation, v0.10 usage/budget policy, and v0.11 conservative
+recovery/durability boundary are now implemented without automatic provider
+fallback or replay of ambiguous effects.
 
-See **[ROADMAP.md](ROADMAP.md)** for the post-v0.9 path toward stable v1.0
-contracts. AGY native-permission and HumanGate host compatibility are explicit
-adapter/host boundaries rather than reasons to weaken authority controls.
+See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
+contracts. AGY native-permission, HumanGate host compatibility and remote
+provider exactly-once behavior remain explicit adapter/host boundaries rather
+than reasons to weaken authority controls.
 
 ## Verification / limitations
 
