@@ -1418,8 +1418,8 @@ class Engine:
             state.status = "failed"
             state.error = (
                 "Interrupted execution has an uncertain prior effect. Disposable isolated "
-                "workspaces were cleaned, but the root worktree was not rolled back and no "
-                "work was replayed. Inspect recovery evidence/worktree and create a new task."
+                "workspaces were cleaned without replay; the root worktree was not rolled back. "
+                "Inspect recovery evidence/worktree and create a new task."
             )
             self.store.artifact(state, "recovery", evidence)
             self.store.save(
