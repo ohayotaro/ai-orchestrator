@@ -52,7 +52,9 @@ durable provider-dispatch marker does not exist. Recovery cleans disposable
 workspaces, releases only provably un-dispatched call reservations, atomically
 revokes prior execution/provider-permission approvals, records an immutable
 `recovery` artifact, and returns the task to `awaiting_approval`. Nothing is
-executed by recovery itself.
+executed by recovery itself. If the attempt still requires AGY broad native
+permission, that dedicated provider-permission HumanGate must also be confirmed
+again before the fresh execution gate.
 
 Every ambiguous class is fail-closed. If provider dispatch may have happened,
 a validator may have run, a shared writer may have changed the project, aggregate
