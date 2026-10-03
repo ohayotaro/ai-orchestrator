@@ -564,7 +564,12 @@ implements the conservative boundary rather than broad resume semantics:
   rows lacking the new checkpoint deliberately fail closed;
 - crash-injection regressions cover pre-dispatch recovery, post-dispatch
   ambiguity, post-integration interruption, approval invalidation and
-  no-rollback behavior across the offline CI matrix.
+  no-rollback behavior across the offline CI matrix;
+- owner-reported Claude Code live E2E repeated the same boundaries with real
+  worker/provider process kills and restart: safe pre-dispatch recovery required
+  fresh authority and completed, ambiguous post-dispatch/post-integration cases
+  did not replay, and normal Start -> Execution -> Acceptance reached
+  `succeeded`.
 
 The invariant remains: interrupted or uncertain effects are inspected, not
 blindly replayed. v0.11 does not add provider-side idempotency keys, external
