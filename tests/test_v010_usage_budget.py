@@ -451,6 +451,7 @@ def test_provider_adapter_change_invalidates_stale_pricing_authority(workspace):
                 request_id="pricing-reset",
             )
         )
+        assert "Reset pricing rules: 1" in broker.form(gate)["message"]
         result = broker.resolve(
             gate, {"action": "accept", "content": {"decision": "yes"}}
         )
