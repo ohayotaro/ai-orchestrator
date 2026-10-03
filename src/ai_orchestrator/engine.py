@@ -1225,16 +1225,212 @@ class Engine:
             self.store.save(state, "task.accepted", {"actor": actor})
             return state
 
+    def _recovery_status(self, state: TaskState) -> dict[str, Any]:
+        """Classify an interrupted task without changing project or task state.
+
+        v0.11 intentionally recognizes only one retry-safe window: an isolated
+        writer batch has durably entered its preparation phase, the root
+        worktree still matches the pre-dispatch checkpoint, and the durable
+        provider-dispatch marker has not been written. Once provider dispatch,
+        validator execution, shared-worktree execution, or patch integration may
+        have started, the effect is ambiguous and recovery must not replay it.
+        """
+        current_snapshot = self.project.snapshot()
+        base: dict[str, Any] = {
+            "task_id": state.spec.id,
+            "status": state.status,
+            "phase": state.phase,
+            "attempt": state.attempt,
+            "classification": "not_interrupted",
+            "reason": "task is not in the durable running state",
+            "retry_safe": False,
+            "requires_execution_reapproval": False,
+            "automatic_replay": False,
+            "current_workspace_snapshot": current_snapshot,
+            "evidence": {},
+        }
+        if state.status != "running":
+            return base
+
+        events = self.store.events(state.spec.id)
+        preparing_kinds = {
+            "workflow.parallel.preparing",
+            "workflow.guarded_write.preparing",
+        }
+        markers = [
+            event for event in events
+            if event["kind"] in preparing_kinds
+            and event["payload"].get("attempt") == state.attempt
+        ]
+        marker = markers[-1] if markers else None
+        running_nodes = sorted(
+            node_id
+            for node_id, node_state in (state.workflow_nodes or {}).items()
+            if node_state.status == "running"
+        )
+
+        if marker is not None:
+            sequence = marker["sequence"]
+            prefix = marker["kind"].rsplit(".", 1)[0]
+            later = [event for event in events if event["sequence"] > sequence]
+            dispatch_started = any(
+                event["kind"] == prefix + ".started" for event in later
+            )
+            integration_started = any(
+                event["kind"] in ("workspace.integration.prepared", "workspace.integrated")
+                for event in later
+            )
+            marker_nodes = list(marker["payload"].get("nodes") or [])
+            root_snapshot = marker["payload"].get("root_snapshot")
+            unexpected_running = [
+                node_id for node_id in running_nodes if node_id not in marker_nodes
+            ]
+            reserved_calls = sum(
+                1
+                for event in later
+                if event["kind"] == "call.started"
+                and event["payload"].get("attempt") == state.attempt
+            )
+            base["evidence"] = {
+                "checkpoint_event": marker["kind"],
+                "checkpoint_sequence": sequence,
+                "checkpoint_workspace_snapshot": root_snapshot,
+                "nodes": marker_nodes,
+                "running_nodes": running_nodes,
+                "provider_dispatch_started": dispatch_started,
+                "integration_started": integration_started,
+                "reserved_calls": reserved_calls,
+            }
+
+            if root_snapshot is None:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="interruption predates the v0.11 root-worktree recovery checkpoint",
+                )
+            elif current_snapshot != root_snapshot:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="root worktree changed after the recovery checkpoint",
+                )
+            elif unexpected_running:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="running workflow nodes are not fully covered by the isolated recovery checkpoint",
+                )
+            elif integration_started:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="aggregate patch integration may already have affected the root worktree",
+                )
+            elif dispatch_started:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="provider dispatch may already have occurred; replay could duplicate cost or effects",
+                )
+            elif state.schema_version >= 4 and state.phase == "execute" and marker_nodes:
+                base.update(
+                    classification="safe_pre_effect_retry",
+                    reason="isolated execution stopped before durable provider dispatch and the root worktree is unchanged",
+                    retry_safe=True,
+                    requires_execution_reapproval=True,
+                )
+            else:
+                base.update(
+                    classification="uncertain_effect",
+                    reason="interrupted execution is not a proven isolated pre-effect checkpoint",
+                )
+            return base
+
+        if state.phase == "validate":
+            reason = "validator execution may already have occurred; generated or external validator effects are ambiguous"
+        elif state.phase in ("plan", "review"):
+            reason = "provider dispatch may already have occurred; replay could duplicate cost or responses"
+        elif state.phase == "execute":
+            reason = "shared or uncheckpointed execution may already have changed the worktree"
+        else:
+            reason = "interrupted phase has no v0.11 proof that replay is effect-free"
+        base.update(classification="uncertain_effect", reason=reason)
+        base["evidence"] = {"running_nodes": running_nodes}
+        return base
+
+    def recovery_status(self, task_id: str) -> dict[str, Any]:
+        """Return the current conservative recovery classification."""
+        with self.project.lock():
+            return self._recovery_status(self.store.get(task_id))
+
     def recover(self, task_id: str) -> TaskState:
+        """Resolve a durable running state without ever automatically replaying it."""
         with self.project.lock():
             state = self.store.get(task_id)
             if state.status != "running":
                 raise OrchestratorError("only interrupted running tasks can be recovered")
+
+            recovery = self._recovery_status(state)
             removed = WorkspaceManager.cleanup_task(self.project, task_id)
-            state.status, state.error = (
-                "failed",
-                "Interrupted execution; isolated workspaces were cleaned without replay. "
-                "Inspect the project worktree and create a new task.",
+            evidence = {
+                **recovery,
+                "isolated_workspaces_removed": removed,
+                "recovered_at": now(),
+            }
+
+            if recovery["classification"] == "safe_pre_effect_retry":
+                marker_nodes = list(recovery["evidence"].get("nodes") or [])
+                reserved_calls = int(recovery["evidence"].get("reserved_calls") or 0)
+                for node_id in marker_nodes:
+                    node_state = (state.workflow_nodes or {}).get(node_id)
+                    if node_state is not None and node_state.status == "running":
+                        node_state.status = "pending"
+                        node_state.error = None
+                        node_state.artifact_kinds = []
+                if state.workflow_order:
+                    ordered = [node_id for node_id in state.workflow_order if node_id in marker_nodes]
+                    if ordered:
+                        state.workflow_current = ordered[0]
+                state.calls = max(0, state.calls - reserved_calls)
+                state.phase = "execute"
+                state.status = "awaiting_approval"
+                state.provider_permission_grants = {}
+                state.error = (
+                    "Interrupted isolated execution was proven pre-dispatch and cleaned. "
+                    "A fresh execution approval is required; no work was replayed."
+                )
+                self.store.artifact(state, "recovery", evidence)
+                self.store.save(
+                    state,
+                    "task.recovered_safe_pre_effect",
+                    {
+                        "classification": recovery["classification"],
+                        "nodes": marker_nodes,
+                        "reserved_calls_released": reserved_calls,
+                        "isolated_workspaces_removed": len(removed),
+                        "requires_execution_reapproval": True,
+                        "automatic_replay": False,
+                    },
+                    clear_approvals=True,
+                )
+                return state
+
+            for node_state in (state.workflow_nodes or {}).values():
+                if node_state.status == "running":
+                    node_state.status = "failed"
+                    node_state.error = "interrupted with uncertain prior effect; replay prohibited"
+            state.provider_permission_grants = {}
+            state.status = "failed"
+            state.error = (
+                "Interrupted execution has an uncertain prior effect. Disposable isolated "
+                "workspaces were cleaned, but the root worktree was not rolled back and no "
+                "work was replayed. Inspect recovery evidence/worktree and create a new task."
             )
-            self.store.save(state, "task.recovered", {"isolated_workspaces_removed": removed})
+            self.store.artifact(state, "recovery", evidence)
+            self.store.save(
+                state,
+                "task.recovered_uncertain",
+                {
+                    "classification": recovery["classification"],
+                    "reason": recovery["reason"],
+                    "isolated_workspaces_removed": len(removed),
+                    "automatic_replay": False,
+                },
+                clear_approvals=True,
+            )
             return state
