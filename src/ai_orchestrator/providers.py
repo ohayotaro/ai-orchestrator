@@ -39,16 +39,10 @@ class ProviderExecutionError(OrchestratorError):
 
     def __init__(self, message: str, diagnostics: dict[str, object] | None = None):
         super().__init__(message)
-        values = dict(diagnostics or {})
-        if "failure_category" not in values:
-            lowered = message.casefold()
-            if any(value in lowered for value in ("structured", "result contract", "schema-valid", "json response", "invalid json")):
-                values["failure_category"] = "protocol"
-            elif "permission" in lowered or "denied tool" in lowered:
-                values["failure_category"] = "permission"
-            else:
-                values["failure_category"] = "provider_process"
-        self.diagnostics = values
+        # Preserve the adapter/fixture diagnostics contract exactly. Built-in
+        # adapters add v0.11 failure_category only when their own error path can
+        # establish it; the base exception must not synthesize new metadata.
+        self.diagnostics = diagnostics or {}
 
 
 def _classify_cli_failure(stderr: str) -> str:
@@ -593,6 +587,7 @@ class AgyAdapter(CLIAdapter):
                             label += f"(executable={command['executable']})"
                         labels.append(label)
                 detail = ", ".join(labels) if labels else "one or more tools"
+                diagnostics["failure_category"] = "permission"
                 raise ProviderExecutionError(
                     "Antigravity headless execution was permission-denied for "
                     f"{detail}; status=SUCCESS does not mean the requested work completed. "
@@ -606,6 +601,7 @@ class AgyAdapter(CLIAdapter):
                 try:
                     return request.result_model.model_validate(structured)
                 except Exception as exc:
+                    diagnostics["failure_category"] = "protocol"
                     raise ProviderExecutionError(
                         "Antigravity structured_output did not match the requested result contract",
                         diagnostics,
@@ -630,6 +626,7 @@ class AgyAdapter(CLIAdapter):
                         try:
                             return request.result_model.model_validate(candidate)
                         except Exception as exc:
+                            diagnostics["failure_category"] = "protocol"
                             raise ProviderExecutionError(
                                 "Antigravity omitted structured_output and projected response JSON did not match the requested contract",
                                 diagnostics,
@@ -637,10 +634,12 @@ class AgyAdapter(CLIAdapter):
                     try:
                         return request.result_model.model_validate(decoded)
                     except Exception as exc:
+                        diagnostics["failure_category"] = "protocol"
                         raise ProviderExecutionError(
                             "Antigravity omitted structured_output and response JSON did not match the requested contract",
                             diagnostics,
                         ) from exc
+            diagnostics["failure_category"] = "protocol"
             raise ProviderExecutionError(
                 "Antigravity returned SUCCESS without a schema-valid structured_output or JSON response",
                 diagnostics,
