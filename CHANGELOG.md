@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.3 — Portable skill contract follow-up
+
+- Bring the packaged `ai-orchestrator` skill in line with the v0.10.2 Usage
+  Observability & Budget Policy implementation and reference documentation.
+- Document the control-plane sequence from Provider/Model resolution through
+  usage evidence and budget evaluation, and prohibit budget-driven provider,
+  model, effort, validator or workflow fallback.
+- Require preservation of `known` / `unknown` / `unsupported` telemetry
+  states; prohibit zero-fill, text-length token estimation and hidden-reasoning
+  inference.
+- Document provider-reported versus controller-computed cost provenance,
+  strict-budget fail-closed semantics and exact-exhaustion behavior.
+- Document Codex, Claude and AGY usage evidence boundaries plus inspection via
+  `inspect_project`, `get_task` and hash-verified usage/budget artifacts.
+- Document stale pricing reset as part of bounded provider-adapter authority
+  changes.
+- Add regression coverage that pins these safety-critical statements in the
+  packaged skill asset.
+
 ## 0.10.2 — Usage Observability & Budget Policy
 
 - Add normalized per-call usage evidence with explicit `known` / `unknown` /
