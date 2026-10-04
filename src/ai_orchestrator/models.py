@@ -436,11 +436,25 @@ class AgentResult(Contract):
 
 
 class Artifact(Contract):
-    schema_version: Literal[1] = 1
+    # v2 adds stable controller-owned identity/provenance while v1 metadata
+    # remains readable without rewriting historical task rows.
+    schema_version: Literal[1, 2] = 1
+    id: str | None = None
+    owner_id: str | None = None
+    created_at: str | None = None
     kind: str
     path: str
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     attempt: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def stable_identity(self) -> "Artifact":
+        if self.schema_version >= 2:
+            if self.id is None or self.owner_id is None or self.created_at is None:
+                raise ValueError("Artifact schema v2 requires id, owner_id and created_at")
+            identifier(self.id)
+            identifier(self.owner_id)
+        return self
 
 
 class ProviderPermissionGrant(Contract):
