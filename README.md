@@ -44,9 +44,11 @@ contract (`doctor` + `execute` plus identity/capability descriptors) from
 optional runtime-option, usage and role-compatibility features.
 
 Third-party distributions advertise adapters through the
-`ai_orchestrator.providers` Python entry-point group. `provider-plugins`
-inspects installed metadata without importing external code. To activate an
-adapter, the project profile must pin its adapter ID, distribution name,
+`ai_orchestrator.providers` Python entry-point group. Before a profile is
+trusted, plugin inspection is metadata-only and does not import configured
+external code. On a trusted profile, normal controller construction may load an
+exactly pinned plugin and `provider-plugins` reports that load/conformance
+status. To activate an adapter, the project profile must pin its adapter ID, distribution name,
 distribution version and exact entry-point target; that changed profile must
 then pass the normal explicit trust ceremony. A missing/mismatched package,
 unsupported SDK/API version, built-in ID collision, load failure or conformance
