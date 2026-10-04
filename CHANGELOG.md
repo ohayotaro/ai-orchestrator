@@ -18,6 +18,11 @@
 - Keep persisted TaskState/IntakeState/HumanGate/artifact contracts and authority
   semantics unchanged.
 
+- Final owner-reported v0.12.2 live read-only E2E passed on the accumulated
+  runtime: repeated inspection left the complete SHA-256, SQLite header counters,
+  user versions, mtimes, schema digests and row digests of state/gates/jobs
+  databases unchanged, while legacy usage and Skill synchronization remained
+  correct and no new provider/HumanGate/job/event/workspace effect occurred.
 ## 0.12.1 — Live migration E2E follow-up
 
 - Record successful in-place v0.12 live E2E over an accumulated v0.x runtime:

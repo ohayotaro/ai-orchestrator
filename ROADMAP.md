@@ -632,6 +632,14 @@ the SQLite header change counter. v0.12.2 removes that unnecessary physical
 write for runtime, HumanGate and jobs databases while preserving real supported
 version upgrades. The v0.12 line is therefore closed before v0.13.
 
+Final v0.12.2 live read-only E2E subsequently confirmed the fix against the
+accumulated runtime: repeated state/task/intake/artifact/job/gate inspection left
+the full SHA-256, SQLite header counters, user versions, mtimes, schema digests
+and row digests of all three current databases unchanged. Legacy usage semantics
+and installed Skill synchronization also remained correct, with no provider,
+HumanGate, job, event or workspace side effects. v0.12 is fully closed; no
+further v0.12 E2E is required before v0.13.
+
 ### v0.13 — Provider / Plugin SDK
 
 Primary goal: turn the provider extension boundary into a documented,
