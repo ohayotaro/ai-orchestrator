@@ -115,6 +115,8 @@ def test_empty_v2_validator_defaults_preserve_v1_profile_digest(workspace):
     old["policy"].pop("budget", None)
     old.pop("pricing", None)
     old.pop("workflows", None)
+    # v0.13 empty provider-plugin support is also authority-neutral.
+    old.pop("provider_plugins", None)
     assert digest({"profile": old, "context": context}) == actual
 
 
