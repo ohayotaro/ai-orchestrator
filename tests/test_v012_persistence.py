@@ -132,6 +132,26 @@ def test_store_rejects_unknown_task_version_without_rewriting(engine):
     assert stored == encoded
 
 
+def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
+    controller, _reasoning, _engineering = engine
+    raw = retained()["task_states"][3]
+    legacy_artifact = Artifact.model_validate(retained()["legacy_artifact"])
+    assert legacy_artifact.model_dump() == retained()["legacy_artifact"]
+
+    state = decode_versioned_model_json(
+        json.dumps(raw), rule_key="task_state", model=TaskState
+    )
+    state.artifacts = [legacy_artifact]
+    before = controller.approval_scope(state)
+
+    # Round-tripping a retained Artifact v1 through the new model must not add
+    # v2 null fields and thereby change an already-approved digest.
+    round_tripped = TaskState.model_validate_json(state.model_dump_json())
+    after = controller.approval_scope(round_tripped)
+    assert after == before
+    assert round_tripped.artifacts[0].model_dump() == retained()["legacy_artifact"]
+
+
 def test_new_artifact_v2_identity_and_legacy_v1_read(engine):
     controller, _reasoning, _engineering = engine
     artifact = controller.store.write_artifact(
@@ -192,6 +212,15 @@ def test_runtime_event_envelope_has_stable_identity(engine):
     assert event["event_id"] == f"E-{event['sequence']}"
     assert event["source"] == "runtime_event_log"
     assert event["payload"] == {"value": 1}
+
+
+def test_cli_persistence_report(workspace, capsys):
+    from ai_orchestrator.cli import main
+
+    assert main(["--project", str(workspace), "persistence"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["contracts"]["task_state"]["write_version"] == 7
+    assert report["contracts"]["artifact"]["write_version"] == 2
 
 
 def test_persistence_report_is_explicit_and_complete():
