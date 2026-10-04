@@ -139,7 +139,7 @@ def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
     # approval_scope verifies artifact bytes first, so retain an actual v1
     # artifact on disk rather than weakening the production verifier in this
     # migration regression.
-    text = '{"legacy":true}\\n'
+    text = '{"legacy":true}\n'
     path = ".orchestrator/runtime/fixture/0-plan.json"
     atomic_write(controller.project.root / path, text)
     legacy_raw = {
