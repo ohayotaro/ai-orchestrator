@@ -34,6 +34,16 @@
 - No runtime/HumanGate/jobs SQLite migration or TaskState/IntakeState schema bump
   is required solely for v0.13. Empty plugin configuration preserves historical
   profile fingerprints.
+- Owner-reported live closure passed with a Fresh-Write isolated integration
+  (`43 passed`, independent review, final `succeeded`) and a real temporary
+  external Python distribution. The external lifecycle verified
+  installed/unpinned inertness, exact-pin/untrusted inertness, explicit-trust
+  loading/conformance, and `loaded != selected != dispatched`, with zero fixture
+  provider dispatches.
+- Cleanup additionally verified that restoring the exact former profile
+  bytes/digest does not resurrect its old trust record: trust is a single current
+  profile binding and explicit re-trust is required after returning from a
+  different trusted digest.
 
 ## 0.12.2 — Physical read-only SQLite hardening
 

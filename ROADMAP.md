@@ -684,9 +684,20 @@ Completion boundary: adding a provider adapter is routine SDK work; incompatible
 or untrusted plugins fail before provider dispatch, and structural contract
 failures are detected by conformance tests rather than kernel changes. The
 offline CI matrix covers Python 3.11/3.12/3.13 on Linux plus Python 3.13 on
-macOS, including a non-core entry-point fixture. v0.13 does not claim that
-distribution/version pinning cryptographically attests package bytes or that
-third-party in-process adapter code is sandboxed from the controller.
+macOS, including a non-core entry-point fixture.
+
+Owner-reported live closure additionally passed a Fresh-Write isolated
+integration with 43 pytest tests and independent review, plus a real temporary
+external distribution lifecycle:
+`installed/unpinned/inert -> exact-pin/untrusted/inert -> exact-pin/trusted/loaded`.
+The loaded fixture remained unselected and undispatched, and cleanup restored the
+original project/environment state. Cleanup also confirmed that restoring an old
+profile digest does not restore its prior trust automatically; the single current
+trusted-profile binding requires explicit re-trust.
+
+v0.13 does not claim that distribution/version pinning cryptographically attests
+package bytes or that third-party in-process adapter code is sandboxed from the
+controller.
 
 ### v0.14 — Knowledge Distillation / Project Learning
 

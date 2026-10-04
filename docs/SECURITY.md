@@ -561,3 +561,10 @@ but plugins must not place prompts, credentials, provider response bodies,
 commands, arguments or arbitrary stderr in durable diagnostics. The SDK
 conformance helper checks structural adapter contracts; it is not a security
 audit of third-party code.
+
+Profile trust is a single current binding, not a remembered set of previously
+approved digests. `Store.trust` replaces the one `metadata.trusted_profile`
+value. If an operator trusts profile B and later restores profile A byte-for-byte,
+A remains untrusted even when its digest is identical to a formerly trusted
+value. This is intentional fail-closed behavior: returning to old authority
+requires a new explicit trust action rather than reviving stale authorization.
