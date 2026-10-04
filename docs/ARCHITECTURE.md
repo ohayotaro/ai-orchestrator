@@ -21,7 +21,12 @@ The modules are:
 - `knowledge.py`: human-governed knowledge/policy/skill promotion, unchanged as a separate lifecycle.
 - `cli.py`: user-facing commands, including ask/start and explicit human gates.
 
-Provider implementations remain Python registry entries injected into `Engine(root, registry=...)`. No arbitrary class/module import is taken from project configuration. Additional vendors are extension points, not implemented adapters in this release.
+Built-in provider implementations remain registry entries, and tests may still
+inject an explicit registry into `Engine(root, registry=...)`. v0.13 adds a
+separate trusted provider-plugin loader: arbitrary module paths are never taken
+directly from task/model input, and installed entry-point metadata remains inert
+until an exact project-owned plugin pin is part of an explicitly trusted profile.
+See the v0.13 section below.
 
 ## Natural-language intake
 
@@ -409,3 +414,43 @@ convert it into a blocker. Runtime denial remains the fail-closed enforcement
 point and is observable through adapter-sanitized provider failure diagnostics.
 The controller neither rewrites task prompts to bypass native permission policy
 nor mutates AGY global settings.
+
+
+## v0.13 provider plugin extension boundary
+
+The provider boundary now has two layers:
+
+```text
+trusted Profile.provider_plugins pin
+  -> installed entry-point metadata match
+  -> Provider SDK/API conformance
+  -> LoadedPluginAdapter + immutable package identity
+  -> CapabilityResolver / ModelVariantResolver
+  -> existing RunRequest execution boundary
+```
+
+External provider entry points are enumerated as metadata before trust. The
+controller constructs persistence first and checks whether the exact current
+profile digest is trusted; only then may a pinned third-party entry point be
+imported or instantiated. Merely installing a distribution therefore has no
+execution effect.
+
+Provider SDK v1 defines the required core surface as adapter identity/family,
+runtime and semantic capability descriptors, `doctor`, and `execute`.
+Runtime-option, usage and role-compatibility descriptors are optional features.
+The public conformance helper validates the structural contract without invoking
+`execute`, because dispatch can be billable or effectful.
+
+A loaded external adapter is wrapped with controller-owned plugin identity:
+adapter ID, canonical distribution, distribution version, entry-point target,
+SDK version and adapter API version. That identity is propagated into provider
+descriptors/resolutions and content-free dispatch provenance. Workflow and
+legacy state-machine frozen-resolution checks compare it, so a package identity
+change cannot silently reuse previously bound provider authority.
+
+This is a trust boundary, not process isolation. An in-process adapter can run
+arbitrary Python with controller privileges and is therefore part of the
+trusted computing base. HumanGate, write/effect scope, validation, budget and
+recovery remain kernel contracts for cooperating code, but they do not sandbox
+a malicious plugin implementation. Generic workflow/validator/policy/knowledge
+plugins are intentionally outside v0.13.
