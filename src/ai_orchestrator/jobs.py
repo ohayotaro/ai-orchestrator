@@ -8,6 +8,11 @@ import uuid
 from typing import Any, Literal
 
 from .models import Contract, OrchestratorError, identifier
+from .persistence import (
+    JOB_DB_READABLE_VERSIONS,
+    JOB_DB_VERSION,
+    validate_database_version,
+)
 from .project import Project, confined, digest
 
 MAX_PENDING = 32
@@ -39,11 +44,12 @@ class JobQueue:
             confined(project.root, f".orchestrator/runtime/jobs.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        try:
+            validate_database_version("job", version, JOB_DB_READABLE_VERSIONS)
+        except OrchestratorError:
             self.db.close()
-            raise OrchestratorError("unsupported job database version")
+            raise
         self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.execute("PRAGMA user_version=1")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
@@ -56,6 +62,8 @@ class JobQueue:
                 job_id TEXT NOT NULL, kind TEXT NOT NULL, created_at REAL NOT NULL
             );
         """)
+        if version < JOB_DB_VERSION:
+            self.db.execute(f"PRAGMA user_version={JOB_DB_VERSION}")
 
     def close(self) -> None:
         self.db.close()

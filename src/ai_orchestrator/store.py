@@ -15,6 +15,7 @@ from .models import Artifact, OrchestratorError, TaskState, identifier
 from .persistence import (
     EVENT_SCHEMA_VERSION,
     RUNTIME_DB_READABLE_VERSIONS,
+    RUNTIME_DB_VERSION,
     decode_versioned_model_json,
     normalize_control_evidence,
     validate_database_version,
@@ -50,7 +51,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS intakes (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """)
-        self.db.execute("PRAGMA user_version=2")
+        if version < RUNTIME_DB_VERSION:
+            self.db.execute(f"PRAGMA user_version={RUNTIME_DB_VERSION}")
 
     def close(self) -> None:
         self.db.close()

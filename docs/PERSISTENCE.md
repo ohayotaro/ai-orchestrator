@@ -9,6 +9,9 @@ while refusing to guess when a future or malformed version is encountered.
 
 1. **Reads do not rewrite persisted state.** Loading an older TaskState,
    IntakeState, HumanGate, event or artifact never upgrades the stored bytes.
+   Opening an already-current runtime/HumanGate/jobs SQLite database also does
+   not restamp the same `user_version`; version writes occur only when an actual
+   supported database-version migration is required.
 2. **Unknown versions fail closed before mutation.** A future
    `schema_version` or SQLite `user_version` is an inspection error, not a
    request to coerce fields into the current model.
@@ -28,6 +31,7 @@ while refusing to guess when a future or malformed version is encountered.
 | --- | --- | --- | --- |
 | Runtime SQLite `state.sqlite3` | user_version 0, 1, 2 | 2 | versions outside this set fail closed |
 | HumanGate SQLite `gates.sqlite3` | user_version 0, 1 | 1 | terminal gate history is never replayed |
+| Jobs SQLite `jobs.sqlite3` | user_version 0, 1 | 1 | current-version read/open does not restamp the header |
 | TaskState | 1-7 | 7 | older authority fields remain absent/default; no row rewrite |
 | IntakeState | 1-4 | 4 | older Supervisor/runtime/usage fields remain absent |
 | HumanGate | 1 | 1 | unknown gate schema cannot be applied |
