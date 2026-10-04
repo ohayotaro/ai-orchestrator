@@ -376,6 +376,28 @@ def test_external_provider_failure_diagnostics_are_bounded_and_content_free():
     }
 
 
+def test_external_provider_probe_exception_text_is_not_exposed(tmp_path):
+    class UnsafeDoctorAdapter(ExternalFixtureAdapter):
+        def doctor(self, config, workspace):
+            raise RuntimeError("credential=secret-token-123")
+
+    wrapper = LoadedPluginAdapter(
+        UnsafeDoctorAdapter(),
+        {
+            "adapter": "fixture",
+            "distribution": "fixture-provider",
+            "version": "1.2.3",
+            "entry_point": "fixture:Adapter",
+            "provider_sdk_version": "1",
+            "adapter_api_version": "2",
+        },
+    )
+    with pytest.raises(OrchestratorError) as caught:
+        wrapper.doctor(ProviderConfig(adapter="fixture"), tmp_path)
+    assert "secret-token" not in str(caught.value)
+    assert "RuntimeError" in str(caught.value)
+
+
 def test_external_provider_failure_categories_are_public_and_normalized():
     assert PROVIDER_FAILURE_CATEGORIES == {
         "authentication",
