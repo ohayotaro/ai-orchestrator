@@ -65,6 +65,7 @@ def parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
+    commands.add_parser("provider-plugins", help="Inspect provider plugin entry-point metadata, trusted pins and load/conformance status")
     commands.add_parser("persistence", help="Inspect persisted-contract and migration compatibility rules")
     workflow = commands.add_parser("workflow", help="Inspect a trusted compiled Workflow Schema v1 DAG")
     workflow.add_argument("--ref", dest="workflow_ref", help="Trusted workflow ID; defaults to the project default")
@@ -215,6 +216,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return report, 0 if all(item["ok"] for item in report.values()) else 1
         if args.command == "capabilities":
             return engine.capability_report(), 0
+        if args.command == "provider-plugins":
+            return engine.provider_plugin_report(), 0
         if args.command == "persistence":
             return persistence_compatibility_report(), 0
         if args.command == "workflow":

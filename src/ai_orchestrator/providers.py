@@ -66,19 +66,24 @@ def _classify_cli_failure(stderr: str) -> str:
 
 
 class ProviderAdapter(Protocol):
-    # Adapter v1 exposed only runtime capabilities. v2 adds semantic capabilities.
+    """Required core adapter surface.
+
+    Runtime-option, usage and role-compatibility descriptors are optional
+    features discovered with getattr so third-party adapters need not implement
+    unsupported telemetry merely to satisfy the core execution contract.
+    """
+
     api_version: int
     family: str
     capabilities: frozenset[str]
     semantic_capabilities: frozenset[str]
 
     def doctor(self, config: ProviderConfig, workspace: Path) -> dict[str, str]: ...
-    def describe_runtime_options(self, config: ProviderConfig, workspace: Path) -> RuntimeOptionsDescriptor: ...
-    def describe_usage(self, config: ProviderConfig, workspace: Path) -> UsageDescriptor: ...
     def execute(self, request: RunRequest) -> Contract: ...
 
 
 class CLIAdapter:
+    provider_sdk_version = 1
     api_version = 2
     command = ""
     family = ""

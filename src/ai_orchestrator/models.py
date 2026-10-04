@@ -47,6 +47,20 @@ class Contract(BaseModel):
         return value
 
 
+class ProviderPluginPin(Contract):
+    schema_version: Literal[1] = 1
+    distribution: str = Field(min_length=1, max_length=200)
+    version: str = Field(min_length=1, max_length=200)
+    entry_point: str = Field(min_length=1, max_length=500)
+
+    @field_validator("distribution", "version", "entry_point")
+    @classmethod
+    def bounded_text(cls, value: str) -> str:
+        if value != value.strip() or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("provider plugin pin values must be trimmed printable text")
+        return value
+
+
 class ProviderConfig(Contract):
     adapter: str
     executable: str | None = None
@@ -366,6 +380,7 @@ class Profile(Contract):
     name: str = Field(min_length=1, max_length=200)
     providers: dict[str, ProviderConfig]
     roles: dict[str, RoleConfig]
+    provider_plugins: dict[str, ProviderPluginPin] = Field(default_factory=dict)
     policy: Policy = Field(default_factory=Policy)
     validators: dict[str, ValidatorConfig] = Field(default_factory=dict)
     workflow: str = "build-review"
@@ -376,7 +391,7 @@ class Profile(Contract):
 
     @model_validator(mode="after")
     def bindings(self) -> Profile:
-        for key in [*self.providers, *self.roles, *self.validators, *self.workflows]:
+        for key in [*self.providers, *self.roles, *self.validators, *self.workflows, *self.provider_plugins]:
             identifier(key)
         identifier(self.workflow)
         for key, workflow in self.workflows.items():

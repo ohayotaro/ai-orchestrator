@@ -194,6 +194,7 @@ class ApplicationService:
                         "trusted": engine.store.trusted(engine.profile_digest),
                         "roles": {name: {"provider": role.provider, "capabilities": role.capabilities, "candidates": role.candidates} for name, role in engine.profile.roles.items()},
                         "capabilities": engine.capability_report(),
+                        "provider_plugins": engine.provider_plugin_report(),
                         "provider_compatibility": engine.provider_compatibility_report(),
                         "runtime_options": engine.runtime_option_report(),
                         "usage_observability": engine.usage_observability_report(),
@@ -227,8 +228,8 @@ class ApplicationService:
                             "arbitrary_policy_change": False,
                         },
                         "validators": engine.doctor(validators_only=True),
-                        "execution": "queued; operator must run orchestrator worker in a separate terminal",
-                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover", "arbitrary config/policy changes"],
+                        "execution": "managed single-terminal is the default serve mode; legacy manual worker mode remains available",
+                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "recover", "provider plugin pin/config changes", "arbitrary config/policy changes"],
                         "human_gate_authority": ["start", "execution", "acceptance", "binding cleanup", "bounded provider adapter change", "task-scoped AGY broad permission"],
                         "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":
