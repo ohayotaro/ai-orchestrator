@@ -262,6 +262,41 @@ def test_conformance_rejects_unsupported_sdk_version():
         assert_provider_adapter_conforms("fixture", NonConformingAdapter())
 
 
+def test_duplicate_external_adapter_ids_fail_closed_even_with_exact_pin(workspace, monkeypatch):
+    first = FakeEntryPoint()
+    second = FakeEntryPoint()
+    second.value = "another_fixture.adapter:Adapter"
+    monkeypatch.setattr(
+        "ai_orchestrator.provider_sdk.metadata.distributions",
+        lambda: [
+            distribution(first),
+            FakeDistribution(
+                version="9.9.9",
+                entry_points=[second],
+                metadata={"Name": "Another_Provider"},
+            ),
+        ],
+    )
+    pin_fixture(workspace)
+
+    engine = Engine(workspace)
+    try:
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    engine = Engine(workspace)
+    try:
+        assert "fixture" not in engine.registry
+        report = engine.provider_plugin_report()["configured"]["fixture"]
+        assert report["metadata_status"] == "duplicate_adapter_id"
+        assert report["load_status"] == "duplicate_adapter_id"
+        with pytest.raises(OrchestratorError, match="adapter is not installed"):
+            engine.capability_resolver.resolve("implementer")
+    finally:
+        engine.close()
+
+
 def test_builtin_id_collision_removes_ambiguous_adapter_from_active_registry(workspace, monkeypatch):
     class CodexEntryPoint(FakeEntryPoint):
         name = "codex"
