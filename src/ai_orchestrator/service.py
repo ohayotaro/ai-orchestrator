@@ -12,6 +12,7 @@ from . import authority
 from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
+from .persistence import persistence_compatibility_report
 from .project import Project
 from .runtime_options import RuntimeOverride
 from .supervisor import Supervisor
@@ -204,6 +205,7 @@ class ApplicationService:
                             "approval_reuse_after_recovery": False,
                             "agent_can_recover": False,
                         },
+                        "persistence_compatibility": persistence_compatibility_report(),
                         "workflow": engine.workflow_report(),
                         "workflows": engine.workflow_registry_report(),
                         "adaptive_orchestration": {
