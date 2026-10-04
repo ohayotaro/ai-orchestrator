@@ -10,8 +10,11 @@ import yaml
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.models import OrchestratorError, ProviderConfig
 from ai_orchestrator.provider_sdk import (
+    PROVIDER_FAILURE_CATEGORIES,
     PROVIDER_PLUGIN_ENTRYPOINT_GROUP,
     PROVIDER_SDK_VERSION,
+    LoadedPluginAdapter,
+    ProviderExecutionError,
     assert_provider_adapter_conforms,
 )
 
@@ -339,6 +342,49 @@ def test_builtin_id_collision_removes_ambiguous_adapter_from_active_registry(wor
             engine.capability_resolver.resolve("implementer")
     finally:
         engine.close()
+
+
+def test_external_provider_failure_diagnostics_are_bounded_and_content_free():
+    class UnsafeFailureAdapter(ExternalFixtureAdapter):
+        def execute(self, request):
+            raise ProviderExecutionError(
+                "raw provider output secret-token-123",
+                {
+                    "failure_category": "protocol",
+                    "detail": "raw provider output secret-token-123",
+                },
+            )
+
+    wrapper = LoadedPluginAdapter(
+        UnsafeFailureAdapter(),
+        {
+            "adapter": "fixture",
+            "distribution": "fixture-provider",
+            "version": "1.2.3",
+            "entry_point": "fixture:Adapter",
+            "provider_sdk_version": "1",
+            "adapter_api_version": "2",
+        },
+    )
+    with pytest.raises(ProviderExecutionError) as caught:
+        wrapper.execute(None)
+    assert "secret-token" not in str(caught.value)
+    assert caught.value.diagnostics == {
+        "adapter": "fixture",
+        "failure_category": "protocol",
+        "diagnostics_omitted": True,
+    }
+
+
+def test_external_provider_failure_categories_are_public_and_normalized():
+    assert PROVIDER_FAILURE_CATEGORIES == {
+        "authentication",
+        "quota",
+        "permission",
+        "configuration",
+        "protocol",
+        "provider_process",
+    }
 
 
 def test_empty_plugin_support_preserves_legacy_profile_shape_and_fingerprint(workspace):
