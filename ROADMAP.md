@@ -625,6 +625,13 @@ incomplete call coverage and unknown aggregate telemetry, without rewriting old
 state or evidence. The run also re-confirmed that installed Skill copies must be
 explicitly re-exported after package upgrades.
 
+The final v0.12.1 read-only closure E2E then verified that fix and Skill
+synchronization in the live accumulated runtime. It also found that opening an
+already-current SQLite store restamped the same `user_version`, changing only
+the SQLite header change counter. v0.12.2 removes that unnecessary physical
+write for runtime, HumanGate and jobs databases while preserving real supported
+version upgrades. The v0.12 line is therefore closed before v0.13.
+
 ### v0.13 — Provider / Plugin SDK
 
 Primary goal: turn the provider extension boundary into a documented,
