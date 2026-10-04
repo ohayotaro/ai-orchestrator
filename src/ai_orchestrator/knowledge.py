@@ -94,7 +94,8 @@ def promote(root: Path, proposal_id: str, scope: str, actor: str) -> Proposal:
         if target.exists():
             raise OrchestratorError("promotion target already exists; inspect interrupted promotion manually")
         atomic_write(target, text)
-        proposal.status, proposal.approved_by = "approved", actor
+        proposal.approved_by = actor
+        proposal.status = "approved"
         candidate = confined(project.root, f".orchestrator/knowledge/candidates/{proposal.id}.json")
         atomic_write(candidate, proposal.model_dump_json(indent=2) + "\n")
         return proposal
@@ -108,9 +109,9 @@ def reject(root: Path, proposal_id: str, scope: str, actor: str, reason: str) ->
             raise OrchestratorError("rejection requires a candidate, actor and reason")
         if _scope(proposal) != scope:
             raise OrchestratorError("proposal changed; inspect its current content before rejecting")
-        proposal.status = "rejected"
         proposal.rejected_by = actor
         proposal.rejection_reason = reason.strip()[:4000]
+        proposal.status = "rejected"
         path = confined(project.root, f".orchestrator/knowledge/candidates/{proposal.id}.json")
         atomic_write(path, proposal.model_dump_json(indent=2) + "\n")
         return proposal
@@ -136,9 +137,9 @@ def revise(root: Path, proposal_id: str, scope: str, actor: str, statement: str)
         revised.rejection_reason = None
         path = confined(project.root, f".orchestrator/knowledge/candidates/{revised.id}.json")
         atomic_write(path, revised.model_dump_json(indent=2) + "\n")
-        original.status = "rejected"
         original.rejected_by = actor
         original.rejection_reason = f"superseded by operator revision {revised.id}"
+        original.status = "rejected"
         old = confined(project.root, f".orchestrator/knowledge/candidates/{original.id}.json")
         atomic_write(old, original.model_dump_json(indent=2) + "\n")
         return revised

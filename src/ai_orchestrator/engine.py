@@ -1292,27 +1292,12 @@ class Engine:
             state.status = "succeeded"
             self.store.save(state, "task.accepted", {"actor": actor})
             try:
-                distilled = learning.distill(self.project.root, self.store)
-                with self.store.db:
-                    self.store._event(
-                        state.spec.id,
-                        "learning.distilled",
-                        {
-                            "created": distilled["created"],
-                            "retained_count": len(distilled["retained"]),
-                            "rejected_suppressed": distilled["rejected_suppressed"],
-                        },
-                    )
-            except Exception as exc:
+                learning.distill(self.project.root, self.store)
+            except Exception:
                 # Learning candidates are advisory. A distillation defect must
-                # never roll back an explicitly accepted task or become implicit
-                # execution authority.
-                with self.store.db:
-                    self.store._event(
-                        state.spec.id,
-                        "learning.distillation_failed",
-                        {"error_type": type(exc).__name__},
-                    )
+                # never roll back an explicitly accepted task, add a post-accept
+                # runtime transition, or become implicit execution authority.
+                pass
             return state
 
     def _recovery_status(self, state: TaskState) -> dict[str, Any]:

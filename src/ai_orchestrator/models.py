@@ -524,7 +524,12 @@ class EvidenceRef(Contract):
     @field_validator("kind")
     @classmethod
     def valid_evidence_kind(cls, value: str | None) -> str | None:
-        return identifier(value) if value is not None else None
+        if value is not None and (
+            not value.strip() or len(value) > 256
+            or any(ord(char) < 32 or ord(char) == 127 for char in value)
+        ):
+            raise ValueError("evidence kind must be bounded printable text")
+        return value
 
 
 class LearningSupport(Contract):
