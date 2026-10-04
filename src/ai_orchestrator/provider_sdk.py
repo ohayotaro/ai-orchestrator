@@ -86,7 +86,7 @@ def normalize_provider_failure_diagnostics(adapter_id: str, diagnostics: object)
     normalized = _bounded_diagnostic_value(raw)
     assert isinstance(normalized, dict)
     category = normalized.get("failure_category", "provider_process")
-    if category not in PROVIDER_FAILURE_CATEGORIES:
+    if not isinstance(category, str) or category not in PROVIDER_FAILURE_CATEGORIES:
         raise OrchestratorError("external provider diagnostics contain an unsupported failure_category")
     normalized["failure_category"] = category
     normalized["adapter"] = identifier(adapter_id)
@@ -121,13 +121,22 @@ class LoadedPluginAdapter:
         return getattr(self._adapter, "semantic_capabilities")
 
     def doctor(self, config: ProviderConfig, workspace: Path):
-        report = self._adapter.doctor(config, workspace)
+        adapter_id = self.plugin_identity["adapter"]
+        try:
+            report = self._adapter.doctor(config, workspace)
+        except Exception as exc:
+            exception_type = type(exc).__name__
+            if not _SAFE_DIAGNOSTIC_LABEL.fullmatch(exception_type):
+                exception_type = "Exception"
+            raise OrchestratorError(
+                f"{adapter_id}: provider plugin doctor failed ({exception_type})"
+            ) from exc
         if not isinstance(report, dict) or any(
             not isinstance(key, str) or not isinstance(value, str)
             for key, value in report.items()
         ):
             raise OrchestratorError(
-                f"{self.plugin_identity['adapter']}: doctor must return dict[str, str]"
+                f"{adapter_id}: doctor must return dict[str, str]"
             )
         return report
 
@@ -163,12 +172,21 @@ class LoadedPluginAdapter:
 
     def __getattr__(self, name: str) -> Any:
         value = getattr(self._adapter, name)
-        if name == "role_compatibility" and callable(value):
-            def checked(role: str):
-                report = value(role)
-                if not isinstance(report, dict):
+        if name in {"describe_runtime_options", "describe_usage", "role_compatibility"} and callable(value):
+            def checked(*args: Any, **kwargs: Any):
+                adapter_id = self.plugin_identity["adapter"]
+                try:
+                    report = value(*args, **kwargs)
+                except Exception as exc:
+                    exception_type = type(exc).__name__
+                    if not _SAFE_DIAGNOSTIC_LABEL.fullmatch(exception_type):
+                        exception_type = "Exception"
                     raise OrchestratorError(
-                        f"{self.plugin_identity['adapter']}: role_compatibility must return a mapping"
+                        f"{adapter_id}: provider plugin {name} failed ({exception_type})"
+                    ) from exc
+                if name == "role_compatibility" and not isinstance(report, dict):
+                    raise OrchestratorError(
+                        f"{adapter_id}: role_compatibility must return a mapping"
                     )
                 return report
             return checked
