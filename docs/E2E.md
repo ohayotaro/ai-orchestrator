@@ -824,3 +824,55 @@ DB no longer changes its SQLite header merely to restate the same user version.
 With v0.12.2, the v0.12 Contract & Migration Hardening line is closed before the
 v0.13 Provider / Plugin SDK milestone.
 
+## Owner-reported v0.12.2 final physical read-only E2E — PASS (2026-10-04 JST)
+
+The final v0.12.2 closure run exercised the accumulated live E2E runtime at
+`e29325a3d6cdb247d1a9756c9569f8fddb806346` without creating a task,
+provider call, HumanGate, job, event or workspace write.
+
+Pre/post snapshots covered all three current SQLite databases. After repeated
+kernel/MCP/CLI read paths, every canonical database property remained identical:
+
+| Database | user_version | file change counter | version-valid-for | Result |
+| --- | ---: | ---: | ---: | --- |
+| `state.sqlite3` | 2 | 798 | 798 | unchanged |
+| `gates.sqlite3` | 1 | 167 | 167 | unchanged |
+| `jobs.sqlite3` | 1 | 459927 | 459927 | unchanged |
+
+For each database, the full file SHA-256, file size, mtime, schema digest, table
+row counts and table-content digests were also identical before and after the
+inspection. This directly verifies the v0.12.2 fix against the same accumulated
+runtime that exposed the v0.12.1 same-version restamp.
+
+The read-only exercise included `inspect_project` twice, four task reads
+(including `add-multiply-v6` twice), two job reads, one intake read, one artifact
+read and repeated descriptions of existing applied HumanGates through the public
+read-only `orchestrator gate` CLI path. The MCP surface does not currently
+provide a dedicated HumanGate read tool.
+
+WAL/SHM observations were stable. `gates.sqlite3-wal` (zero bytes) and its SHM
+file were already present because the MCP server held the gate database open and
+did not change during the measured interval. State and jobs created no
+WAL/SHM/journal files during the test.
+
+The persistence compatibility report included runtime state readable
+`[0,1,2]` / write 2, HumanGate readable `[0,1]` / write 1 and jobs readable
+`[0,1]` / write 1. The v0.12.1 legacy usage correction also remained intact:
+`add-multiply-v6` reported calls 3 / records 0 as unknown aggregate telemetry
+with incomplete call coverage 3 / 0 / 3 rather than known zero.
+
+The source, editable-installed package, Git HEAD and both installed host Skill
+copies had matching SHA-256. No provider/worker child process appeared, event
+sequence remained at E-1492, non-SQLite runtime artifacts retained their hashes,
+and git/worktree/workspace state remained unchanged.
+
+One boundary remains explicit: the gate DB mtime predated the measurement at the
+MCP server restart time, so this run does not claim that server startup/shutdown
+itself is physically read-only. It proves that repeated current-version
+inspection while the server is running does not mutate the canonical state,
+HumanGate or jobs databases.
+
+**Result: PASS.** The v0.12 Contract & Migration Hardening line, including the
+v0.12.1 semantic follow-up and v0.12.2 physical read-only hardening, is fully
+closed. No additional v0.12 E2E is required before v0.13.
+
