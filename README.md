@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.12.1 alpha** adds Contract & Migration Hardening to the v0.11 recovery
+**v0.12.2 alpha** adds Contract & Migration Hardening to the v0.11 recovery
 baseline. Persisted TaskState, IntakeState, HumanGate, event, artifact,
 usage/budget, provider-provenance and recovery contracts now have explicit
 read/write compatibility rules. Representative v0.x state fixtures are retained
@@ -60,6 +60,11 @@ v0.12.1 also distinguishes a true zero-call task from legacy missing usage
 telemetry. If durable TaskState `calls` exceed the number of recorded usage
 records, token/provider-time/cost totals are `unknown` with explicit
 `call_coverage`; historical absence is never presented as zero consumption.
+
+v0.12.2 tightens the physical read-only boundary: opening already-current
+runtime, HumanGate and jobs SQLite databases does not restamp the same
+`user_version` or advance the SQLite file change counter. Older supported
+database versions are still upgraded explicitly when required.
 
 ## v0.11 recovery and durability hardening
 
@@ -262,7 +267,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.12.1
+.venv/bin/orchestrator --version  # 0.12.2
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
