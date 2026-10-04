@@ -14,20 +14,20 @@ from typing import Any
 from pydantic import ValidationError
 import yaml
 
-from . import __version__, knowledge, workflow_templates
+from . import __version__, knowledge, learning, workflow_templates
 from .capabilities import CapabilityRegistryDescriptor, ProviderDescriptor, ProviderResolution
 from .engine import Engine
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
 from .supervisor import Supervisor
 from .validators import register_validator
-from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, ProviderPluginPin, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
+from .models import AgentResult, Artifact, ContextInfluence, EvidenceRef, OrchestratorError, Profile, Proposal, ProviderPluginPin, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
 from .persistence import persistence_compatibility_report
 from .project import atomic_write, digest, initialize, load_yaml
 from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, RuntimeOverride, RuntimeValueDescriptor
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.13 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.14 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -67,6 +67,12 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
     commands.add_parser("provider-plugins", help="Inspect provider plugin entry-point metadata, trusted pins and load/conformance status")
     commands.add_parser("persistence", help="Inspect persisted-contract and migration compatibility rules")
+    learning_cmd = commands.add_parser("learning", help="Inspect or deterministically distill governed Project Learning")
+    learning_actions = learning_cmd.add_subparsers(dest="learning_action", required=True)
+    learning_actions.add_parser("report", help="Inspect Project Learning evidence/context/candidate status")
+    learning_actions.add_parser("distill", help="Generate non-authoritative candidates from controller-owned evidence")
+    learning_context = learning_actions.add_parser("context", help="Preview deterministic accepted-context selection")
+    learning_context.add_argument("--query", required=True)
     workflow = commands.add_parser("workflow", help="Inspect a trusted compiled Workflow Schema v1 DAG")
     workflow.add_argument("--ref", dest="workflow_ref", help="Trusted workflow ID; defaults to the project default")
     commands.add_parser("workflows", help="List the trusted workflow registry without changing the profile")
@@ -128,7 +134,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("task_id")
     accept.add_argument("--by", required=True)
     schema = commands.add_parser("schema")
-    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "provider-plugin-pin", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution"])
+    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "evidence-ref", "context-influence", "provider-plugin-pin", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution"])
     schema.add_argument("--output", type=Path)
     proposal = commands.add_parser("propose")
     proposal.add_argument("--kind", choices=["knowledge", "policy", "skill"], required=True)
@@ -140,6 +146,16 @@ def parser() -> argparse.ArgumentParser:
     promote.add_argument("proposal_id")
     promote.add_argument("--scope", required=True)
     promote.add_argument("--by", required=True)
+    reject = commands.add_parser("proposal-reject")
+    reject.add_argument("proposal_id")
+    reject.add_argument("--scope", required=True)
+    reject.add_argument("--by", required=True)
+    reject.add_argument("--reason", required=True)
+    revise = commands.add_parser("proposal-revise")
+    revise.add_argument("proposal_id")
+    revise.add_argument("--scope", required=True)
+    revise.add_argument("--by", required=True)
+    revise.add_argument("--statement", required=True)
     return cli
 
 
@@ -181,7 +197,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
     if args.command == "schema":
-        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "provider-plugin-pin": ProviderPluginPin, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
+        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "evidence-ref": EvidenceRef, "context-influence": ContextInfluence, "provider-plugin-pin": ProviderPluginPin, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
         schema = model.model_json_schema()
         if args.output:
             atomic_write(args.output, json.dumps(schema, indent=2) + "\n")
@@ -196,6 +212,12 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     if args.command == "promote":
         proposal = knowledge.promote(root, args.proposal_id, args.scope, args.by)
         return {**proposal.model_dump(), "profile_retrust_required": True}, 0
+    if args.command == "proposal-reject":
+        proposal = knowledge.reject(root, args.proposal_id, args.scope, args.by, args.reason)
+        return {**proposal.model_dump(), "scope": digest(proposal.model_dump())}, 0
+    if args.command == "proposal-revise":
+        proposal = knowledge.revise(root, args.proposal_id, args.scope, args.by, args.statement)
+        return {**proposal.model_dump(), "scope": digest(proposal.model_dump())}, 0
     if args.command == "validator" and args.validator_action == "add":
         env = {}
         for item in args.env:
@@ -220,6 +242,19 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return engine.provider_plugin_report(), 0
         if args.command == "persistence":
             return persistence_compatibility_report(), 0
+        if args.command == "learning":
+            if args.learning_action == "report":
+                return engine.project_learning_report(), 0
+            if args.learning_action == "distill":
+                return engine.distill_learning(), 0
+            if args.learning_action == "context":
+                selected, influence = engine.select_project_context(args.query)
+                return {
+                    "manifest": influence.model_dump(),
+                    "selected_paths": list(selected),
+                    "authority": "preview only; no candidate or authority was created",
+                }, 0
+            raise OrchestratorError("unknown learning action")
         if args.command == "workflow":
             return engine.workflow_report(args.workflow_ref), 0
         if args.command == "workflows":

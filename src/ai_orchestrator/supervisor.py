@@ -62,6 +62,7 @@ class Supervisor:
             **Supervisor._runtime_provenance(intake),
             **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
             **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
+            **({"context_influence": intake.context_influence.model_dump()} if intake.schema_version >= 5 and intake.context_influence is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -90,6 +91,7 @@ class Supervisor:
             **Supervisor._runtime_provenance(intake),
             **({"usage_evidence": intake.usage_evidence} if intake.schema_version >= 4 and intake.usage_evidence is not None else {}),
             **({"budget_status": intake.budget_status} if intake.schema_version >= 4 and intake.budget_status is not None else {}),
+            **({"context_influence": intake.context_influence.model_dump()} if intake.schema_version >= 5 and intake.context_influence is not None else {}),
             **({"requested_workflow_ref": intake.requested_workflow_ref} if intake.requested_workflow_ref is not None else {}),
             **({"workflow_ref": intake.workflow_ref} if intake.workflow_ref is not None else {}),
             **({"workflow_spec": intake.workflow_spec.model_dump()} if intake.workflow_spec is not None else {}),
@@ -307,10 +309,12 @@ class Supervisor:
             if previous_calls >= policy.max_agent_calls or remaining <= 0:
                 raise OrchestratorError("intake execution budget exhausted")
             binding = self.engine.profile.roles.get("supervisor", self.engine.profile.roles["planner"])
+            selected_context, context_influence = self.engine.select_project_context(request)
             payload = {
                 "role": "supervisor", "instructions": binding.instructions,
                 "request": request, "clarification_history": history,
-                "project_context": self.engine.context,
+                "project_context": selected_context,
+                "context_influence": context_influence.model_dump(),
                 "available_validators": list(self.engine.profile.validators),
                 "available_capabilities": CAPABILITIES,
                 "base_role_capabilities": {role: list(values) for role, values in DEFAULT_ROLE_CAPABILITIES.items() if role != "supervisor"},
@@ -350,10 +354,11 @@ class Supervisor:
             if len(prompt.encode()) > MAX_CONTEXT_BYTES:
                 raise OrchestratorError("intake context exceeds 64 KiB; shorten the request or project context")
             intake = IntakeState(
-                schema_version=4, id=intake_id, task_id=task_id, request=request, advisory=advisory,
+                schema_version=5, id=intake_id, task_id=task_id, request=request, advisory=advisory,
                 reply_to=reply_to, round=round_number, calls=previous_calls,
                 elapsed_seconds=previous_elapsed, profile_digest=self.engine.profile_digest,
                 workspace_snapshot=snapshot, requested_workflow_ref=workflow_ref,
+                context_influence=context_influence,
                 supervisor_runtime_override=(
                     supervisor_runtime_override.model_dump()
                     if supervisor_runtime_override is not None else None
@@ -574,8 +579,12 @@ class Supervisor:
             compiled_workflow = self._compiled_workflow(intake)
             if intake.workflow_digest is not None and compiled_workflow.digest != intake.workflow_digest:
                 raise OrchestratorError("selected workflow changed since intake; ask again before confirming")
-            state = TaskState(schema_version=7,
+            _, task_context_influence = self.engine.select_project_context(
+                self.engine.task_context_query(intake.task)
+            )
+            state = TaskState(schema_version=8,
                               spec=intake.task, profile_digest=intake.profile_digest, intake_id=intake.id,
+                              context_influence=task_context_influence,
                               require_execution_approval=True, allowed_paths=intake.allowed_paths,
                               capability_requirements=intake.capability_requirements,
                               runtime_overrides=intake.runtime_overrides,
@@ -602,6 +611,12 @@ class Supervisor:
                     )
                 )
             self.store.create_from_intake(state, intake, actor, scope)
+            self.store.artifact(state, "context_influence", task_context_influence.model_dump())
+            self.store.save(state, "context.influence_bound", {
+                "selected_paths": [item.path for item in task_context_influence.entries],
+                "selected_bytes": task_context_influence.selected_bytes,
+                "query_sha256": task_context_influence.query_sha256,
+            })
             self.store.save(state, "workflow.bound", {
                 "selection_source": state.workflow_selection_source,
                 **executor.gate_context(state),

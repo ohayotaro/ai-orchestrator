@@ -256,7 +256,8 @@ class WorkflowExecutor:
             "capability_requirements": state.workflow_nodes[node.id].required_capabilities,
             "provider_resolution": resolution.model_dump(),
             "inputs": inputs,
-            "project_context": self.engine.context,
+            "project_context": self.engine.context_for_influence(state.context_influence),
+            "context_influence": state.context_influence.model_dump() if state.context_influence is not None else None,
             "rules": [
                 "Do not inspect or modify .orchestrator, Git metadata, host processes, environment variables, credentials, or protected paths; read-only phases run in a disposable project snapshot.",
                 "Do not publish, deploy, trade, or perform external side effects.",
