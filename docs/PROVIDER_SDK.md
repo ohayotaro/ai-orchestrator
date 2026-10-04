@@ -63,8 +63,10 @@ orchestrator --project /path/to/project trust --by "$USER" --ack-local-execution
 orchestrator --project /path/to/project doctor
 ```
 
-`provider-plugins` reads distribution metadata only. On an untrusted profile it
-must not import configured plugin code.
+On an untrusted profile, `provider-plugins` is metadata-only and must not
+import configured plugin code. On a trusted profile, constructing the controller
+may load an exactly pinned adapter first; the command then reports both installed
+metadata and its load/conformance status.
 
 ## Required core adapter contract
 
