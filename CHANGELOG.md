@@ -18,6 +18,9 @@
 - Preserve loaded plugin package/version/entry-point identity in Provider
   Descriptor/Resolution, workflow frozen-resolution checks, provider probe/call
   events and content-free dispatch provenance.
+- Normalize third-party execution failure diagnostics to bounded content-free
+  metadata before persistence, genericize external execution/probe exception
+  text, and publish the provider failure-category set through the SDK.
 - Add `orchestrator provider-plugins`,
   `inspect_project.provider_plugins`, plugin diagnostics in `doctor`, and a
   public `assert_provider_adapter_conforms` compatibility helper.
