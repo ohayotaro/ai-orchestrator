@@ -273,19 +273,25 @@ def inspect_provider_plugins(
     configured: dict[str, Any] = {}
     diagnostics = load_diagnostics or {}
     for adapter_id, pin in sorted(profile.provider_plugins.items()):
+        same_id = [item for item in candidates if item.adapter == adapter_id]
         exact = [
-            item for item in candidates
-            if item.adapter == adapter_id
-            and item.distribution == canonical_distribution_name(pin.distribution)
+            item for item in same_id
+            if item.distribution == canonical_distribution_name(pin.distribution)
             and item.version == pin.version
             and item.entry_point == pin.entry_point
         ]
-        status = "ready" if len(exact) == 1 else ("ambiguous" if len(exact) > 1 else "missing_or_mismatched")
+        if len(same_id) > 1:
+            metadata_status = "duplicate_adapter_id"
+        elif len(exact) == 1:
+            metadata_status = "exact_match"
+        else:
+            metadata_status = "missing_or_mismatched"
+        status = "ready" if metadata_status == "exact_match" else metadata_status
         if adapter_id in diagnostics:
             status = str(diagnostics[adapter_id].get("status", status))
         configured[adapter_id] = {
             "pin": pin.model_dump(),
-            "metadata_status": "exact_match" if len(exact) == 1 else status,
+            "metadata_status": metadata_status,
             "load_status": status,
             "diagnostics": diagnostics.get(adapter_id),
         }
@@ -358,10 +364,18 @@ def load_provider_registry(
             }
             continue
 
+        same_id = [item for item in candidates if item.adapter == adapter_id]
+        if len(same_id) > 1:
+            diagnostics[adapter_id] = {
+                **base,
+                "ok": False,
+                "status": "duplicate_adapter_id",
+                "error": "multiple installed provider entry points advertise the same adapter ID",
+            }
+            continue
         matches = [
-            item for item in candidates
-            if item.adapter == adapter_id
-            and item.distribution == canonical_distribution_name(pin.distribution)
+            item for item in same_id
+            if item.distribution == canonical_distribution_name(pin.distribution)
             and item.version == pin.version
             and item.entry_point == pin.entry_point
         ]
@@ -369,7 +383,7 @@ def load_provider_registry(
             diagnostics[adapter_id] = {
                 **base,
                 "ok": False,
-                "status": "ambiguous" if len(matches) > 1 else "missing_or_mismatched",
+                "status": "missing_or_mismatched",
                 "error": "installed provider entry point does not exactly match the trusted project pin",
             }
             continue
