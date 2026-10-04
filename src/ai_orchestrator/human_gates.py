@@ -20,6 +20,7 @@ from . import authority
 from .models import Contract, OrchestratorError, identifier
 from .persistence import (
     HUMAN_GATE_DB_READABLE_VERSIONS,
+    HUMAN_GATE_DB_VERSION,
     decode_versioned_model_json,
     validate_database_version,
 )
@@ -455,8 +456,9 @@ class GateStore:
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 gate_id TEXT NOT NULL, status TEXT NOT NULL, created_at REAL NOT NULL
             );
-            PRAGMA user_version=1;
         """)
+        if version < HUMAN_GATE_DB_VERSION:
+            self.db.execute(f"PRAGMA user_version={HUMAN_GATE_DB_VERSION}")
 
     def close(self) -> None:
         self.db.close()
