@@ -876,3 +876,128 @@ HumanGate or jobs databases.
 v0.12.1 semantic follow-up and v0.12.2 physical read-only hardening, is fully
 closed. No additional v0.12 E2E is required before v0.13.
 
+
+
+## Owner-reported live v0.13 Provider Adapter / Plugin SDK closure E2E — PASS (2026-10-05 JST)
+
+The owner completed the v0.13 live closure series on the accumulated calculator
+fixture using ai-orchestrator-kernel 0.13.0. These are owner-reported host/local
+observations; the repository does not independently capture the interactive host
+session or cryptographically attest the operator who answered HumanGates.
+
+### Built-in provider single-terminal and HumanGate fail-closed path
+
+The first v0.13 single-terminal run used the existing trusted profile with
+Claude for Supervisor/Planner/Reviewer and Codex for implementation. The
+external-provider inspection surface reported Provider SDK v1,
+`configured: {}`, no installed third-party provider entry points and
+`plugin_identity: null` for all active roles.
+
+The first Start HumanGate expired after its 120-second timeout. The controller
+reported no operation authorized, automatic replay remained false and no task
+was registered. After the user explicitly requested a retry, a fresh Start gate
+was accepted; Execution and Acceptance were also accepted. Because the requested
+`clamp` implementation already existed as an uncommitted fixture change, that
+run completed with no new file patch, pytest reported **40 passed**, independent
+review approved and the task reached `succeeded`. This run therefore verifies
+the HumanGate fail-closed/no-auto-replay behavior and normal built-in orchestration
+but is not the Fresh-Write proof.
+
+### Fresh-Write / isolated integration path
+
+A second run first confirmed that `square(value)` did not exist, then proposed a
+new write task with exact allowed paths `calculator.py` and
+`tests/test_calculator.py`. The profile digest remained
+`fb35016a912363a81c2d2eef02cde83353befb9978b74bf2fb18e513f2eeaa46`
+and trusted throughout the task.
+
+Start, Execution and Acceptance HumanGates all reached `applied` with
+`automatic_replay=false`. The Codex implementer ran in `isolated_write`
+mode with those two exact write paths. Its non-empty patch changed exactly the
+two approved files; the isolated and integrated snapshots matched after
+integration, enforcement reported no violations, and the root worktree received
+the new `square` implementation plus three tests.
+
+The registered pytest validator then reported **43 passed** (the prior 40 plus
+the three new square cases). A fresh Claude reviewer approved without blocking
+findings against the integrated snapshot. The task reached `succeeded`.
+
+The fixture already contained multiple unrelated uncommitted calculator changes.
+A before/after read-only comparison showed no pre-existing lines were removed and
+the prior `is_even`, `clamp`, `outside`, `cube`, `double`, `negate`
+and `abs_diff` work remained present. This supplies live evidence that the
+guarded isolated integration path preserved the dirty root worktree while adding
+only the approved Fresh-Write change. All built-in provider provenance retained
+`plugin_identity: null`.
+
+### Real external distribution / entry-point activation lifecycle
+
+The owner then created a harmless temporary external distribution,
+`ai-orchestrator-v013-e2e-provider==0.1.0`, outside both repositories. It
+registered adapter ID `v013-e2e` through the
+`ai_orchestrator.providers` entry-point group, declared Provider SDK v1 /
+Adapter API v2 and family `e2e-fixture`, implemented only read-oriented
+capabilities, and made `execute()` fail safely instead of dispatching a real
+provider. The public conformance helper passed before installation.
+
+The live activation sequence was:
+
+| Phase | Profile / pin state | Observed plugin state | Routing / dispatch |
+| --- | --- | --- | --- |
+| installed, unpinned | original digest, trusted | metadata discovered; code inert | built-ins unchanged; 0 fixture dispatches |
+| exact pin added | new digest, untrusted | `metadata_status=exact_match`; `load_status=profile_untrusted`; code not imported | built-ins unchanged; 0 fixture dispatches |
+| exact pin explicitly trusted | pinned digest, trusted | loaded through `LoadedPluginAdapter`; SDK/API conformance and doctor passed; identity established | still unselected; built-in routing unchanged; 0 fixture dispatches |
+| pin removed | original digest restored, untrusted | no longer active; package metadata still installed | built-ins unchanged; 0 fixture dispatches |
+| original digest explicitly re-trusted, fixture uninstalled | original digest, trusted | configured/installed external entries both empty | initial built-in state restored |
+
+The loaded identity was exactly:
+
+- adapter: `v013-e2e`;
+- distribution: `ai-orchestrator-v013-e2e-provider`;
+- version: `0.1.0`;
+- entry point: `ai_orchestrator_v013_e2e_provider.adapter:Adapter`;
+- Provider SDK version: `1`;
+- Adapter API version: `2`.
+
+The fixture's optional runtime-options, usage and role-compatibility features
+were absent and reported as unsupported/false rather than invented. Loading the
+plugin did not alter the existing reasoning/engineering slots, models, effort,
+workflow, permissions, budget or active-role provenance. The fixture's
+`execute()` was never dispatched.
+
+### Trust restoration invariant discovered during cleanup
+
+The cleanup exposed an important authority invariant. Runtime trust stores one
+current `metadata.trusted_profile` digest. Trusting the pinned profile replaced
+the previously trusted original digest. Therefore removing the pin restored the
+original profile bytes and the exact original digest, but **did not restore its
+old trust automatically**. The project correctly reported `trusted: false`
+until the operator explicitly trusted the restored digest again.
+
+This behavior is fail-closed:
+
+> same profile content/digest restored != previous trust automatically restored
+
+After explicit re-trust and package uninstall, the profile digest/trust,
+configuration bytes, provider registry, Provider Resolution, project files and
+kernel environment matched the pre-plugin E2E state. No fixture dispatch
+occurred at any point.
+
+### v0.13 live completion boundary
+
+**Result: PASS.** Together with the offline CI/conformance suite, the live series
+verifies the intended v0.13 trusted-local boundaries:
+
+- package installation alone is metadata discovery, not authority;
+- an exact pin changes profile authority and becomes untrusted;
+- exact pin plus explicit trust is required before external in-process code
+  loads;
+- loaded does not imply selected, routed or dispatched;
+- package identity is inspectable after activation;
+- existing HumanGate, isolated-write, deterministic validation and independent
+  review behavior remains intact;
+- restoring a previously trusted digest does not resurrect stale trust; explicit
+  operator trust is required again.
+
+The run does not claim cryptographic package-byte attestation, sandboxing of
+in-process plugin code, or provider-side attestation of controller dispatch.
