@@ -19,6 +19,7 @@ from ai_orchestrator.usage import (
     budget_snapshot,
     empty_usage,
     normalize_usage,
+    usage_with_call_coverage,
 )
 from conftest import FakeAdapter, spec
 
@@ -77,6 +78,70 @@ def _record(*, raw, descriptor, pricing=None, provider="engineering", model="m1"
         descriptor=descriptor,
         pricing=pricing or [],
     )
+
+
+def test_zero_call_empty_usage_remains_known_zero():
+    usage = usage_with_call_coverage(empty_usage(), expected_calls=0)
+    assert usage["summary"]["input_tokens"] == {
+        "status": "known", "value": 0, "known_subtotal": 0
+    }
+    assert "call_coverage" not in usage["summary"]
+
+
+def test_legacy_calls_without_usage_records_are_unknown_not_zero():
+    usage = usage_with_call_coverage(empty_usage(), expected_calls=3)
+    summary = usage["summary"]
+    assert summary["calls"] == 0
+    assert summary["call_coverage"] == {
+        "status": "incomplete",
+        "expected_calls": 3,
+        "recorded_calls": 0,
+        "missing_calls": 3,
+    }
+    assert summary["input_tokens"] == {
+        "status": "unknown", "value": None, "known_subtotal": 0
+    }
+    assert summary["provider_elapsed_seconds"] == {
+        "status": "unknown", "value": None, "known_subtotal": 0.0
+    }
+    assert summary["cost"] == {
+        "status": "unknown",
+        "amount": None,
+        "currency": None,
+        "known_subtotal": "0.00000000",
+    }
+
+
+def test_partial_usage_coverage_preserves_known_subtotals_but_total_is_unknown():
+    descriptor = UsageDescriptor(input_tokens="reported", provider_elapsed_seconds="reported")
+    recorded = append_usage(
+        empty_usage(),
+        _record(
+            raw={"tokens": {"input_tokens": 7}, "provider_elapsed_seconds": 0.25},
+            descriptor=descriptor,
+        ),
+    )
+    usage = usage_with_call_coverage(recorded, expected_calls=2)
+    summary = usage["summary"]
+    assert summary["input_tokens"] == {
+        "status": "unknown", "value": None, "known_subtotal": 7
+    }
+    assert summary["provider_elapsed_seconds"] == {
+        "status": "unknown", "value": None, "known_subtotal": 0.25
+    }
+    assert summary["call_coverage"]["missing_calls"] == 1
+
+
+def test_engine_legacy_state_calls_without_usage_artifact_are_unknown(engine):
+    controller, _reasoning, _engineering = engine
+    state = controller.create(spec("legacy-usage-view", risk="T0"))
+    state.calls = 3
+    controller.store.save(state, "test.legacy_calls_without_usage")
+    reloaded = controller.store.get(state.spec.id)
+    usage = controller.usage_evidence(reloaded)
+    assert usage["summary"]["input_tokens"]["status"] == "unknown"
+    assert usage["summary"]["cost"]["status"] == "unknown"
+    assert usage["summary"]["call_coverage"]["expected_calls"] == 3
 
 
 def test_missing_usage_remains_unknown_or_unsupported_not_zero():
