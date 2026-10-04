@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_serializer, model_validator
 
 
 class OrchestratorError(RuntimeError):
@@ -455,6 +455,18 @@ class Artifact(Contract):
             identifier(self.id)
             identifier(self.owner_id)
         return self
+
+    @model_serializer(mode="wrap")
+    def preserve_v1_wire_shape(self, handler):
+        data = handler(self)
+        if self.schema_version == 1:
+            # These fields did not exist in Artifact v1. Omitting them is
+            # authority-relevant because Artifact metadata participates in
+            # Workflow Schema v1 approval scopes.
+            data.pop("id", None)
+            data.pop("owner_id", None)
+            data.pop("created_at", None)
+        return data
 
 
 class ProviderPermissionGrant(Contract):
