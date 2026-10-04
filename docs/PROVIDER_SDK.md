@@ -120,6 +120,13 @@ Passing `config=` and `workspace=` additionally validates the adapter's
 helper deliberately never invokes `execute`, because provider dispatch may be
 billable or effectful.
 
+Provider failures should raise `ProviderExecutionError` when the adapter has
+safe structured diagnostics to retain. Durable diagnostics must be content-free:
+bounded provider/failure identifiers, process status or counters are appropriate;
+raw prompts, credentials, commands/arguments, provider response bodies and
+arbitrary stderr are not. The kernel never treats a failure category as
+authorization for retry or fallback.
+
 The repository regression suite also contains a non-core fixture adapter loaded
 through the same metadata/pin path. This verifies that a new provider adapter can
 be added without editing the resolver, workflow engine, HumanGate, usage/budget
