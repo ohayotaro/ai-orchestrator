@@ -120,8 +120,9 @@ These categories improve diagnosis; they do not authorize an automatic retry.
 
 ## Migration and compatibility
 
-v0.11 does not bump TaskState schema version or the runtime SQLite user version.
-Persisted TaskState v1-v7 rows and database version 2 remain readable.
+v0.11 did not bump TaskState schema version or the runtime SQLite user version.
+v0.12 retains persisted TaskState v1-v7 and database version 2 and makes that
+compatibility explicit through the persistence contract registry.
 
 This compatibility is intentionally asymmetric for interrupted work: an older
 `running` row has no v0.11 pre-dispatch root-snapshot checkpoint, so the
@@ -131,6 +132,9 @@ not need rewriting merely because the package was upgraded.
 
 Back up the complete `.orchestrator/runtime/` directory before upgrades and
 never hand-edit SQLite/task JSON to manufacture a recovery classification.
+New v0.12 recovery artifacts carry evidence `schema_version=1`; legacy v0.11
+recovery artifacts without that field are hash-verified and normalized only in
+the read view, never rewritten on disk.
 
 ## Non-goals
 

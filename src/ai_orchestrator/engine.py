@@ -1237,6 +1237,7 @@ class Engine:
         """
         current_snapshot = self.project.snapshot()
         base: dict[str, Any] = {
+            "schema_version": 1,
             "task_id": state.spec.id,
             "status": state.status,
             "phase": state.phase,

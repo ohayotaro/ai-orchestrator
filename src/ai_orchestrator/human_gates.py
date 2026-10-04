@@ -18,6 +18,11 @@ from pydantic import Field, field_validator
 
 from . import authority
 from .models import Contract, OrchestratorError, identifier
+from .persistence import (
+    HUMAN_GATE_DB_READABLE_VERSIONS,
+    decode_versioned_model_json,
+    validate_database_version,
+)
 from .project import Project, confined, digest, encode
 from .service import ApplicationService
 from .supervisor import Supervisor
@@ -430,9 +435,13 @@ class GateStore:
             confined(project.root, f".orchestrator/runtime/gates.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        try:
+            validate_database_version(
+                "human-gate", version, HUMAN_GATE_DB_READABLE_VERSIONS
+            )
+        except OrchestratorError:
             self.db.close()
-            raise OrchestratorError("unsupported human-gate database version")
+            raise
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS gates (
@@ -457,7 +466,9 @@ class GateStore:
         row = self.db.execute("SELECT data FROM gates WHERE id=?", (gate_id,)).fetchone()
         if row is None:
             raise OrchestratorError("unknown human gate")
-        return HumanGate.model_validate_json(row[0])
+        return decode_versioned_model_json(
+            row[0], rule_key="human_gate", model=HumanGate
+        )
 
     def by_request(self, request_id: str, kind: str, subject: str) -> HumanGate | None:
         identifier(request_id)

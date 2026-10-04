@@ -217,6 +217,24 @@ single-slot or atomic provider change may reset adapter-specific `executable`,
 Inspect and report those reset fields/rules in the preview/HumanGate. Never
 preserve stale vendor pricing by editing config directly.
 
+## v0.12 persisted-contract compatibility
+
+Inspect `persistence_compatibility` from `inspect_project` when an upgrade,
+old task/intake/gate, or persisted-state error is relevant. Supported historical
+state is read through non-mutating compatibility rules. Never tell the user to
+edit `schema_version`, SQLite `user_version`, approval rows or artifact JSON to
+make an old project load.
+
+An unknown/malformed persisted version is fail-closed: report the incompatible
+contract/database and stop before requesting or applying authority. Reading old
+state must not rewrite it. Artifact content remains untrusted evidence and its
+hash is verified before any known in-memory evidence migration. A legacy v0.11
+recovery artifact without `schema_version` may be exposed as schema v1 by the
+kernel; that does not mean the artifact itself was modified.
+
+Downgrade is a full pre-upgrade runtime-backup restore with a matching older
+executable/configuration, not version-number editing or lossy conversion.
+
 ## v0.11 interrupted-task recovery
 
 Inspect `recovery_durability` from `inspect_project`. If `get_task` reports

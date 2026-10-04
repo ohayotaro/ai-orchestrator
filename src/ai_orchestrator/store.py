@@ -12,6 +12,13 @@ from typing import Any, Callable
 
 from .contracts import IntakeState
 from .models import Artifact, OrchestratorError, TaskState, identifier
+from .persistence import (
+    EVENT_SCHEMA_VERSION,
+    RUNTIME_DB_READABLE_VERSIONS,
+    decode_versioned_model_json,
+    normalize_control_evidence,
+    validate_database_version,
+)
 from .project import Project, atomic_write, confined, encode, read_text
 
 
@@ -29,9 +36,11 @@ class Store:
             confined(project.root, f".orchestrator/runtime/state.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2):
+        try:
+            validate_database_version("runtime", version, RUNTIME_DB_READABLE_VERSIONS)
+        except OrchestratorError:
             self.db.close()
-            raise OrchestratorError("unsupported runtime database version; do not downgrade this project")
+            raise
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
@@ -51,7 +60,9 @@ class Store:
         row = self.db.execute("SELECT data FROM tasks WHERE id=?", (task_id,)).fetchone()
         if row is None:
             raise OrchestratorError(f"unknown task: {task_id}")
-        return TaskState.model_validate_json(row[0])
+        return decode_versioned_model_json(
+            row[0], rule_key="task_state", model=TaskState
+        )
 
     def save(
         self,
@@ -96,7 +107,19 @@ class Store:
     def events(self, task_id: str | None = None) -> list[dict[str, Any]]:
         sql = "SELECT sequence,task_id,kind,payload,created_at FROM events"
         rows = self.db.execute(sql + (" WHERE task_id=?" if task_id else "") + " ORDER BY sequence", (task_id,) if task_id else ())
-        return [{"sequence": seq, "task_id": task, "kind": kind, "payload": json.loads(payload), "created_at": created} for seq, task, kind, payload, created in rows]
+        return [
+            {
+                "schema_version": EVENT_SCHEMA_VERSION,
+                "event_id": f"E-{seq}",
+                "source": "runtime_event_log",
+                "sequence": seq,
+                "task_id": task,
+                "kind": kind,
+                "payload": json.loads(payload),
+                "created_at": created,
+            }
+            for seq, task, kind, payload, created in rows
+        ]
 
     def trust(self, profile_digest: str, actor: str) -> None:
         if not actor.strip():
@@ -127,7 +150,9 @@ class Store:
         rows = self.db.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
         active: list[str] = []
         for intake_id, data in rows:
-            intake = IntakeState.model_validate_json(data)
+            intake = decode_versioned_model_json(
+                data, rule_key="intake_state", model=IntakeState
+            )
             if intake.status in ("running", "proposed", "needs_clarification"):
                 active.append(intake_id)
         return active
@@ -136,7 +161,9 @@ class Store:
         rows = self.db.execute("SELECT id,data FROM tasks ORDER BY id").fetchall()
         active: list[str] = []
         for task_id, data in rows:
-            state = TaskState.model_validate_json(data)
+            state = decode_versioned_model_json(
+                data, rule_key="task_state", model=TaskState
+            )
             if state.status not in ("succeeded", "blocked", "failed", "cancelled", "abandoned"):
                 active.append(task_id)
         return active
@@ -249,18 +276,28 @@ class Store:
     def write_artifact(self, owner: str, attempt: int, kind: str, value: Any) -> Artifact:
         identifier(owner)
         identifier(kind)
-        relative = f".orchestrator/runtime/{owner}/{attempt}-{kind}-{uuid.uuid4().hex}.json"
+        artifact_id = "A-" + uuid.uuid4().hex
+        relative = f".orchestrator/runtime/{owner}/{attempt}-{kind}-{artifact_id[2:]}.json"
         path = confined(self.project.root, relative)
         text = encode(value) + "\n"
         atomic_write(path, text)
-        return Artifact(kind=kind, path=relative, sha256=hashlib.sha256(text.encode()).hexdigest(), attempt=attempt)
+        return Artifact(
+            schema_version=2,
+            id=artifact_id,
+            owner_id=owner,
+            created_at=now(),
+            kind=kind,
+            path=relative,
+            sha256=hashlib.sha256(text.encode()).hexdigest(),
+            attempt=attempt,
+        )
 
     def read_artifact(self, artifact: Artifact) -> Any:
         path = confined(self.project.root, artifact.path)
         text = read_text(path, limit=1024 * 1024)
         if hashlib.sha256(text.encode()).hexdigest() != artifact.sha256:
             raise OrchestratorError(f"artifact integrity check failed: {artifact.path}")
-        return json.loads(text)
+        return normalize_control_evidence(artifact.kind, json.loads(text))
 
     def verify(self, state: TaskState) -> None:
         for artifact in state.artifacts:
@@ -278,7 +315,9 @@ class Store:
         row = self.db.execute("SELECT data FROM intakes WHERE id=?", (intake_id,)).fetchone()
         if row is None:
             raise OrchestratorError(f"unknown intake: {intake_id}")
-        return IntakeState.model_validate_json(row[0])
+        return decode_versioned_model_json(
+            row[0], rule_key="intake_state", model=IntakeState
+        )
 
     def save_intake(self, intake: IntakeState, kind: str, *, create: bool = False) -> None:
         with self.db:

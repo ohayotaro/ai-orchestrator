@@ -388,3 +388,38 @@ Re-export the packaged Skill after upgrading so single-terminal hosts understand
 the read-only `get_task.recovery` diagnostics and do not try to replay an
 interrupted task. See `docs/RECOVERY.md`.
 
+## v0.11.0 to v0.12.0
+
+Stop active controllers/workers and back up the complete
+`.orchestrator/runtime/` directory before upgrading. Reinstall v0.12 and run
+the offline suite before resuming work.
+
+v0.12 keeps the runtime database at SQLite `user_version=2` and the HumanGate
+database at `user_version=1`; there is no mandatory in-place database rewrite.
+Persisted TaskState v1-v7, IntakeState v1-v4, HumanGate v1 and legacy Artifact v1
+metadata remain readable. Merely reading them does not rewrite their JSON rows or
+artifact files and does not require profile re-trust.
+
+New controller-written Artifact metadata uses schema v2 and records a stable
+artifact ID, owner ID and creation timestamp in addition to kind/path/hash/attempt.
+Existing Artifact v1 values embedded in old TaskState/IntakeState rows remain
+valid. Runtime event rows are not rewritten; the reader exposes an additive
+schema-v1 event envelope with a stable ID derived from the SQLite sequence.
+
+New recovery evidence is written with `schema_version=1`. v0.11 recovery
+artifacts did not carry that field. v0.12 first verifies the immutable artifact
+hash and then exposes such legacy recovery evidence through an in-memory
+schema-v1 compatibility view. The artifact bytes and stored hash are unchanged,
+so historical recovery proof is not manufactured or rewritten.
+
+Unknown, malformed or non-integer persisted schema versions fail closed before
+the kernel interprets authority/effects. Do not hand-edit a version number to
+force compatibility. Use `orchestrator persistence` or
+`inspect_project.persistence_compatibility` to inspect the supported matrix.
+
+There is no supported lossy in-place downgrade. If an older executable cannot
+read state produced after upgrade, stop controllers and restore the complete
+pre-upgrade runtime backup together with the matching older executable and
+configuration. Restoring SQLite without its runtime artifact files is not a
+valid downgrade.
+

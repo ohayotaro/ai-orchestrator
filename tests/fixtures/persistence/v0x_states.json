@@ -1,0 +1,124 @@
+{
+  "task_states": [
+    {
+      "schema_version": 1,
+      "spec": {"schema_version": 1, "id": "fixture-task-v1", "goal": "legacy v1", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "schema_version": 2,
+      "spec": {"schema_version": 1, "id": "fixture-task-v2", "goal": "typed role results", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "awaiting_approval",
+      "phase": "execute"
+    },
+    {
+      "schema_version": 3,
+      "spec": {"schema_version": 1, "id": "fixture-task-v3", "goal": "capability provenance", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "capability_requirements": {"implementer": ["code_edit"]},
+      "provider_resolutions": {"implementer": {"provider": "engineering", "adapter": "codex"}}
+    },
+    {
+      "schema_version": 4,
+      "spec": {"schema_version": 1, "id": "fixture-task-v4", "goal": "workflow state", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "allowed_paths": ["calculator.py"],
+      "workflow_id": "build-review",
+      "workflow_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "workflow_selection_source": "profile_default"
+    },
+    {
+      "schema_version": 5,
+      "spec": {"schema_version": 1, "id": "fixture-task-v5", "goal": "adaptive workflow generation", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workflow_id": "build-review",
+      "workflow_selection_source": "supervisor_proposed"
+    },
+    {
+      "schema_version": 6,
+      "spec": {"schema_version": 1, "id": "fixture-task-v6", "goal": "runtime provenance", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "runtime_overrides": {"implementer": {"model": "fixture-model", "effort": "high", "options": {}}},
+      "model_variant_resolutions": {"implement": {"provider": "engineering", "model": "fixture-model", "effort": "high"}}
+    },
+    {
+      "schema_version": 7,
+      "spec": {"schema_version": 1, "id": "fixture-task-v7", "goal": "usage budget binding", "acceptance": ["inspectable"], "risk": "T2", "validators": [], "external_effects": false},
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "calls": 2,
+      "elapsed_seconds": 3.5
+    }
+  ],
+  "intake_states": [
+    {
+      "schema_version": 1,
+      "id": "I-fixture-v1",
+      "task_id": "fixture-intake-task-v1",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request": "legacy intake"
+    },
+    {
+      "schema_version": 2,
+      "id": "I-fixture-v2",
+      "task_id": "fixture-intake-task-v2",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request": "workflow intake",
+      "requested_workflow_ref": "build-review",
+      "workflow_ref": "build-review"
+    },
+    {
+      "schema_version": 3,
+      "id": "I-fixture-v3",
+      "task_id": "fixture-intake-task-v3",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request": "runtime intake",
+      "supervisor_runtime_override": {"model": "fixture-model", "effort": "high", "options": {}},
+      "supervisor_provider_resolution": {"provider": "reasoning", "adapter": "claude"}
+    },
+    {
+      "schema_version": 4,
+      "id": "I-fixture-v4",
+      "task_id": "fixture-intake-task-v4",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "request": "usage intake",
+      "usage_evidence": {"schema_version": 1, "records": [], "summary": {}},
+      "budget_status": {"schema_version": 1, "can_dispatch": true, "blockers": []}
+    }
+  ],
+  "human_gate": {
+    "schema_version": 1,
+    "id": "G-fixture",
+    "session": "fixture-session",
+    "local_uid": 1,
+    "actor": "fixture-actor",
+    "client": {"name": "fixture", "version": "1"},
+    "request_id": "req-fixture",
+    "kind": "execution",
+    "subject": "fixture-task-v7",
+    "task_id": "fixture-task-v7",
+    "scope": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "kernel_scope": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "preview": {},
+    "created_at": 1.0,
+    "expires_at": 2.0
+  },
+  "legacy_artifact": {
+    "schema_version": 1,
+    "kind": "plan",
+    "path": ".orchestrator/runtime/fixture/0-plan.json",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "attempt": 0
+  },
+  "legacy_recovery_evidence": {
+    "task_id": "fixture-task-v7",
+    "classification": "uncertain_effect",
+    "retry_safe": false,
+    "automatic_replay": false,
+    "evidence": {}
+  }
+}

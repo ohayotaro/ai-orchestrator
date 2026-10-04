@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_serializer, model_validator
 
 
 class OrchestratorError(RuntimeError):
@@ -436,11 +436,37 @@ class AgentResult(Contract):
 
 
 class Artifact(Contract):
-    schema_version: Literal[1] = 1
+    # v2 adds stable controller-owned identity/provenance while v1 metadata
+    # remains readable without rewriting historical task rows.
+    schema_version: Literal[1, 2] = 1
+    id: str | None = None
+    owner_id: str | None = None
+    created_at: str | None = None
     kind: str
     path: str
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     attempt: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def stable_identity(self) -> "Artifact":
+        if self.schema_version >= 2:
+            if self.id is None or self.owner_id is None or self.created_at is None:
+                raise ValueError("Artifact schema v2 requires id, owner_id and created_at")
+            identifier(self.id)
+            identifier(self.owner_id)
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_v1_wire_shape(self, handler):
+        data = handler(self)
+        if self.schema_version == 1:
+            # These fields did not exist in Artifact v1. Omitting them is
+            # authority-relevant because Artifact metadata participates in
+            # Workflow Schema v1 approval scopes.
+            data.pop("id", None)
+            data.pop("owner_id", None)
+            data.pop("created_at", None)
+        return data
 
 
 class ProviderPermissionGrant(Contract):

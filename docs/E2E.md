@@ -676,3 +676,28 @@ Skill copies under the tested Claude Code / agent locations were older than the
 repository's packaged v0.11 Skill and should be re-exported/synchronized before
 future host runs.
 
+## v0.12 Contract & Migration automated acceptance
+
+v0.12 is primarily a persisted-contract compatibility milestone, so its
+acceptance evidence is deterministic and does not require billable provider
+calls. `tests/test_v012_persistence.py` retains representative TaskState v1-v7,
+IntakeState v1-v4, HumanGate v1, Artifact v1 and legacy v0.11 recovery evidence.
+
+The suite verifies that:
+
+- every retained supported state can be inspected by the current kernel without
+  rewriting the fixture;
+- unknown/future and non-integer schema versions fail closed;
+- a bad persisted task row remains byte-for-byte unchanged after a rejected read;
+- Artifact v2 writes include stable controller identity/provenance while Artifact
+  v1 remains readable;
+- legacy v0.11 recovery evidence is hash-verified and normalized only in memory;
+- unknown versioned control evidence is rejected rather than guessed; and
+- runtime event reads expose stable schema-v1 event identity without changing the
+  original payload.
+
+The normal CI matrix continues to run the full offline suite on Python
+3.11/3.12/3.13 on Linux plus Python 3.13 on macOS, followed by compileall and
+wheel build. This milestone does not claim a new provider/host interoperability
+result; provider behavior is intentionally outside the migration proof.
+
