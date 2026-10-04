@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import metadata
+import sys
 
 import pytest
 import yaml
@@ -114,6 +116,82 @@ def test_external_plugin_is_metadata_only_until_exact_profile_is_trusted(workspa
         assert resolution.plugin_identity["entry_point"] == FakeEntryPoint.value
     finally:
         second.close()
+
+
+def test_real_dist_info_entry_point_loads_only_after_profile_trust(workspace, tmp_path, monkeypatch):
+    site = tmp_path / "site"
+    site.mkdir()
+    module_name = "v013_external_fixture"
+    (site / f"{module_name}.py").write_text(
+        """
+class Adapter:
+    provider_sdk_version = 1
+    api_version = 2
+    family = "fixture"
+    capabilities = frozenset({"read_files", "write_files", "fresh_session", "structured_output"})
+    semantic_capabilities = frozenset({"repository_analysis", "planning", "code_edit", "test_authoring", "review", "supervision"})
+
+    def doctor(self, config, workspace):
+        return {"version": "real-dist-fixture", "family": self.family}
+
+    def execute(self, request):
+        raise AssertionError("real distribution fixture must not dispatch")
+""".lstrip()
+    )
+    dist_info = site / "fixture_provider-1.2.3.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: Fixture_Provider\nVersion: 1.2.3\n"
+    )
+    (dist_info / "entry_points.txt").write_text(
+        f"[{PROVIDER_PLUGIN_ENTRYPOINT_GROUP}]\nfixture-real = {module_name}:Adapter\n"
+    )
+    monkeypatch.syspath_prepend(str(site))
+    distributions = list(metadata.distributions(path=[str(site)]))
+    assert len(distributions) == 1
+    monkeypatch.setattr(
+        "ai_orchestrator.provider_sdk.metadata.distributions",
+        lambda: distributions,
+    )
+
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["provider_plugins"] = {
+        "fixture-real": {
+            "schema_version": 1,
+            "distribution": "fixture-provider",
+            "version": "1.2.3",
+            "entry_point": f"{module_name}:Adapter",
+        }
+    }
+    data["providers"]["engineering"]["adapter"] = "fixture-real"
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+    sys.modules.pop(module_name, None)
+    first = Engine(workspace)
+    try:
+        assert module_name not in sys.modules
+        first.trust("operator")
+        assert module_name not in sys.modules
+    finally:
+        first.close()
+
+    second = Engine(workspace)
+    try:
+        assert module_name in sys.modules
+        assert "fixture-real" in second.registry
+        resolution = second.capability_resolver.resolve("implementer")
+        assert resolution.plugin_identity == {
+            "adapter": "fixture-real",
+            "distribution": "fixture-provider",
+            "version": "1.2.3",
+            "entry_point": f"{module_name}:Adapter",
+            "provider_sdk_version": "1",
+            "adapter_api_version": "2",
+        }
+    finally:
+        second.close()
+        sys.modules.pop(module_name, None)
 
 
 def test_installed_but_unpinned_plugin_never_loads(workspace, monkeypatch):
