@@ -194,7 +194,7 @@ def test_new_tasks_bind_builtin_workflow_and_preserve_behavior(engine):
     assert state.status == "awaiting_acceptance", state.error
     assert all(state.workflow_nodes[node].status == "succeeded" for node in state.workflow_order)
     assert state.calls == 3
-    assert {artifact.kind for artifact in state.artifacts} == {"plan", "execute", "validation", "review", "provider_provenance", "usage", "budget"}
+    assert {artifact.kind for artifact in state.artifacts} == {"plan", "execute", "validation", "review", "provider_provenance", "usage", "budget", "context_influence"}
     assert controller.accept("task-1", "operator").status == "succeeded"
 
 

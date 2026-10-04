@@ -236,7 +236,7 @@ def test_cli_create_can_declare_task_capability(workspace, tmp_path, capsys):
                  "--require", "implementer=test_authoring"])
     assert code == 0, capsys.readouterr().err
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 7
+    assert payload["schema_version"] == 8
     assert payload["capability_requirements"] == {"implementer": ["test_authoring"]}
 
 
