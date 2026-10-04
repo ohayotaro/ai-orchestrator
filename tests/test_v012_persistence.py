@@ -135,8 +135,20 @@ def test_store_rejects_unknown_task_version_without_rewriting(engine):
 def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
     controller, _reasoning, _engineering = engine
     raw = retained()["task_states"][3]
-    legacy_artifact = Artifact.model_validate(retained()["legacy_artifact"])
-    assert legacy_artifact.model_dump() == retained()["legacy_artifact"]
+
+    # approval_scope verifies artifact bytes first, so retain an actual v1
+    # artifact on disk rather than weakening the production verifier in this
+    # migration regression.
+    text = '{"legacy":true}\\n'
+    path = ".orchestrator/runtime/fixture/0-plan.json"
+    atomic_write(controller.project.root / path, text)
+    legacy_raw = {
+        **retained()["legacy_artifact"],
+        "path": path,
+        "sha256": hashlib.sha256(text.encode()).hexdigest(),
+    }
+    legacy_artifact = Artifact.model_validate(legacy_raw)
+    assert legacy_artifact.model_dump() == legacy_raw
 
     state = decode_versioned_model_json(
         json.dumps(raw), rule_key="task_state", model=TaskState
@@ -149,7 +161,7 @@ def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
     round_tripped = TaskState.model_validate_json(state.model_dump_json())
     after = controller.approval_scope(round_tripped)
     assert after == before
-    assert round_tripped.artifacts[0].model_dump() == retained()["legacy_artifact"]
+    assert round_tripped.artifacts[0].model_dump() == legacy_raw
 
 
 def test_new_artifact_v2_identity_and_legacy_v1_read(engine):
