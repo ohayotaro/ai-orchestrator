@@ -659,7 +659,72 @@ Planned scope:
 Completion target: adding a provider/plugin should be routine adapter work, with
 contract failures detected by conformance tests rather than kernel changes.
 
-### v0.14 — Operational Hardening
+### v0.14 — Knowledge Distillation / Project Learning
+
+Primary goal: make accumulated execution evidence improve future orchestration
+without turning historical model output into implicit project authority.
+
+The project already persists task/intake state, artifacts, validation/review
+evidence, provider provenance, usage/budget observations, events and
+human-governed knowledge/policy/skill candidates. Accepted Markdown under
+`.orchestrator/knowledge/accepted/`, policies and skills is loaded into future
+project context, and successful task-scoped workflows can already be promoted
+explicitly into reusable trusted templates. v0.14 completes the missing
+distillation layer between accumulated evidence and those governed promotion
+mechanisms.
+
+Planned scope:
+
+- define a versioned Project Learning / Distillation contract that consumes
+  controller-owned historical evidence without treating provider prose as
+  authorization;
+- detect recurring evidence-backed patterns across successful tasks, validation,
+  review findings, recovery outcomes, provider provenance and usage/budget
+  records;
+- propose bounded knowledge, policy, skill and reusable-workflow candidates with
+  explicit source evidence, confidence/support metadata and stable provenance;
+- distinguish observations from recommendations and authority-bearing promoted
+  project context;
+- support deduplication, supersession and contradiction detection so repeated
+  runs do not simply accumulate redundant or mutually inconsistent knowledge;
+- make candidate generation inspectable and reproducible enough to explain why a
+  project-learning proposal exists;
+- allow operators to accept, reject or revise candidates through explicit
+  promotion/trust flows; rejected candidates must not silently reappear without
+  materially new evidence;
+- feed only accepted project knowledge/policy/skills and explicitly trusted
+  workflow templates into future orchestration;
+- add retention/compaction rules so long-lived projects can preserve provenance
+  while keeping active context within deterministic size limits;
+- expose diagnostics showing which accepted project knowledge influenced an
+  intake/task and which historical evidence supported it;
+- test that project learning cannot grant providers, permissions, validator
+  commands, external effects, write scope, model/runtime policy, budget policy or
+  project trust by itself.
+
+Example target behavior:
+
+```text
+repeated execution/review/validation evidence
+  -> deterministic evidence selection
+  -> distillation proposal
+  -> knowledge / policy / skill / workflow candidate
+  -> operator review
+  -> explicit promotion + trust where required
+  -> accepted project context
+  -> future Supervisor / Planner / Implementer / Reviewer reuse
+```
+
+The intended product property is that ai-orchestrator becomes more
+project-specific with use, but the durable learning remains reviewable,
+version-controlled and evidence-backed rather than hidden in model memory.
+
+Completion target: a long-lived project can turn repeated execution evidence
+into useful reusable project knowledge with clear provenance and human
+governance, while a fresh software/model upgrade or an unreviewed historical
+pattern can never silently change project authority.
+
+### v0.15 — Operational Hardening
 
 Primary goal: make long-lived trusted-local operation diagnosable and
 recoverable without introducing unsafe automatic repair.
@@ -671,7 +736,7 @@ Planned scope:
 - improve stale worker/job/gate diagnosis and explicit operator repair guidance;
 - document and test backup/restore for controller persistence;
 - define safe cleanup/retention policy for disposable workspaces, job records,
-  artifacts and historical evidence;
+  artifacts and historical evidence, including Project Learning provenance;
 - detect partial or inconsistent runtime state without silently rewriting it;
 - keep repair operations explicit, provenance-recorded and separate from normal
   agent authority.
@@ -679,7 +744,7 @@ Planned scope:
 Completion target: an operator can inspect, back up, restore, clean and diagnose
 a long-lived installation without depending on undocumented state surgery.
 
-### v0.15 — Release Candidate Hardening
+### v0.16 — Release Candidate Hardening
 
 Primary goal: freeze the candidate v1.0 surface and remove remaining
 cross-version/host ambiguities.
@@ -692,8 +757,8 @@ Planned scope:
   supported matrix;
 - resolve or explicitly document remaining Claude Code / Codex / Antigravity
   host interoperability boundaries;
-- freeze public MCP, HumanGate, workflow, provider/plugin and artifact contracts
-  intended for v1.0;
+- freeze public MCP, HumanGate, workflow, provider/plugin, artifact and Project
+  Learning/promotion contracts intended for v1.0;
 - complete security-boundary, deployment-mode, migration and extension
   documentation;
 - remove accidental alpha-only APIs or mark them intentionally unstable before
@@ -721,6 +786,7 @@ Candidate stable surfaces:
 - recovery/durability diagnosis contracts;
 - persistence and migration guarantees;
 - provider/plugin compatibility tests;
+- Project Learning / knowledge-distillation and governed promotion contracts;
 - documented trusted-local security boundary and supported deployment modes.
 
 A v1.0 release should have versioned extension points, tested upgrade/migration
@@ -750,6 +816,11 @@ The order above is intentional.
 - **Do not automatically replay ambiguous interrupted effects.**
 - **Do not add a new provider merely to demonstrate extensibility.** Adapter
   contracts should be stable enough that adding one is routine first.
+- **Do not equate accumulated evidence with learned authority.** Project
+  Learning may propose knowledge/policy/skill/workflow candidates, but only
+  explicit promotion/trust may make them active project context or authority.
+- **Do not hide project learning in model memory.** Durable learned context must
+  remain inspectable, evidence-backed and project-owned.
 
 ## How the roadmap evolves
 
