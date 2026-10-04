@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.13.0 — Provider Adapter / Plugin SDK
+
+- Publish Provider SDK v1 with Provider Adapter API v2 as the supported
+  third-party provider-extension boundary.
+- Split the adapter contract into required core lifecycle methods and optional
+  runtime-option, usage and role-compatibility features.
+- Discover third-party adapter metadata through the
+  `ai_orchestrator.providers` entry-point group without importing plugin code
+  merely because a package is installed.
+- Add project-owned `provider_plugins` pins for exact adapter ID,
+  distribution, version and entry-point target. External code loads only after
+  the exact resulting profile digest has been explicitly trusted.
+- Fail closed on missing/mismatched pins, unsupported SDK/API versions,
+  built-in adapter-ID collisions, plugin import/factory failures and
+  conformance failures.
+- Preserve loaded plugin package/version/entry-point identity in Provider
+  Descriptor/Resolution, workflow frozen-resolution checks, provider probe/call
+  events and content-free dispatch provenance.
+- Add `orchestrator provider-plugins`,
+  `inspect_project.provider_plugins`, plugin diagnostics in `doctor`, and a
+  public `assert_provider_adapter_conforms` compatibility helper.
+- Add non-core entry-point fixture coverage proving activation only after trust,
+  unpinned-package inertness, version-drift failure, built-in collision failure,
+  required-vs-optional SDK features and legacy profile-fingerprint compatibility.
+- Clarify that in-process provider plugins are trusted controller code; worker
+  isolation does not sandbox adapter implementation code.
+- Reconcile roadmap, architecture, recovery and single-terminal documentation
+  before closing the milestone.
+- No runtime/HumanGate/jobs SQLite migration or TaskState/IntakeState schema bump
+  is required solely for v0.13. Empty plugin configuration preserves historical
+  profile fingerprints.
+
 ## 0.12.2 — Physical read-only SQLite hardening
 
 - Record the final v0.12.1 read-only closure E2E: legacy usage coverage and
