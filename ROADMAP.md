@@ -1,7 +1,7 @@
 # AI Orchestrator Roadmap
 
-This document describes the implemented path through the completed v0.11
-recovery/durability milestone and the remaining path toward stable v1.0
+This document describes the implemented path through the completed v0.12
+contract/migration-hardening milestone and the remaining path toward stable v1.0
 contracts. Version numbers describe sequencing and design boundaries, not
 promised release dates. Live E2E evidence, security findings and implementation
 experience may change the details or order.
@@ -583,28 +583,39 @@ v0.13-v0.15 may be adjusted when implementation, compatibility testing or live
 host evidence shows a better split. Architectural authority and durability
 principles should remain stable even if milestone packaging changes.
 
-### v0.12 — Contract & Migration Hardening
+### v0.12 — Contract & Migration Hardening — implemented
 
 Primary goal: make the persisted control-plane contracts safe to evolve before
 declaring stable APIs.
 
-Planned scope:
+Implemented:
 
-- define explicit versioning rules for TaskState, IntakeState, HumanGate,
-  workflow/runtime state, events, artifacts, usage/budget and recovery evidence;
-- preserve representative persisted-state fixtures from earlier releases and
-  continuously prove that the latest kernel can read and diagnose them;
-- define upgrade, migration, forward-compatibility and fail-closed behavior for
-  known and unknown schema/runtime versions;
-- add migration compatibility tests that verify authority, approval scope,
-  artifacts and recovery semantics do not silently change during upgrade;
-- stabilize event/artifact identity, provenance and minimum required fields;
-- document downgrade boundaries and unsupported transitions rather than
-  attempting lossy implicit conversion.
+- explicit versioning/read-write rules for TaskState, IntakeState, HumanGate,
+  workflow/runtime state, events, artifacts, usage/budget, provider provenance
+  and recovery evidence;
+- retained representative TaskState v1-v7, IntakeState v1-v4, HumanGate v1,
+  legacy Artifact v1 and v0.11 recovery fixtures with continuous compatibility
+  tests;
+- non-mutating read compatibility: supported historical state is interpreted
+  without rewriting persisted rows or immutable artifact bytes;
+- fail-closed handling for malformed, non-integer and unknown schema versions
+  and unsupported runtime/HumanGate SQLite versions;
+- migration regressions that preserve legacy authority defaults, exact artifact
+  hashes and conservative recovery semantics;
+- Artifact metadata schema v2 with stable artifact ID, owner and creation time;
+- runtime event envelope schema v1 with stable sequence-derived identity while
+  retaining the original payload;
+- versioned new recovery evidence plus hash-first in-memory compatibility for
+  legacy v0.11 unversioned recovery artifacts;
+- `orchestrator persistence` and `inspect_project.persistence_compatibility`
+  inspection surfaces;
+- explicit upgrade, forward-compatibility and downgrade/backup rules in
+  `docs/PERSISTENCE.md` and `docs/MIGRATION.md`.
 
-Completion target: representative v0.x persisted states remain inspectable under
-the latest kernel, schema changes have explicit migration rules, unknown versions
-fail closed, and upgrades do not mutate authority semantics.
+Completion target achieved: representative v0.x persisted states remain
+inspectable under the current kernel, schema changes have explicit migration
+rules, unknown versions fail closed, and software upgrade alone does not mutate
+authority semantics or historical evidence.
 
 ### v0.13 — Provider / Plugin SDK
 
