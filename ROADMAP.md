@@ -575,27 +575,125 @@ The invariant remains: interrupted or uncertain effects are inspected, not
 blindly replayed. v0.11 does not add provider-side idempotency keys, external
 effect replay, distributed transactions, or general rollback.
 
-## v1.0 — Stable control-plane contracts
+## Provisional roadmap to v1.0
 
-v1.0 is primarily a contract-stability milestone.
+The milestones below are a **provisional sequencing plan**, not a frozen release
+contract. v0.12 is the next intended milestone; the exact boundaries of
+v0.13-v0.15 may be adjusted when implementation, compatibility testing or live
+host evidence shows a better split. Architectural authority and durability
+principles should remain stable even if milestone packaging changes.
+
+### v0.12 — Contract & Migration Hardening
+
+Primary goal: make the persisted control-plane contracts safe to evolve before
+declaring stable APIs.
+
+Planned scope:
+
+- define explicit versioning rules for TaskState, IntakeState, HumanGate,
+  workflow/runtime state, events, artifacts, usage/budget and recovery evidence;
+- preserve representative persisted-state fixtures from earlier releases and
+  continuously prove that the latest kernel can read and diagnose them;
+- define upgrade, migration, forward-compatibility and fail-closed behavior for
+  known and unknown schema/runtime versions;
+- add migration compatibility tests that verify authority, approval scope,
+  artifacts and recovery semantics do not silently change during upgrade;
+- stabilize event/artifact identity, provenance and minimum required fields;
+- document downgrade boundaries and unsupported transitions rather than
+  attempting lossy implicit conversion.
+
+Completion target: representative v0.x persisted states remain inspectable under
+the latest kernel, schema changes have explicit migration rules, unknown versions
+fail closed, and upgrades do not mutate authority semantics.
+
+### v0.13 — Provider / Plugin SDK
+
+Primary goal: turn the provider extension boundary into a documented,
+compatibility-tested interface rather than an internal convention.
+
+Planned scope:
+
+- publish the Provider Adapter interface and lifecycle expected by the kernel;
+- formalize capability, model-variant/runtime-option, usage, diagnostics and
+  provider-failure contracts;
+- provide a compatibility/conformance test kit for third-party adapters;
+- keep provider-specific CLI/protocol behavior outside kernel policy;
+- define plugin packaging/version compatibility and supported extension points;
+- prove the SDK can support a non-core adapter without weakening HumanGate,
+  workspace, budget or recovery guarantees.
+
+Completion target: adding a provider/plugin should be routine adapter work, with
+contract failures detected by conformance tests rather than kernel changes.
+
+### v0.14 — Operational Hardening
+
+Primary goal: make long-lived trusted-local operation diagnosable and
+recoverable without introducing unsafe automatic repair.
+
+Planned scope:
+
+- expand `doctor` / integrity diagnostics for runtime DBs, persisted task state,
+  workspaces, gate ledgers and provider/plugin compatibility;
+- improve stale worker/job/gate diagnosis and explicit operator repair guidance;
+- document and test backup/restore for controller persistence;
+- define safe cleanup/retention policy for disposable workspaces, job records,
+  artifacts and historical evidence;
+- detect partial or inconsistent runtime state without silently rewriting it;
+- keep repair operations explicit, provenance-recorded and separate from normal
+  agent authority.
+
+Completion target: an operator can inspect, back up, restore, clean and diagnose
+a long-lived installation without depending on undocumented state surgery.
+
+### v0.15 — Release Candidate Hardening
+
+Primary goal: freeze the candidate v1.0 surface and remove remaining
+cross-version/host ambiguities.
+
+Planned scope:
+
+- run the supported upgrade/migration matrix over retained persisted-state
+  fixtures;
+- run repeatable offline, subprocess/wire and live host/provider E2E across the
+  supported matrix;
+- resolve or explicitly document remaining Claude Code / Codex / Antigravity
+  host interoperability boundaries;
+- freeze public MCP, HumanGate, workflow, provider/plugin and artifact contracts
+  intended for v1.0;
+- complete security-boundary, deployment-mode, migration and extension
+  documentation;
+- remove accidental alpha-only APIs or mark them intentionally unstable before
+  the v1.0 contract is declared.
+
+Completion target: the release candidate has no known undocumented authority,
+migration or recovery behavior, and all intended stable surfaces have explicit
+compatibility tests.
+
+## v1.0 — Stable Control Plane
+
+v1.0 is primarily a contract-stability release, not a promise of unrestricted
+distributed or remote execution semantics.
 
 Candidate stable surfaces:
 
 - TaskSpec and effect/write contracts;
 - Capability Registry;
-- Provider Adapter API;
+- Provider Adapter / Plugin API;
 - Workflow/DAG schema;
 - HumanGate contract;
 - Artifact/evidence model;
 - MCP agent-facing API;
 - policy/budget configuration;
+- recovery/durability diagnosis contracts;
 - persistence and migration guarantees;
-- provider/plugin SDK and compatibility tests;
+- provider/plugin compatibility tests;
 - documented trusted-local security boundary and supported deployment modes.
 
-A v1.0 release should have upgrade/migration documentation, repeatable live E2E
-coverage for supported frontends/providers and a clearly versioned extension
-model.
+A v1.0 release should have versioned extension points, tested upgrade/migration
+guarantees, repeatable live E2E coverage for supported frontends/providers, and
+clear statements of what remains outside the control-plane guarantee (for
+example provider-side exactly-once execution, hostile same-user isolation or
+distributed transactions).
 
 ## Sequencing constraints
 
