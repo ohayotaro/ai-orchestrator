@@ -21,12 +21,13 @@ from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResu
 from .supervisor import Supervisor
 from .validators import register_validator
 from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
+from .persistence import persistence_compatibility_report
 from .project import atomic_write, digest, initialize, load_yaml
 from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, RuntimeOverride, RuntimeValueDescriptor
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.11 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.12 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -64,6 +65,7 @@ def parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
+    commands.add_parser("persistence", help="Inspect persisted-contract and migration compatibility rules")
     workflow = commands.add_parser("workflow", help="Inspect a trusted compiled Workflow Schema v1 DAG")
     workflow.add_argument("--ref", dest="workflow_ref", help="Trusted workflow ID; defaults to the project default")
     commands.add_parser("workflows", help="List the trusted workflow registry without changing the profile")
@@ -213,6 +215,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return report, 0 if all(item["ok"] for item in report.values()) else 1
         if args.command == "capabilities":
             return engine.capability_report(), 0
+        if args.command == "persistence":
+            return persistence_compatibility_report(), 0
         if args.command == "workflow":
             return engine.workflow_report(args.workflow_ref), 0
         if args.command == "workflows":
