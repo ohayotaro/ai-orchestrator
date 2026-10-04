@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from ai_orchestrator.contracts import IntakeState
-from ai_orchestrator.human_gates import HumanGate
+from ai_orchestrator.human_gates import GateStore, HumanGate
+from ai_orchestrator.jobs import JobQueue
 from ai_orchestrator.models import Artifact, OrchestratorError, TaskSpec, TaskState
 from ai_orchestrator.persistence import (
     HUMAN_GATE_DB_READABLE_VERSIONS,
+    JOB_DB_READABLE_VERSIONS,
     PERSISTED_CONTRACT_RULES,
     RUNTIME_DB_READABLE_VERSIONS,
     decode_versioned_model_json,
@@ -21,7 +23,8 @@ from ai_orchestrator.persistence import (
     persistence_compatibility_report,
     validate_database_version,
 )
-from ai_orchestrator.project import atomic_write
+from ai_orchestrator.project import Project, atomic_write
+from ai_orchestrator.store import Store
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "persistence" / "v0x_states.json"
@@ -108,10 +111,40 @@ def test_persisted_schema_versions_are_strict_integers(value):
 def test_unknown_database_versions_fail_closed():
     validate_database_version("runtime", 2, RUNTIME_DB_READABLE_VERSIONS)
     validate_database_version("human-gate", 1, HUMAN_GATE_DB_READABLE_VERSIONS)
+    validate_database_version("job", 1, JOB_DB_READABLE_VERSIONS)
     with pytest.raises(OrchestratorError, match="unsupported runtime database version"):
         validate_database_version("runtime", 99, RUNTIME_DB_READABLE_VERSIONS)
     with pytest.raises(OrchestratorError, match="unsupported human-gate database version"):
         validate_database_version("human-gate", 99, HUMAN_GATE_DB_READABLE_VERSIONS)
+    with pytest.raises(OrchestratorError, match="unsupported job database version"):
+        validate_database_version("job", 99, JOB_DB_READABLE_VERSIONS)
+
+
+def _sqlite_header_change_counter(path: Path) -> tuple[bytes, bytes]:
+    data = path.read_bytes()
+    return data[24:28], data[92:96]
+
+
+@pytest.mark.parametrize(
+    ("relative", "factory"),
+    [
+        (".orchestrator/runtime/state.sqlite3", lambda project: Store(project)),
+        (".orchestrator/runtime/gates.sqlite3", lambda project: GateStore(project)),
+        (".orchestrator/runtime/jobs.sqlite3", lambda project: JobQueue(project)),
+    ],
+)
+def test_opening_current_database_does_not_restamp_header(workspace, relative, factory):
+    project = Project(workspace)
+    first = factory(project)
+    first.close()
+    path = workspace / relative
+    before = _sqlite_header_change_counter(path)
+
+    second = factory(project)
+    second.close()
+    after = _sqlite_header_change_counter(path)
+
+    assert after == before
 
 
 def test_store_rejects_unknown_task_version_without_rewriting(engine):
@@ -246,6 +279,10 @@ def test_persistence_report_is_explicit_and_complete():
     assert report["schema_version"] == 1
     assert report["policy"]["automatic_rewrite"] is False
     assert report["policy"]["unknown_version"].startswith("fail closed")
+    assert report["databases"]["jobs"] == {
+        "readable_versions": [0, 1],
+        "write_version": 1,
+    }
     assert report["contracts"]["task_state"]["readable_versions"] == list(range(1, 8))
     assert report["contracts"]["artifact"]["write_version"] == 2
     assert report["contracts"]["recovery_evidence"]["readable_versions"] == [0, 1]
