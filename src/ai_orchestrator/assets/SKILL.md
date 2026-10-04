@@ -235,6 +235,12 @@ kernel; that does not mean the artifact itself was modified.
 Downgrade is a full pre-upgrade runtime-backup restore with a matching older
 executable/configuration, not version-number editing or lossy conversion.
 
+Read-only inspection of an already-current v0.12.2+ runtime must not restamp
+the same SQLite `user_version`. A physical SQLite file-hash change is therefore
+unexpected for a pure current-version open; for older releases, compare logical
+row/dump evidence as well because earlier kernels could advance only the SQLite
+header change counter while leaving persisted semantics unchanged.
+
 For legacy usage, compare durable TaskState `calls` with usage record coverage.
 If historical calls exist without corresponding usage records, report aggregate
 token/provider-time/cost telemetry as unknown; never describe the missing
