@@ -1,8 +1,8 @@
 # AI Orchestrator Roadmap
 
-This document describes the implemented path through the completed v0.12
-contract/migration-hardening milestone and the remaining path toward stable v1.0
-contracts. Version numbers describe sequencing and design boundaries, not
+This document describes the implemented path through the completed v0.13
+Provider Adapter / Plugin SDK milestone and the remaining path toward stable
+v1.0 contracts. Version numbers describe sequencing and design boundaries, not
 promised release dates. Live E2E evidence, security findings and implementation
 experience may change the details or order.
 
@@ -578,8 +578,8 @@ effect replay, distributed transactions, or general rollback.
 ## Provisional roadmap to v1.0
 
 The milestones below are a **provisional sequencing plan**, not a frozen release
-contract. v0.13 is the next intended milestone; the exact boundaries of
-v0.13-v0.16 may be adjusted when implementation, compatibility testing or live
+contract. v0.14 is the next intended milestone; the exact boundaries of
+v0.14-v0.16 may be adjusted when implementation, compatibility testing or live
 host evidence shows a better split. Architectural authority and durability
 principles should remain stable even if milestone packaging changes.
 
