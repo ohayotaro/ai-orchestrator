@@ -73,7 +73,12 @@ metadata and its load/conformance status.
 External adapters use Provider SDK v1 and Provider Adapter API v2:
 
 ```python
-from ai_orchestrator.provider_sdk import RunRequest
+from ai_orchestrator.provider_sdk import (
+    ProviderExecutionError,
+    RunRequest,
+    RuntimeOptionsDescriptor,
+    UsageDescriptor,
+)
 
 class Adapter:
     provider_sdk_version = 1
@@ -123,10 +128,17 @@ helper deliberately never invokes `execute`, because provider dispatch may be
 billable or effectful.
 
 Provider failures should raise `ProviderExecutionError` when the adapter has
-safe structured diagnostics to retain. Durable diagnostics must be content-free:
-bounded provider/failure identifiers, process status or counters are appropriate;
-raw prompts, credentials, commands/arguments, provider response bodies and
-arbitrary stderr are not. The kernel never treats a failure category as
+safe structured diagnostics to retain. The plugin wrapper normalizes external
+execution diagnostics before they can enter durable controller state: mappings,
+lists and nesting are bounded; string values must be identifier-like labels; the
+public failure categories are `authentication`, `quota`, `permission`,
+`configuration`, `protocol` and `provider_process`. Unsafe diagnostics are
+omitted and replaced with a content-free protocol-failure marker.
+
+Raw prompts, credentials, commands/arguments, provider response bodies and
+arbitrary stderr must never be placed in diagnostics. External execution
+exception text and doctor/optional-probe exception text are not surfaced
+verbatim by the wrapper. The kernel never treats a failure category as
 authorization for retry or fallback.
 
 The repository regression suite also contains a non-core fixture adapter loaded
