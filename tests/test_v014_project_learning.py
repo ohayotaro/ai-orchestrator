@@ -222,7 +222,7 @@ def test_accepted_context_universe_can_exceed_prompt_budget_and_selection_is_bou
     selected, influence = learning.select_context(universe, "alpha")
     assert influence.selected_bytes <= learning.CONTEXT_SELECTION_BYTES
     assert sum(len(value.encode()) for value in selected.values()) == influence.selected_bytes
-    assert influence.universe_items == 5
+    assert influence.universe_items == 6
     assert influence.excluded_items >= 4
 
 
@@ -277,6 +277,8 @@ def test_conflicting_accepted_learning_is_preserved_but_not_injected(workspace):
     project = Project(workspace)
     _, _, universe = project.load()
     selected, influence = learning.select_context(universe, "validator check")
-    assert selected == {}
-    assert influence.universe_items == 2
+    assert ".orchestrator/knowledge/accepted/P-positive.md" not in selected
+    assert ".orchestrator/knowledge/accepted/P-negative.md" not in selected
+    assert ".orchestrator/policies/baseline.md" in selected
+    assert influence.universe_items == 3
     assert influence.excluded_items == 2
