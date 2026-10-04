@@ -21,6 +21,8 @@ RUNTIME_DB_VERSION = 2
 RUNTIME_DB_READABLE_VERSIONS = (0, 1, 2)
 HUMAN_GATE_DB_VERSION = 1
 HUMAN_GATE_DB_READABLE_VERSIONS = (0, 1)
+JOB_DB_VERSION = 1
+JOB_DB_READABLE_VERSIONS = (0, 1)
 EVENT_SCHEMA_VERSION = 1
 
 PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
@@ -212,6 +214,10 @@ def persistence_compatibility_report() -> dict[str, Any]:
             "human_gate": {
                 "readable_versions": list(HUMAN_GATE_DB_READABLE_VERSIONS),
                 "write_version": HUMAN_GATE_DB_VERSION,
+            },
+            "jobs": {
+                "readable_versions": list(JOB_DB_READABLE_VERSIONS),
+                "write_version": JOB_DB_VERSION,
             },
         },
         "contracts": {
