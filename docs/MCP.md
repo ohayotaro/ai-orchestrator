@@ -112,16 +112,22 @@ The skill is guidance, not permission enforcement. It tells the host agent to
 stop direct edits after delegation, preserve existing changes, use stable
 request IDs on transport retries, and route all human gates to the operator.
 
-## Start the worker separately
+## Managed single-terminal mode
 
-Open a normal terminal that is not an agent's shell tool:
+Plain `orchestrator serve` is the standard managed mode. When the MCP client
+supports interactive form elicitation, the server manages the separate worker
+process and Start / Execution / Acceptance HumanGates can remain in the same
+client terminal. `--single-terminal` is retained as an explicit compatibility
+spelling; `--legacy-terminal` opts out.
+
+Legacy/manual operation may still start a worker in a separate normal terminal:
 
 ```bash
 "$ORCH" --project "$PROJECT" worker
 ```
 
-Keep it open while processing requests. Ctrl+C requests cancellation and stops
-the worker; it does not roll back completed effects. To process at most one job:
+Ctrl+C requests cancellation and stops the worker; it does not roll back
+completed effects. To process at most one job:
 
 ```bash
 "$ORCH" --project "$PROJECT" worker --once

@@ -1,6 +1,10 @@
-# Architecture: v0.2
+# Architecture
 
 ## Layers and responsibilities
+
+This document accumulates architecture decisions across releases. Version-tagged
+sections describe when a boundary was introduced; the heading is not the current
+software version.
 
 `Supervisor -> TaskSpec -> deterministic Engine -> role-specific providers/validators` is the core boundary. The Supervisor performs semantic intake, not orchestration authority. The engine alone chooses executable phase transitions and checks budgets, approvals, artifacts and workspace integrity. Policies, skills and knowledge remain project-owned rather than predefined domains.
 

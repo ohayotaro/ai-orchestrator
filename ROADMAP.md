@@ -578,8 +578,8 @@ effect replay, distributed transactions, or general rollback.
 ## Provisional roadmap to v1.0
 
 The milestones below are a **provisional sequencing plan**, not a frozen release
-contract. v0.12 is the next intended milestone; the exact boundaries of
-v0.13-v0.15 may be adjusted when implementation, compatibility testing or live
+contract. v0.13 is the next intended milestone; the exact boundaries of
+v0.13-v0.16 may be adjusted when implementation, compatibility testing or live
 host evidence shows a better split. Architectural authority and durability
 principles should remain stable even if milestone packaging changes.
 
@@ -640,24 +640,49 @@ and installed Skill synchronization also remained correct, with no provider,
 HumanGate, job, event or workspace side effects. v0.12 is fully closed; no
 further v0.12 E2E is required before v0.13.
 
-### v0.13 — Provider / Plugin SDK
+### v0.13 — Provider Adapter / Plugin SDK
 
 Primary goal: turn the provider extension boundary into a documented,
 compatibility-tested interface rather than an internal convention.
 
 Planned scope:
 
-- publish the Provider Adapter interface and lifecycle expected by the kernel;
-- formalize capability, model-variant/runtime-option, usage, diagnostics and
-  provider-failure contracts;
+- publish the Provider Adapter core contract and distinguish required lifecycle
+  methods from optional runtime-option, usage and compatibility features;
+- formalize capability, model-variant/runtime-option, usage, sanitized
+  diagnostics and provider-failure contracts;
+- define one versioned provider-plugin SDK and deterministic packaging/discovery
+  convention for third-party adapters;
+- treat an in-process provider plugin as controller code in the trusted
+  computing base: merely installing a package must not activate it;
+- require an exact project-owned plugin pin (adapter ID, distribution, version
+  and entry point) inside the profile, and load external plugin code only after
+  that exact profile digest has been explicitly trusted;
+- fail closed on missing/mismatched pins, duplicate adapter IDs, built-in
+  collisions, unsupported SDK/API versions and plugin load/conformance failure;
+- retain plugin package/version/entry-point identity in provider resolution and
+  dispatch provenance so an in-place package change cannot silently continue a
+  frozen task;
 - provide a compatibility/conformance test kit for third-party adapters;
 - keep provider-specific CLI/protocol behavior outside kernel policy;
-- define plugin packaging/version compatibility and supported extension points;
-- prove the SDK can support a non-core adapter without weakening HumanGate,
-  workspace, budget or recovery guarantees.
+- prove the SDK with a non-core test adapter loaded through the same entry-point
+  path, without weakening HumanGate, workspace, budget or recovery guarantees;
+- keep v0.13 scoped to **provider adapters**. Workflow, validator, policy and
+  knowledge extension authority remain separate contracts rather than a generic
+  executable plugin API.
 
-Completion target: adding a provider/plugin should be routine adapter work, with
-contract failures detected by conformance tests rather than kernel changes.
+Trust boundary:
+
+- package/version/entry-point pinning establishes project/operator intent, not a
+  cryptographic code-integrity guarantee. A hostile same-OS-user installation
+  remains outside the trusted-local threat model;
+- plugin installation or discovery does not grant provider selection, tools,
+  permissions, write scope, validators, external effects, budget changes or
+  project trust. Existing profile/HumanGate/task authority still applies.
+
+Completion target: adding a provider adapter is routine SDK work; incompatible
+or untrusted plugins fail before provider dispatch, and contract failures are
+detected by conformance tests rather than kernel changes.
 
 ### v0.14 — Knowledge Distillation / Project Learning
 
@@ -681,8 +706,12 @@ Planned scope:
 - detect recurring evidence-backed patterns across successful tasks, validation,
   review findings, recovery outcomes, provider provenance and usage/budget
   records;
+- define typed, controller-resolvable evidence references for task/artifact/
+  event/validation/review/recovery sources before automated distillation;
 - propose bounded knowledge, policy, skill and reusable-workflow candidates with
-  explicit source evidence, confidence/support metadata and stable provenance;
+  explicit source evidence, inspectable support metadata (for example independent
+  task/support counts and contradiction status) and stable provenance; opaque
+  model self-confidence is not authority or evidence;
 - distinguish observations from recommendations and authority-bearing promoted
   project context;
 - support deduplication, supersession and contradiction detection so repeated
@@ -692,10 +721,16 @@ Planned scope:
 - allow operators to accept, reject or revise candidates through explicit
   promotion/trust flows; rejected candidates must not silently reappear without
   materially new evidence;
+- separate the accepted project-knowledge universe from the bounded context
+  selected for one intake/task; accepted does not mean inject everything;
 - feed only accepted project knowledge/policy/skills and explicitly trusted
-  workflow templates into future orchestration;
-- add retention/compaction rules so long-lived projects can preserve provenance
-  while keeping active context within deterministic size limits;
+  workflow templates into future orchestration, with deterministic bounded
+  context selection;
+- retain an influence manifest showing exactly which accepted context entered an
+  intake/task and which historical evidence supported it;
+- add semantic consolidation/compaction rules so long-lived projects can preserve
+  provenance while keeping selected active context within deterministic size
+  limits; physical artifact/job/workspace retention remains v0.15 work;
 - expose diagnostics showing which accepted project knowledge influenced an
   intake/task and which historical evidence supported it;
 - test that project learning cannot grant providers, permissions, validator
@@ -734,9 +769,13 @@ Planned scope:
 - expand `doctor` / integrity diagnostics for runtime DBs, persisted task state,
   workspaces, gate ledgers and provider/plugin compatibility;
 - improve stale worker/job/gate diagnosis and explicit operator repair guidance;
-- document and test backup/restore for controller persistence;
-- define safe cleanup/retention policy for disposable workspaces, job records,
-  artifacts and historical evidence, including Project Learning provenance;
+- document and test both runtime-evidence backup/restore and complete
+  controller/project-authority backup/restore, including config, policies,
+  skills, accepted knowledge and trusted workflow templates;
+- define safe **physical** cleanup/retention policy for disposable workspaces,
+  job records, artifacts and historical evidence, including Project Learning
+  provenance; evidence still referenced by accepted/promoted context must not be
+  silently garbage-collected;
 - detect partial or inconsistent runtime state without silently rewriting it;
 - keep repair operations explicit, provenance-recorded and separate from normal
   agent authority.
@@ -756,7 +795,8 @@ Planned scope:
 - run repeatable offline, subprocess/wire and live host/provider E2E across the
   supported matrix;
 - resolve or explicitly document remaining Claude Code / Codex / Antigravity
-  host interoperability boundaries;
+  host interoperability boundaries and freeze a supported / conditional /
+  known-incompatible host-provider matrix;
 - freeze public MCP, HumanGate, workflow, provider/plugin, artifact and Project
   Learning/promotion contracts intended for v1.0;
 - complete security-boundary, deployment-mode, migration and extension
@@ -786,7 +826,8 @@ Candidate stable surfaces:
 - recovery/durability diagnosis contracts;
 - persistence and migration guarantees;
 - provider/plugin compatibility tests;
-- Project Learning / knowledge-distillation and governed promotion contracts;
+- Project Learning evidence/candidate/promotion/influence contracts; candidate
+  discovery/distillation heuristics may evolve without becoming stable authority;
 - documented trusted-local security boundary and supported deployment modes.
 
 A v1.0 release should have versioned extension points, tested upgrade/migration
@@ -816,6 +857,9 @@ The order above is intentional.
 - **Do not automatically replay ambiguous interrupted effects.**
 - **Do not add a new provider merely to demonstrate extensibility.** Adapter
   contracts should be stable enough that adding one is routine first.
+- **Do not confuse provider-process isolation with plugin-code isolation.** An
+  in-process third-party adapter is trusted controller code; package discovery
+  alone must never activate it.
 - **Do not equate accumulated evidence with learned authority.** Project
   Learning may propose knowledge/policy/skill/workflow candidates, but only
   explicit promotion/trust may make them active project context or authority.

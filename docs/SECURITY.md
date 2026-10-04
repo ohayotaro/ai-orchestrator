@@ -50,7 +50,15 @@ Mutation failures are detected after execution and do not automatically undo wri
 
 SQLite task transitions/events commit together; intake consumption/task registration is also transactional. Artifact files are written before references, so interruption can leave unreferenced output. Runtime backups must include artifacts and a consistent database/WAL; back up with all controllers stopped or use a proper SQLite backup workflow. v0.2 upgrades the database version additively and does not support downgrade.
 
-Cancellation terminates ordinary descendants in the subprocess process group. A process that deliberately escapes its group/session is outside that guarantee. Already completed external effects are never undone. Do not automatically replay an interrupted implementation. Inspect the worktree/evidence, recover a stale running task to failed, and create a new task if appropriate.
+Cancellation terminates ordinary descendants in the subprocess process group. A process that deliberately escapes its group/session is outside that guarantee. Already completed external effects are never undone. Do not automatically replay an interrupted implementation.
+
+v0.11 recovery classifies interrupted work before mutating task state. Only a
+guarded/isolated checkpoint with an unchanged root and no durable provider
+dispatch marker is retry-safe; recovery then revokes stale approvals and returns
+the task to a fresh execution gate without executing provider work. Provider
+dispatch, validator execution, shared writes, integration start, root drift,
+pre-v0.11 ambiguity and HumanGate applying/uncertain states remain non-replayable
+and fail closed without automatic root-worktree rollback. See `RECOVERY.md`.
 
 An interrupted Supervisor produces no runnable task. If interrupted after start has registered the task, inspect the consumed intake and run the existing ready task rather than trying to consume it again. Ordinary user edits after proposal or review invalidate the corresponding confirmation/acceptance check. Failed, cancelled and unaccepted tasks must not be represented as complete.
 
