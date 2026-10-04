@@ -42,6 +42,7 @@ class ProviderDescriptor(Contract):
     runtime_capabilities: list[str]
     priority: int
     capability_source: Literal["adapter", "config", "legacy_fixed_compat"]
+    plugin_identity: dict[str, str] | None = None
 
 
 class ProviderResolution(Contract):
@@ -55,6 +56,7 @@ class ProviderResolution(Contract):
     offered_capabilities: list[str]
     candidates_considered: list[str]
     adapter_api_version: int
+    plugin_identity: dict[str, str] | None = None
 
 
 def capability_registry() -> CapabilityRegistryDescriptor:
@@ -147,9 +149,11 @@ class CapabilityResolver:
         family = str(getattr(adapter, "family", ""))
         if not family:
             raise OrchestratorError(f"{provider}: adapter family is required")
+        plugin_identity = getattr(adapter, "plugin_identity", None)
         return ProviderDescriptor(provider=provider, adapter=config.adapter, adapter_api_version=api_version,
                                   family=family, capabilities=offered, runtime_capabilities=runtime,
-                                  priority=config.priority, capability_source=source)
+                                  priority=config.priority, capability_source=source,
+                                  plugin_identity=dict(plugin_identity) if isinstance(plugin_identity, dict) else None)
 
     def _candidate_names(self, role: str) -> tuple[list[str], str]:
         binding = self.role_config(role)
@@ -193,7 +197,8 @@ class CapabilityResolver:
                                       required_capabilities=required_values,
                                       offered_capabilities=descriptor.capabilities,
                                       candidates_considered=considered,
-                                      adapter_api_version=descriptor.adapter_api_version)
+                                      adapter_api_version=descriptor.adapter_api_version,
+                                      plugin_identity=descriptor.plugin_identity)
         detail = "; ".join(errors) if errors else "no candidate providers"
         raise OrchestratorError(f"{role}: no provider satisfies required capabilities: {detail}")
 

@@ -13,6 +13,7 @@ from .models import AgentResult, Contract, OrchestratorError, ProviderPermission
 from .process import redact, run_process, validator_environment
 from .project import Project, atomic_write, confined, digest, encode
 from .providers import ProviderAdapter, RunRequest, default_registry
+from .provider_sdk import inspect_provider_plugins, load_provider_registry
 from .runtime_options import ModelVariantResolution, ModelVariantResolver, RuntimeOverride, config_for_variant, execution_identities_independent
 from .store import Store, now
 from .validators import ValidationFailure, changed_paths, inspect_validator, run_validator
@@ -36,10 +37,21 @@ class Engine:
     def __init__(self, root: Path, registry: dict[str, ProviderAdapter] | None = None, *, cancel_check: Callable[[], bool] = lambda: False):
         self.project = Project(root)
         self.profile, self.profile_digest, self.context = self.project.load()
-        self.registry = registry if registry is not None else default_registry()
+        # External provider plugins are controller code. Construct persistence
+        # first so the loader can prove the exact current profile digest was
+        # already trusted before any third-party entry point is imported.
+        self.store = Store(self.project, cancel_check)
+        if registry is None:
+            self.registry, self.provider_plugin_diagnostics = load_provider_registry(
+                self.profile,
+                trusted=self.store.trusted(self.profile_digest),
+                builtin_registry=default_registry(),
+            )
+        else:
+            self.registry = registry
+            self.provider_plugin_diagnostics = {}
         self.capability_resolver = CapabilityResolver(self.profile, self.registry)
         self.variant_resolver = ModelVariantResolver()
-        self.store = Store(self.project, cancel_check)
         self.workflow_registry = workflow_registry(self.profile)
         self.compiled_workflow = self.workflow_registry[self.profile.workflow]
         # Default executor is retained for internal/backward compatibility;
@@ -79,6 +91,7 @@ class Engine:
                 "provider": name,
                 "adapter": config.adapter,
                 "family": adapter.family,
+                "plugin_identity": getattr(adapter, "plugin_identity", None),
                 "usage": usage_descriptor(adapter, config, self.project.root).model_dump(),
                 "pricing": [
                     rule.model_dump()
@@ -264,6 +277,7 @@ class Engine:
             "provider": resolution.provider,
             "adapter": resolution.adapter,
             "family": resolution.family,
+            "plugin_identity": resolution.plugin_identity,
             "model": request.config.model,
             "effort": request.config.effort,
             "runtime_options": dict(request.runtime_options),
@@ -471,7 +485,7 @@ class Engine:
                 if not isinstance(provider, str):
                     raise OrchestratorError(f"{role}: invalid persisted provider resolution")
                 resolution = self.capability_resolver.resolve(role, required=extra, exclude_families=exclude, force_provider=provider)
-                frozen_keys = ("provider", "adapter", "family", "required_capabilities", "offered_capabilities", "adapter_api_version")
+                frozen_keys = ("provider", "adapter", "family", "required_capabilities", "offered_capabilities", "adapter_api_version", "plugin_identity")
                 current = resolution.model_dump()
                 if any(frozen.get(key) != current.get(key) for key in frozen_keys):
                     raise OrchestratorError(f"{role}: provider capability resolution changed since task binding; create a new task")
@@ -577,6 +591,7 @@ class Engine:
             providers[name] = {
                 "provider": name,
                 "adapter": config.adapter,
+                "plugin_identity": getattr(adapter, "plugin_identity", None),
                 "roles": role_reports,
             }
 
@@ -619,6 +634,7 @@ class Engine:
                 providers[name] = {
                     "provider": name,
                     "adapter": config.adapter,
+                    "plugin_identity": getattr(adapter, "plugin_identity", None),
                     "runtime_options": descriptor.model_dump(),
                 }
             except OrchestratorError as exc:
@@ -651,6 +667,13 @@ class Engine:
                 if self.profile.policy.cross_provider_review else "disabled"
             ),
         }
+
+    def provider_plugin_report(self) -> dict[str, Any]:
+        return inspect_provider_plugins(
+            self.profile,
+            trusted=self.store.trusted(self.profile_digest),
+            load_diagnostics=self.provider_plugin_diagnostics,
+        )
 
     def capability_report(self) -> dict[str, Any]:
         report = self.capability_resolver.report()
@@ -696,6 +719,12 @@ class Engine:
 
     def doctor(self, *, validators_only: bool = False) -> dict[str, Any]:
         reports: dict[str, Any] = {}
+        if not validators_only:
+            for adapter_id, diagnostic in sorted(self.provider_plugin_diagnostics.items()):
+                reports[f"provider-plugin:{adapter_id}"] = {
+                    "ok": bool(diagnostic.get("ok")),
+                    **diagnostic,
+                }
         for role in ([] if validators_only else sorted(set(self.profile.roles) | {"supervisor"})):
             try:
                 adapter, config, resolution, variant = self._binding(role)
@@ -744,6 +773,7 @@ class Engine:
             self.store.save(state, "provider.probed", {"role": role, "provider": resolution.provider,
                                                       "required_capabilities": resolution.required_capabilities,
                                                       "adapter_api_version": resolution.adapter_api_version,
+                                                      "plugin_identity": resolution.plugin_identity,
                                                       "model_variant_resolution": variant.model_dump(), **report})
         if state.spec.risk != "T0" and self.profile.policy.cross_provider_review:
             if not execution_identities_independent(
@@ -988,6 +1018,7 @@ class Engine:
                                                 "model_variant_resolution": variant.model_dump(),
                                                 "required_capabilities": resolution.required_capabilities,
                                                 "adapter_api_version": resolution.adapter_api_version,
+                                                "plugin_identity": resolution.plugin_identity,
                                                 "phase": state.phase, "attempt": state.attempt, "snapshot": before})
         start = time.monotonic()
         workspace_evidence: dict[str, object] = {}

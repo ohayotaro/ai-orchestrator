@@ -50,7 +50,15 @@ Mutation failures are detected after execution and do not automatically undo wri
 
 SQLite task transitions/events commit together; intake consumption/task registration is also transactional. Artifact files are written before references, so interruption can leave unreferenced output. Runtime backups must include artifacts and a consistent database/WAL; back up with all controllers stopped or use a proper SQLite backup workflow. v0.2 upgrades the database version additively and does not support downgrade.
 
-Cancellation terminates ordinary descendants in the subprocess process group. A process that deliberately escapes its group/session is outside that guarantee. Already completed external effects are never undone. Do not automatically replay an interrupted implementation. Inspect the worktree/evidence, recover a stale running task to failed, and create a new task if appropriate.
+Cancellation terminates ordinary descendants in the subprocess process group. A process that deliberately escapes its group/session is outside that guarantee. Already completed external effects are never undone. Do not automatically replay an interrupted implementation.
+
+v0.11 recovery classifies interrupted work before mutating task state. Only a
+guarded/isolated checkpoint with an unchanged root and no durable provider
+dispatch marker is retry-safe; recovery then revokes stale approvals and returns
+the task to a fresh execution gate without executing provider work. Provider
+dispatch, validator execution, shared writes, integration start, root drift,
+pre-v0.11 ambiguity and HumanGate applying/uncertain states remain non-replayable
+and fail closed without automatic root-worktree rollback. See `RECOVERY.md`.
 
 An interrupted Supervisor produces no runnable task. If interrupted after start has registered the task, inspect the consumed intake and run the existing ready task rather than trying to consume it again. Ordinary user edits after proposal or review invalidate the corresponding confirmation/acceptance check. Failed, cancelled and unaccepted tasks must not be represented as complete.
 
@@ -523,3 +531,33 @@ rest of the application. SQLite WAL durability and event checkpoints are not an
 exactly-once protocol with remote model providers, validators, or the filesystem.
 See `RECOVERY.md` for the full marker/classification matrix.
 
+
+
+## v0.13 provider plugin trust boundary
+
+Third-party provider adapters are in-process Python code. Once loaded they share
+the controller's OS user and Python process and are part of the trusted
+computing base. Workspace isolation and provider-native sandboxes constrain the
+provider worker invocation; they do not confine the adapter implementation
+itself.
+
+Package installation is not authorization. The controller inspects
+`ai_orchestrator.providers` entry-point metadata without importing it, and only
+loads external code for an exact project profile pin (adapter ID, distribution,
+version and entry-point target) after that exact profile digest is explicitly
+trusted. Missing/mismatched pins, built-in ID collisions, unsupported contract
+versions and conformance/load failures remove the adapter from the effective
+registry and fail provider resolution closed.
+
+The pin is provenance and operator intent, not a cryptographic software-supply-
+chain guarantee. A hostile same-user process can still replace installed code or
+controller state, which is already outside the trusted-local threat model.
+Operators should install only trusted provider packages and use ordinary package
+verification/signing practices appropriate to their environment.
+
+External adapter diagnostics must remain bounded and content-free when persisted.
+`ProviderExecutionError` may carry sanitized identifiers/counters/categories,
+but plugins must not place prompts, credentials, provider response bodies,
+commands, arguments or arbitrary stderr in durable diagnostics. The SDK
+conformance helper checks structural adapter contracts; it is not a security
+audit of third-party code.

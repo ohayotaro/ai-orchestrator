@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 FROZEN_RESOLUTION_KEYS = (
     "provider", "adapter", "family", "required_capabilities",
-    "offered_capabilities", "adapter_api_version",
+    "offered_capabilities", "adapter_api_version", "plugin_identity",
 )
 
 
@@ -185,6 +185,7 @@ class WorkflowExecutor:
                     "node": node.id, "role": node.role, "provider": resolution.provider,
                     "required_capabilities": resolution.required_capabilities,
                     "adapter_api_version": resolution.adapter_api_version,
+                    "plugin_identity": resolution.plugin_identity,
                     "model_variant_resolution": variant.model_dump(),
                     **report,
                 },
@@ -372,6 +373,7 @@ class WorkflowExecutor:
                 "model_variant_resolution": variant.model_dump(),
                 "required_capabilities": resolution.required_capabilities,
                 "adapter_api_version": resolution.adapter_api_version,
+                "plugin_identity": resolution.plugin_identity,
                 "phase": phase, "attempt": state.attempt, "snapshot": before,
             },
         )
@@ -616,6 +618,7 @@ class WorkflowExecutor:
                         "model_variant_resolution": variant.model_dump(),
                         "required_capabilities": resolution.required_capabilities,
                         "adapter_api_version": resolution.adapter_api_version,
+                        "plugin_identity": resolution.plugin_identity,
                         "phase": "execute", "attempt": state.attempt,
                         "snapshot": manager.seed_snapshot, "workspace": "isolated",
                     },

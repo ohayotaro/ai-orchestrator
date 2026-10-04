@@ -423,3 +423,34 @@ pre-upgrade runtime backup together with the matching older executable and
 configuration. Restoring SQLite without its runtime artifact files is not a
 valid downgrade.
 
+
+
+## v0.12.2 to v0.13.0
+
+Stop active controllers/workers and back up the complete runtime before upgrade
+as usual. v0.13 does not change runtime/HumanGate/jobs SQLite user versions and
+does not require a TaskState or IntakeState schema bump. Historical state and
+artifacts remain under the v0.12 compatibility rules.
+
+An unchanged project requires no profile re-trust solely because the package was
+upgraded. The new empty `provider_plugins` field is omitted from effective
+profile fingerprints, preserving historical trusted digests.
+
+Installing a third-party provider distribution alone is inert. To enable it,
+add an exact `provider_plugins` pin to project configuration, inspect the
+resulting profile, and explicitly trust the new digest. The pin contains adapter
+ID, distribution, version and entry-point target. On the next controller start,
+the plugin is loaded only if installed metadata matches that trusted pin and the
+adapter passes Provider SDK/API conformance.
+
+Changing/upgrading the pinned distribution version or entry-point changes project
+authority and requires a new profile digest/trust cycle. If installed package
+metadata drifts without a matching trusted pin update, the adapter is excluded
+and provider resolution fails closed; there is no implicit fallback. A configured
+external plugin that collides with a built-in adapter ID also makes that adapter
+ID unavailable until the ambiguity is removed.
+
+After upgrading, re-export the packaged Agent Skill so connected hosts receive
+the v0.13 provider-plugin authority guidance. Use `orchestrator
+provider-plugins` and `orchestrator doctor` before selecting a newly enabled
+external adapter.

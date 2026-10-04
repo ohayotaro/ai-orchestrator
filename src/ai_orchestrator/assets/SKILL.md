@@ -37,8 +37,16 @@ than a checkbox so Accept alone cannot silently mean No. Tool permission prompts
 settings are not this confirmation. Host hooks can auto-answer forms; if the user
 requires personal confirmation, ask them to disable such hooks/configurations.
 
-Inspect `provider_compatibility`. AGY read-only roles
-(Supervisor/Planner/Reviewer) may report `conditional_native_permissions`.
+Inspect `provider_plugins` as well as `provider_compatibility`. External
+provider entry points are trusted controller code, not ordinary worker data.
+An installed package is metadata only until an exact project plugin pin is
+present and that profile digest has been operator-trusted. Never edit
+`provider_plugins`, install/upgrade a plugin, or invoke `trust` on the user's
+behalf. A bounded provider-change request may select an external adapter only
+after `inspect_project.provider_plugins` reports its trusted pin as loaded.
+
+AGY read-only roles (Supervisor/Planner/Reviewer) may report
+`conditional_native_permissions`.
 This is conditional support, not a prohibition: execution may proceed when the
 user explicitly wants AGY or the trusted profile already selects it, but do not
 claim that Orchestrator has verified the user's AGY native scoped permission

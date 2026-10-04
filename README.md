@@ -1,17 +1,16 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.12.2 alpha** adds Contract & Migration Hardening to the v0.11 recovery
-baseline. Persisted TaskState, IntakeState, HumanGate, event, artifact,
-usage/budget, provider-provenance and recovery contracts now have explicit
-read/write compatibility rules. Representative v0.x state fixtures are retained
-in the test suite; unknown or malformed persisted versions fail closed before
-authority/effect interpretation. Reads never rewrite old rows or artifact bytes.
-New artifacts use stable schema-v2 identity/provenance metadata and runtime
-events expose stable sequence-derived IDs. Existing recovery, usage/budget,
-HumanGate and workspace-isolation boundaries remain in force. This remains a
-trusted-local application, not authenticated human identity, provider billing
-attestation or a general OS-isolated control plane.
+**v0.13.0 alpha** publishes the Provider Adapter / Plugin SDK. Third-party
+provider adapters can be discovered through a versioned entry-point contract,
+but installation alone is inert: external code is imported only for an exact
+project-owned package/version/entry-point pin after that profile digest has been
+explicitly trusted. SDK/API conformance is checked fail-closed, plugin identity
+is frozen into provider resolution and dispatch provenance, and built-in
+HumanGate, workspace, validation, budget and recovery controls remain kernel
+contracts. In-process plugins are trusted controller code, not sandboxed worker
+extensions. This remains a trusted-local application, not authenticated human
+identity, provider billing attestation or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -37,6 +36,31 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.13 Provider Adapter / Plugin SDK
+
+The public provider extension boundary now separates a required core adapter
+contract (`doctor` + `execute` plus identity/capability descriptors) from
+optional runtime-option, usage and role-compatibility features.
+
+Third-party distributions advertise adapters through the
+`ai_orchestrator.providers` Python entry-point group. Before a profile is
+trusted, plugin inspection is metadata-only and does not import configured
+external code. On a trusted profile, normal controller construction may load an
+exactly pinned plugin and `provider-plugins` reports that load/conformance
+status. To activate an adapter, the project profile must pin its adapter ID, distribution name,
+distribution version and exact entry-point target; that changed profile must
+then pass the normal explicit trust ceremony. A missing/mismatched package,
+unsupported SDK/API version, built-in ID collision, load failure or conformance
+failure removes the adapter from the active registry and provider resolution
+fails closed.
+
+Loaded plugin identity is preserved in Provider Descriptor/Resolution and
+provider-dispatch provenance, so an in-place package identity change cannot
+silently satisfy a frozen task. Empty plugin support is fingerprint-compatible
+with historical profiles and requires no re-trust.
+
+See **[Provider Adapter / Plugin SDK](docs/PROVIDER_SDK.md)**.
 
 ## v0.12 contract and migration hardening
 
@@ -267,7 +291,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.12.2
+.venv/bin/orchestrator --version  # 0.13.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
