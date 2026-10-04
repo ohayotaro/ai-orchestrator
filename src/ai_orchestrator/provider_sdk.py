@@ -7,6 +7,7 @@ process, so enabled plugins are explicitly part of the trusted-local TCB.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from importlib import metadata
@@ -22,6 +23,15 @@ from .usage import UsageDescriptor
 PROVIDER_SDK_VERSION = 1
 PROVIDER_PLUGIN_ENTRYPOINT_GROUP = "ai_orchestrator.providers"
 SUPPORTED_EXTERNAL_ADAPTER_API_VERSIONS = frozenset({2})
+PROVIDER_FAILURE_CATEGORIES = frozenset({
+    "authentication",
+    "quota",
+    "permission",
+    "configuration",
+    "protocol",
+    "provider_process",
+})
+_SAFE_DIAGNOSTIC_LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,120}")
 
 
 def canonical_distribution_name(value: str) -> str:
@@ -35,6 +45,52 @@ class _PluginCandidate:
     version: str
     entry_point: str
     loader: Any
+
+
+def _bounded_diagnostic_value(value: Any, *, depth: int = 0) -> Any:
+    if depth > 3:
+        raise OrchestratorError("external provider diagnostics exceed the nesting limit")
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        if abs(value) > 2**63 - 1:
+            raise OrchestratorError("external provider diagnostic integer is out of range")
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise OrchestratorError("external provider diagnostic number must be finite")
+        return value
+    if isinstance(value, str):
+        if not _SAFE_DIAGNOSTIC_LABEL.fullmatch(value):
+            raise OrchestratorError("external provider diagnostic strings must be bounded identifier-like labels")
+        return value
+    if isinstance(value, list):
+        if len(value) > 32:
+            raise OrchestratorError("external provider diagnostic lists are too large")
+        return [_bounded_diagnostic_value(item, depth=depth + 1) for item in value]
+    if isinstance(value, dict):
+        if len(value) > 32:
+            raise OrchestratorError("external provider diagnostic mappings are too large")
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", key):
+                raise OrchestratorError("external provider diagnostic keys must be bounded identifiers")
+            result[key] = _bounded_diagnostic_value(item, depth=depth + 1)
+        return result
+    raise OrchestratorError("external provider diagnostics contain an unsupported value type")
+
+
+def normalize_provider_failure_diagnostics(adapter_id: str, diagnostics: object) -> dict[str, Any]:
+    """Validate content-free diagnostics before they enter durable controller state."""
+    raw = diagnostics if isinstance(diagnostics, dict) else {}
+    normalized = _bounded_diagnostic_value(raw)
+    assert isinstance(normalized, dict)
+    category = normalized.get("failure_category", "provider_process")
+    if category not in PROVIDER_FAILURE_CATEGORIES:
+        raise OrchestratorError("external provider diagnostics contain an unsupported failure_category")
+    normalized["failure_category"] = category
+    normalized["adapter"] = identifier(adapter_id)
+    return normalized
 
 
 class LoadedPluginAdapter:
@@ -76,7 +132,34 @@ class LoadedPluginAdapter:
         return report
 
     def execute(self, request: RunRequest):
-        return self._adapter.execute(request)
+        adapter_id = self.plugin_identity["adapter"]
+        try:
+            return self._adapter.execute(request)
+        except ProviderExecutionError as exc:
+            try:
+                diagnostics = normalize_provider_failure_diagnostics(adapter_id, exc.diagnostics)
+            except (OrchestratorError, ValueError):
+                diagnostics = {
+                    "adapter": adapter_id,
+                    "failure_category": "protocol",
+                    "diagnostics_omitted": True,
+                }
+            raise ProviderExecutionError(
+                f"{adapter_id} provider execution failed; inspect sanitized provider diagnostics",
+                diagnostics,
+            ) from exc
+        except Exception as exc:
+            exception_type = type(exc).__name__
+            if not _SAFE_DIAGNOSTIC_LABEL.fullmatch(exception_type):
+                exception_type = "Exception"
+            raise ProviderExecutionError(
+                f"{adapter_id} provider execution failed; inspect sanitized provider diagnostics",
+                {
+                    "adapter": adapter_id,
+                    "failure_category": "provider_process",
+                    "exception_type": exception_type,
+                },
+            ) from exc
 
     def __getattr__(self, name: str) -> Any:
         value = getattr(self._adapter, name)
@@ -421,12 +504,17 @@ def load_provider_registry(
 
 
 __all__ = [
+    "PROVIDER_FAILURE_CATEGORIES",
     "PROVIDER_PLUGIN_ENTRYPOINT_GROUP",
     "PROVIDER_SDK_VERSION",
     "ProviderAdapter",
+    "ProviderConfig",
     "ProviderExecutionError",
     "RunRequest",
+    "RuntimeOptionsDescriptor",
+    "UsageDescriptor",
     "assert_provider_adapter_conforms",
+    "normalize_provider_failure_diagnostics",
     "canonical_distribution_name",
     "inspect_provider_plugins",
     "load_provider_registry",
