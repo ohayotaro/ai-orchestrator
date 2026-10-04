@@ -782,3 +782,45 @@ With that v0.12.1 follow-up, the v0.12 milestone has both retained-fixture
 compatibility coverage and live in-place upgrade evidence while preserving the
 authority/recovery boundaries established in earlier releases.
 
+## Owner-reported v0.12.1 final read-only closure E2E (2026-10-04 JST)
+
+The final closure run was intentionally read-only: it created no task, made no
+provider call, requested no HumanGate and performed no workspace write. The
+running kernel and MCP server were v0.12.1 at
+`7a1cac951c6e99417b50acbf5334aa91eb656f4b`.
+
+All requested release-closure checks passed:
+
+- `inspect_project` returned the expected persistence compatibility policy;
+- legacy `add-multiply-v6` (TaskState v1) had durable `calls=3` and no usage
+  records, and v0.12.1 correctly reported aggregate token/provider-time/cost
+  telemetry as unknown with
+  `call_coverage={status: incomplete, expected_calls: 3, recorded_calls: 0,
+  missing_calls: 3}`;
+- no existing zero-call task was available, so the genuine-zero behavior remained
+  covered by the offline regression rather than manufacturing new persisted
+  state;
+- source, packaged, Claude-installed and Agents-installed Skill copies had the
+  same SHA-256;
+- no new jobs, job events, gates, gate events or runtime events appeared, and the
+  E2E worktree/status remained unchanged.
+
+Logical persistence was unchanged: all table row counts/digests, the complete
+`state.sqlite3` dump, SQLite user versions, and non-DB persisted file hashes
+matched before/after.
+
+The run did expose a physical read-side write: opening the already-current
+runtime Store executed `PRAGMA user_version=2` unconditionally. SQLite therefore
+advanced the file change counter even though the value and all logical rows were
+unchanged. Two read-only API opens advanced the counter twice. Equivalent
+unconditional version stamping also existed in the HumanGate and jobs stores.
+
+This did not invalidate the v0.12.1 semantic-migration PASS, because no persisted
+authority/evidence meaning changed. v0.12.2 removes the unnecessary current-
+version stamps across all three databases. A supported older DB is still stamped
+when an actual version migration is required, while opening an already-current
+DB no longer changes its SQLite header merely to restate the same user version.
+
+With v0.12.2, the v0.12 Contract & Migration Hardening line is closed before the
+v0.13 Provider / Plugin SDK milestone.
+
