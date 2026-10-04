@@ -701,3 +701,84 @@ The normal CI matrix continues to run the full offline suite on Python
 wheel build. This milestone does not claim a new provider/host interoperability
 result; provider behavior is intentionally outside the migration proof.
 
+## Owner-reported live v0.12 Contract & Migration E2E (2026-10-04 JST)
+
+The owner upgraded the existing calculator E2E project in place to v0.12.0 at
+commit `fd7753bd3628a953bc2c7238f57c583f5a2fdcc9` without deleting,
+reinitializing or hand-editing `.orchestrator/runtime/`. The running
+single-terminal MCP server used the v0.12.0 source.
+
+### Historical persisted-state compatibility
+
+The current kernel successfully inspected representative historical state,
+including TaskState schema v1 through v7, IntakeState v1 through v4, Artifact v1,
+legacy unversioned v0.11 recovery evidence and the existing runtime event log.
+The project contained 42 historical tasks and 51 historical intakes; the observed
+TaskState distribution included v1, v2, v3, v4, v6 and v7 rows.
+
+Before/after integrity checks showed:
+
+- 321 pre-existing task/runtime files retained identical hashes;
+- the pre-existing task, intake and event rows through event E-1443 retained
+  identical digests;
+- pre-existing HumanGate and gate-event rows retained identical digests;
+- a representative legacy recovery artifact retained its original SHA-256 while
+  the kernel exposed the in-memory schema-v1 compatibility view;
+- runtime SQLite remained `user_version=2` and HumanGate SQLite remained
+  `user_version=1`.
+
+This directly verifies the v0.12 non-mutating read-migration invariant against a
+real accumulated v0.x runtime, not only retained synthetic fixtures.
+
+### Normal single-terminal regression
+
+The task `v012-e2e-abs-diff` added `abs_diff(a, b)` and five pytest cases
+through the ordinary build-review workflow. Start, Execution and Acceptance were
+all accepted through correlated single-terminal HumanGate forms. Implementation
+ran through Codex in an isolated writable workspace; Supervisor, Planner and
+Reviewer ran through Claude in disposable read-only workspaces.
+
+Observed result:
+
+- exact write set limited to `calculator.py` and
+  `tests/test_calculator.py`;
+- deterministic validation: `40 passed`;
+- independent review: approved, no blocking findings;
+- final task status: `succeeded`;
+- new TaskState schema v7 and IntakeState schema v4;
+- all 17 new artifacts used Artifact schema v2 with controller-generated
+  artifact ID, owner ID and creation time;
+- new runtime events E-1444 through E-1492 were exposed through RuntimeEvent
+  schema-v1 envelopes;
+- usage/budget evidence remained attributable and no budget blocker occurred.
+
+The Planner predicted a different pre-existing pytest count than the validator
+later observed. This was non-authoritative planning text; validator evidence and
+review were consistent with the actual 40-test result.
+
+### Legacy usage observation and v0.12.1 follow-up
+
+The E2E exposed one semantic compatibility gap outside the migration write path:
+a pre-v0.10 TaskState with durable `calls > 0` but no usage artifact was
+displayed using the ordinary zero-call `empty_usage()` view. As a result,
+missing historical token/cost telemetry appeared as known zero even though the
+v0.10 truth policy says missing counters must not be coerced to zero.
+
+v0.12.1 corrects the compatibility view without rewriting historical evidence.
+When durable call count exceeds recorded usage calls, aggregate token counts,
+provider elapsed time and cost are reported as `unknown`, recorded known
+subtotals are preserved, and a `call_coverage` object reports expected,
+recorded and missing calls. A genuine new task with zero calls still reports
+known zero. Budget call limits continue to use durable TaskState call count, and
+strict usage limits can therefore fail closed on unavailable historical
+telemetry instead of assuming zero consumption.
+
+The live run also found installed Agent Skill copies under the tested host paths
+lagging the packaged source Skill. This did not alter kernel behavior, but it is
+an operational deployment drift. Re-export the packaged Skill after upgrading;
+do not infer that an installed copy is current merely from the kernel version.
+
+With that v0.12.1 follow-up, the v0.12 milestone has both retained-fixture
+compatibility coverage and live in-place upgrade evidence while preserving the
+authority/recovery boundaries established in earlier releases.
+

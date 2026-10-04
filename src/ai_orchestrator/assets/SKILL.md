@@ -235,6 +235,17 @@ kernel; that does not mean the artifact itself was modified.
 Downgrade is a full pre-upgrade runtime-backup restore with a matching older
 executable/configuration, not version-number editing or lossy conversion.
 
+For legacy usage, compare durable TaskState `calls` with usage record coverage.
+If historical calls exist without corresponding usage records, report aggregate
+token/provider-time/cost telemetry as unknown; never describe the missing
+records as zero usage. Preserve any known subtotal and surface
+`summary.call_coverage` when the kernel provides it.
+
+After upgrading ai-orchestrator, explicitly re-export this packaged Skill to the
+host's configured Skill location. Kernel version and installed Skill version are
+separate deployment state; do not assume an old copied SKILL.md was synchronized
+by package installation.
+
 ## v0.11 interrupted-task recovery
 
 Inspect `recovery_durability` from `inspect_project`. If `get_task` reports

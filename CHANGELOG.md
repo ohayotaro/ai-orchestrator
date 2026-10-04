@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.1 — Live migration E2E follow-up
+
+- Record successful in-place v0.12 live E2E over an accumulated v0.x runtime:
+  historical TaskState/IntakeState/Event/Artifact data remained inspectable and
+  pre-existing file/row digests stayed unchanged.
+- Preserve the successful single-terminal Start -> Execution -> Acceptance
+  regression with isolated Codex implementation, Claude planning/review,
+  `40 passed`, Artifact v2/Event v1 evidence and final `succeeded`.
+- Fix legacy usage compatibility views: when durable TaskState calls exceed
+  recorded usage calls, missing token/provider-time/cost telemetry is now
+  `unknown` rather than known zero, while known subtotals are preserved.
+- Add explicit usage `call_coverage` diagnostics for incomplete historical
+  telemetry without rewriting historical artifacts or state.
+- Keep a genuine zero-call task at known-zero usage and retain existing durable
+  call-count budget enforcement.
+- Document installed Agent Skill drift observed during live E2E and require
+  explicit Skill re-export after upgrades.
+
 ## 0.12.0 — Contract & Migration hardening
 
 - Add an explicit persisted-contract compatibility registry for TaskState,

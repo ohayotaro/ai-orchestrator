@@ -26,6 +26,7 @@ from .usage import (
     assert_post_call_budget,
     budget_snapshot,
     empty_usage,
+    usage_with_call_coverage,
     normalize_usage,
     usage_descriptor,
 )
@@ -50,7 +51,10 @@ class Engine:
 
     def usage_evidence(self, state: TaskState) -> dict[str, Any]:
         value = self.store.latest(state, "usage")
-        return value if isinstance(value, dict) else empty_usage()
+        return usage_with_call_coverage(
+            value if isinstance(value, dict) else empty_usage(),
+            expected_calls=state.calls,
+        )
 
     def budget_status(self, state: TaskState) -> dict[str, Any]:
         return budget_snapshot(

@@ -1,7 +1,7 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.12.0 alpha** adds Contract & Migration Hardening to the v0.11 recovery
+**v0.12.1 alpha** adds Contract & Migration Hardening to the v0.11 recovery
 baseline. Persisted TaskState, IntakeState, HumanGate, event, artifact,
 usage/budget, provider-provenance and recovery contracts now have explicit
 read/write compatibility rules. Representative v0.x state fixtures are retained
@@ -55,6 +55,11 @@ New artifact metadata is schema v2 and includes a stable artifact ID, owner ID
 and creation timestamp. Runtime event reads expose envelope schema v1 with a
 stable `event_id` derived from the SQLite sequence while preserving the original
 event payload unchanged. See **[Persistence & migration contracts](docs/PERSISTENCE.md)**.
+
+v0.12.1 also distinguishes a true zero-call task from legacy missing usage
+telemetry. If durable TaskState `calls` exceed the number of recorded usage
+records, token/provider-time/cost totals are `unknown` with explicit
+`call_coverage`; historical absence is never presented as zero consumption.
 
 ## v0.11 recovery and durability hardening
 
@@ -257,7 +262,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.12.0
+.venv/bin/orchestrator --version  # 0.12.1
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`

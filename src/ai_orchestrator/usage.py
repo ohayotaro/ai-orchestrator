@@ -292,6 +292,78 @@ def empty_usage() -> dict[str, Any]:
     }
 
 
+def usage_with_call_coverage(
+    evidence: dict[str, Any] | None,
+    *,
+    expected_calls: int,
+) -> dict[str, Any]:
+    """Return a non-mutating usage view that accounts for missing call records.
+
+    A genuinely new task with zero calls has known-zero usage. Historical tasks
+    may have provider calls from before v0.10 usage accounting (or otherwise lack
+    a record for every durable call). In that case, treating an empty/partial
+    evidence set as the complete total would coerce missing telemetry to zero.
+    Preserve recorded subtotals but mark aggregate usage/cost as unknown.
+    """
+
+    base = evidence if isinstance(evidence, dict) else empty_usage()
+    records = list(base.get("records") or [])
+    recorded_calls = len(records)
+    if expected_calls == recorded_calls:
+        return base
+
+    summary = dict(
+        base.get("summary")
+        if isinstance(base.get("summary"), dict)
+        else aggregate_usage([])
+    )
+    coverage = {
+        "status": "incomplete" if expected_calls > recorded_calls else "inconsistent",
+        "expected_calls": expected_calls,
+        "recorded_calls": recorded_calls,
+        "missing_calls": max(0, expected_calls - recorded_calls),
+    }
+
+    for field in TOKEN_FIELDS:
+        current = summary.get(field) if isinstance(summary.get(field), dict) else {}
+        known_subtotal = current.get("known_subtotal")
+        if known_subtotal is None:
+            known_subtotal = current.get("value") or 0
+        summary[field] = {
+            "status": "unknown",
+            "value": None,
+            "known_subtotal": known_subtotal,
+        }
+
+    current_seconds = (
+        summary.get("provider_elapsed_seconds")
+        if isinstance(summary.get("provider_elapsed_seconds"), dict)
+        else {}
+    )
+    known_seconds = current_seconds.get("known_subtotal")
+    if known_seconds is None:
+        known_seconds = current_seconds.get("value") or 0.0
+    summary["provider_elapsed_seconds"] = {
+        "status": "unknown",
+        "value": None,
+        "known_subtotal": known_seconds,
+    }
+
+    current_cost = summary.get("cost") if isinstance(summary.get("cost"), dict) else {}
+    summary["cost"] = {
+        "status": "unknown",
+        "amount": None,
+        "currency": current_cost.get("currency"),
+        "known_subtotal": current_cost.get("known_subtotal", "0.00000000"),
+    }
+    summary["call_coverage"] = coverage
+    return {
+        **base,
+        "records": records,
+        "summary": summary,
+    }
+
+
 def _aggregate_metric(records: list[UsageRecord], field: str) -> dict[str, Any]:
     if not records:
         return {"status": "known", "value": 0, "known_subtotal": 0}

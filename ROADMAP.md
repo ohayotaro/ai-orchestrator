@@ -617,6 +617,14 @@ inspectable under the current kernel, schema changes have explicit migration
 rules, unknown versions fail closed, and software upgrade alone does not mutate
 authority semantics or historical evidence.
 
+Live in-place upgrade E2E on 2026-10-04 additionally verified unchanged
+historical file/row digests and a complete single-terminal write-task regression.
+That run exposed one legacy usage-display gap: pre-v0.10 durable calls without
+usage records appeared as known zero. v0.12.1 closes that gap with explicit
+incomplete call coverage and unknown aggregate telemetry, without rewriting old
+state or evidence. The run also re-confirmed that installed Skill copies must be
+explicitly re-exported after package upgrades.
+
 ### v0.13 — Provider / Plugin SDK
 
 Primary goal: turn the provider extension boundary into a documented,
