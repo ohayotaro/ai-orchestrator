@@ -187,7 +187,7 @@ def normalize_control_evidence(kind: str, value: Any) -> Any:
         legacy_missing_version=legacy,
     )
     if version == 0:
-        return {"schema_version": 1, **value}
+        return {**value, "schema_version": 1}
     return value
 
 
