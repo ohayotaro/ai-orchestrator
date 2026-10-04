@@ -1,17 +1,17 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.11.0 alpha** adds Recovery & Durability Hardening to the v0.10 usage/budget
-control plane. Interrupted work is classified from durable checkpoints before
-any retry is allowed. Only a proven isolated/guarded pre-provider-dispatch
-interruption with an unchanged root snapshot can return to execution, and it
-always requires a fresh execution approval. Provider dispatch, validator
-execution, shared writes, patch integration, workspace drift and legacy
-interrupted rows without v0.11 recovery evidence remain uncertain and are never
-automatically replayed. Existing usage/budget, HumanGate, provider-permission and
-workspace-isolation boundaries remain in force. This remains a trusted-local
-application, not authenticated human identity, provider billing attestation or a
-general OS-isolated control plane.
+**v0.12.0 alpha** adds Contract & Migration Hardening to the v0.11 recovery
+baseline. Persisted TaskState, IntakeState, HumanGate, event, artifact,
+usage/budget, provider-provenance and recovery contracts now have explicit
+read/write compatibility rules. Representative v0.x state fixtures are retained
+in the test suite; unknown or malformed persisted versions fail closed before
+authority/effect interpretation. Reads never rewrite old rows or artifact bytes.
+New artifacts use stable schema-v2 identity/provenance metadata and runtime
+events expose stable sequence-derived IDs. Existing recovery, usage/budget,
+HumanGate and workspace-isolation boundaries remain in force. This remains a
+trusted-local application, not authenticated human identity, provider billing
+attestation or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -37,6 +37,24 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.12 contract and migration hardening
+
+Persistence compatibility is now explicit and inspectable. Use
+`orchestrator persistence` or agent-facing `inspect_project` to see readable
+and current write versions for runtime databases and persisted contracts.
+
+Older supported TaskState/IntakeState/HumanGate rows are interpreted without
+rewriting their stored bytes. Unsupported future/unknown versions fail closed
+before they can authorize or resume work. Artifact hashes are verified before
+known evidence migrations are applied in memory. v0.11 recovery artifacts that
+predate an explicit evidence `schema_version` are exposed through a schema-v1
+compatibility view without modifying the immutable artifact.
+
+New artifact metadata is schema v2 and includes a stable artifact ID, owner ID
+and creation timestamp. Runtime event reads expose envelope schema v1 with a
+stable `event_id` derived from the SQLite sequence while preserving the original
+event payload unchanged. See **[Persistence & migration contracts](docs/PERSISTENCE.md)**.
 
 ## v0.11 recovery and durability hardening
 
@@ -239,7 +257,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.10.2
+.venv/bin/orchestrator --version  # 0.12.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -413,10 +431,11 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.11 is complete for its trusted-local alpha scope. The v0.9 provider/model
-control-plane foundation, v0.10 usage/budget policy, and v0.11 conservative
-recovery/durability boundary are now implemented without automatic provider
-fallback or replay of ambiguous effects.
+v0.12 is complete for its trusted-local alpha scope. The v0.9 provider/model
+control-plane foundation, v0.10 usage/budget policy, v0.11 conservative
+recovery/durability boundary, and v0.12 persisted-contract/migration boundary are
+now implemented without automatic provider fallback, ambiguous replay or lossy
+implicit state conversion.
 
 See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
 contracts. AGY native-permission, HumanGate host compatibility and remote
