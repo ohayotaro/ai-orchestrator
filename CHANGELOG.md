@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.12.0 — Contract & Migration hardening
+
+- Add an explicit persisted-contract compatibility registry for TaskState,
+  IntakeState, HumanGate, runtime events, Artifact metadata, usage/budget,
+  provider provenance and recovery evidence.
+- Keep supported historical TaskState v1-v7, IntakeState v1-v4, HumanGate v1 and
+  Artifact v1 data readable without rewriting stored rows or immutable artifact
+  bytes.
+- Fail closed on malformed, non-integer or unknown persisted schema versions and
+  unsupported SQLite user versions before authority/effect interpretation.
+- Retain representative v0.x persistence fixtures and add compatibility
+  regressions for authority defaults, immutable artifacts and recovery evidence.
+- Introduce Artifact metadata schema v2 with stable controller-generated artifact
+  ID, owner ID and creation timestamp while preserving v1 metadata compatibility.
+- Expose runtime events through envelope schema v1 with stable sequence-derived
+  event IDs and unchanged event payload semantics.
+- Version newly written recovery evidence as schema v1 while read-migrating
+  legacy v0.11 unversioned recovery artifacts only in memory after hash
+  verification.
+- Add `orchestrator persistence` and `inspect_project.persistence_compatibility`
+  inspection surfaces, plus explicit upgrade/forward-compatibility/downgrade
+  documentation.
+- Keep runtime SQLite at user_version 2 and HumanGate SQLite at user_version 1;
+  v0.12 does not require an in-place database rewrite.
+
 ## 0.11.0 — Recovery & Durability hardening
 
 - Add durable pre-provider-dispatch root-snapshot checkpoints for guarded and
