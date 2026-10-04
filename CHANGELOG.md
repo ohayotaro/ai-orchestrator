@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.2 — Physical read-only SQLite hardening
+
+- Record the final v0.12.1 read-only closure E2E: legacy usage coverage and
+  installed Skill synchronization passed without provider calls, HumanGates or
+  logical persisted-state changes.
+- Fix unconditional SQLite `PRAGMA user_version` restamping in runtime,
+  HumanGate and jobs stores. Opening an already-current database no longer
+  advances the SQLite file change counter merely to write the same version.
+- Preserve supported database upgrade behavior: older readable databases are
+  still stamped to the current version when an actual migration/open upgrade is
+  required.
+- Add jobs.sqlite3 to the persistence compatibility report and centralize its
+  fail-closed version validation with the other runtime databases.
+- Add regressions that reopen current state/gates/jobs databases and verify their
+  SQLite header change counters remain unchanged.
+- Keep persisted TaskState/IntakeState/HumanGate/artifact contracts and authority
+  semantics unchanged.
+
 ## 0.12.1 — Live migration E2E follow-up
 
 - Record successful in-place v0.12 live E2E over an accumulated v0.x runtime:
