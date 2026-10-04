@@ -13,6 +13,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
+from .capabilities import CAPABILITIES
 from .models import OrchestratorError, Profile, ProviderConfig, identifier
 from .providers import ProviderAdapter, ProviderExecutionError, RunRequest, default_registry
 from .runtime_options import RuntimeOptionsDescriptor
@@ -64,13 +65,31 @@ class LoadedPluginAdapter:
         return getattr(self._adapter, "semantic_capabilities")
 
     def doctor(self, config: ProviderConfig, workspace: Path):
-        return self._adapter.doctor(config, workspace)
+        report = self._adapter.doctor(config, workspace)
+        if not isinstance(report, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in report.items()
+        ):
+            raise OrchestratorError(
+                f"{self.plugin_identity['adapter']}: doctor must return dict[str, str]"
+            )
+        return report
 
     def execute(self, request: RunRequest):
         return self._adapter.execute(request)
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._adapter, name)
+        value = getattr(self._adapter, name)
+        if name == "role_compatibility" and callable(value):
+            def checked(role: str):
+                report = value(role)
+                if not isinstance(report, dict):
+                    raise OrchestratorError(
+                        f"{self.plugin_identity['adapter']}: role_compatibility must return a mapping"
+                    )
+                return report
+            return checked
+        return value
 
 
 def _bounded_identifier_set(value: object, field: str) -> frozenset[str]:
@@ -134,6 +153,11 @@ def assert_provider_adapter_conforms(
     semantic_capabilities = _bounded_identifier_set(
         getattr(adapter, "semantic_capabilities", None), "semantic_capabilities"
     )
+    unknown_semantic = semantic_capabilities - set(CAPABILITIES)
+    if unknown_semantic:
+        raise OrchestratorError(
+            f"{adapter_id}: unknown semantic capabilities: {', '.join(sorted(unknown_semantic))}"
+        )
     if not callable(getattr(adapter, "doctor", None)):
         raise OrchestratorError(f"{adapter_id}: adapter must implement doctor(config, workspace)")
     if not callable(getattr(adapter, "execute", None)):
@@ -314,6 +338,10 @@ def load_provider_registry(
     for adapter_id, pin in sorted(profile.provider_plugins.items()):
         base = {"adapter": adapter_id, "pin": pin.model_dump()}
         if adapter_id in registry:
+            # A configured external pin with a built-in ID is ambiguous
+            # authority. Remove that ID from the effective registry so normal
+            # provider resolution cannot silently continue with the built-in.
+            registry.pop(adapter_id, None)
             diagnostics[adapter_id] = {
                 **base,
                 "ok": False,

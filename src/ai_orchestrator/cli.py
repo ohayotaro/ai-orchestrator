@@ -20,7 +20,7 @@ from .engine import Engine
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
 from .supervisor import Supervisor
 from .validators import register_validator
-from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
+from .models import AgentResult, Artifact, OrchestratorError, Profile, Proposal, ProviderPluginPin, TaskSpec, TaskState, WorkflowArtifactSpec, WorkflowInputSpec, WorkflowNodeSpec, WorkflowSpec
 from .persistence import persistence_compatibility_report
 from .project import atomic_write, digest, initialize, load_yaml
 from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, RuntimeOverride, RuntimeValueDescriptor
@@ -128,7 +128,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("task_id")
     accept.add_argument("--by", required=True)
     schema = commands.add_parser("schema")
-    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution"])
+    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "provider-plugin-pin", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution"])
     schema.add_argument("--output", type=Path)
     proposal = commands.add_parser("propose")
     proposal.add_argument("--kind", choices=["knowledge", "policy", "skill"], required=True)
@@ -181,7 +181,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
     if args.command == "schema":
-        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
+        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "provider-plugin-pin": ProviderPluginPin, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
         schema = model.model_json_schema()
         if args.output:
             atomic_write(args.output, json.dumps(schema, indent=2) + "\n")

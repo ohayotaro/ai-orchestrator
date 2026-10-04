@@ -184,6 +184,50 @@ def test_conformance_rejects_unsupported_sdk_version():
         assert_provider_adapter_conforms("fixture", NonConformingAdapter())
 
 
+def test_builtin_id_collision_removes_ambiguous_adapter_from_active_registry(workspace, monkeypatch):
+    class CodexEntryPoint(FakeEntryPoint):
+        name = "codex"
+        value = "external_fixture.adapter:ExternalCodexAdapter"
+
+    entry_point = CodexEntryPoint()
+    monkeypatch.setattr(
+        "ai_orchestrator.provider_sdk.metadata.distributions",
+        lambda: [FakeDistribution(
+            version="1.2.3",
+            entry_points=[entry_point],
+            metadata={"Name": "Fixture_Provider"},
+        )],
+    )
+    path = workspace / ".orchestrator/config.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["provider_plugins"] = {
+        "codex": {
+            "schema_version": 1,
+            "distribution": "fixture-provider",
+            "version": "1.2.3",
+            "entry_point": entry_point.value,
+        }
+    }
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+    engine = Engine(workspace)
+    try:
+        assert "codex" not in engine.registry
+        engine.trust("operator")
+    finally:
+        engine.close()
+
+    engine = Engine(workspace)
+    try:
+        assert "codex" not in engine.registry
+        report = engine.provider_plugin_report()["configured"]["codex"]
+        assert report["load_status"] == "builtin_collision"
+        with pytest.raises(OrchestratorError, match="adapter is not installed"):
+            engine.capability_resolver.resolve("implementer")
+    finally:
+        engine.close()
+
+
 def test_empty_plugin_support_preserves_legacy_profile_shape_and_fingerprint(workspace):
     path = workspace / ".orchestrator/config.yaml"
     raw = yaml.safe_load(path.read_text())
