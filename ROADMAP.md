@@ -640,12 +640,12 @@ and installed Skill synchronization also remained correct, with no provider,
 HumanGate, job, event or workspace side effects. v0.12 is fully closed; no
 further v0.12 E2E is required before v0.13.
 
-### v0.13 — Provider Adapter / Plugin SDK
+### v0.13 — Provider Adapter / Plugin SDK — implemented
 
-Primary goal: turn the provider extension boundary into a documented,
+Primary goal achieved: the provider extension boundary is now a documented,
 compatibility-tested interface rather than an internal convention.
 
-Planned scope:
+Implemented:
 
 - publish the Provider Adapter core contract and distinguish required lifecycle
   methods from optional runtime-option, usage and compatibility features;
@@ -680,9 +680,13 @@ Trust boundary:
   permissions, write scope, validators, external effects, budget changes or
   project trust. Existing profile/HumanGate/task authority still applies.
 
-Completion target: adding a provider adapter is routine SDK work; incompatible
-or untrusted plugins fail before provider dispatch, and contract failures are
-detected by conformance tests rather than kernel changes.
+Completion boundary: adding a provider adapter is routine SDK work; incompatible
+or untrusted plugins fail before provider dispatch, and structural contract
+failures are detected by conformance tests rather than kernel changes. The
+offline CI matrix covers Python 3.11/3.12/3.13 on Linux plus Python 3.13 on
+macOS, including a non-core entry-point fixture. v0.13 does not claim that
+distribution/version pinning cryptographically attests package bytes or that
+third-party in-process adapter code is sandboxed from the controller.
 
 ### v0.14 — Knowledge Distillation / Project Learning
 
