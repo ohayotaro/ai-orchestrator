@@ -28,14 +28,14 @@ EVENT_SCHEMA_VERSION = 1
 PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
     "task_state": {
         "name": "TaskState",
-        "readable_versions": (1, 2, 3, 4, 5, 6, 7),
-        "write_version": 7,
+        "readable_versions": (1, 2, 3, 4, 5, 6, 7, 8),
+        "write_version": 8,
         "strategy": "read-compatible; never rewrite on read",
     },
     "intake_state": {
         "name": "IntakeState",
-        "readable_versions": (1, 2, 3, 4),
-        "write_version": 4,
+        "readable_versions": (1, 2, 3, 4, 5),
+        "write_version": 5,
         "strategy": "read-compatible; never rewrite on read",
     },
     "human_gate": {

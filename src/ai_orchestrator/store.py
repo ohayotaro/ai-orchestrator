@@ -148,6 +148,12 @@ class Store:
         row = self.db.execute("SELECT cancel_requested FROM tasks WHERE id=?", (task_id,)).fetchone()
         return bool(row and row[0])
 
+    def task_ids(self) -> list[str]:
+        return [row[0] for row in self.db.execute("SELECT id FROM tasks ORDER BY id").fetchall()]
+
+    def intake_ids(self) -> list[str]:
+        return [row[0] for row in self.db.execute("SELECT id FROM intakes ORDER BY id").fetchall()]
+
     def active_intake_ids(self) -> list[str]:
         rows = self.db.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
         active: list[str] = []
