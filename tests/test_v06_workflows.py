@@ -176,7 +176,7 @@ def test_write_workflow_requires_validator_reviewer_and_independence():
 def test_new_tasks_bind_builtin_workflow_and_preserve_behavior(engine):
     controller, reasoning, engineering = engine
     state = controller.create(spec())
-    assert state.schema_version == 7
+    assert state.schema_version == 8
     assert state.workflow_id == "build-review"
     assert state.workflow_order == ["plan", "implement", "validate", "review"]
     assert state.workflow_nodes["plan"].status == "pending"

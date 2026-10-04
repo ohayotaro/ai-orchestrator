@@ -71,7 +71,7 @@ def test_dynamic_priority_and_cross_family_review_are_deterministic(workspace):
         engine.create(spec())
         state = engine.run("task-1")
         assert state.status == "awaiting_approval", state.error
-        assert state.schema_version == 7
+        assert state.schema_version == 8
         assert state.provider_resolutions["implementer"]["provider"] == "engineering"
         assert state.provider_resolutions["implementer"]["source"] == "priority"
         assert state.provider_resolutions["reviewer"]["provider"] == "reasoning"
