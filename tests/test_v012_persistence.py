@@ -11,7 +11,7 @@ import pytest
 
 from ai_orchestrator.contracts import IntakeState
 from ai_orchestrator.human_gates import HumanGate
-from ai_orchestrator.models import Artifact, OrchestratorError, TaskState
+from ai_orchestrator.models import Artifact, OrchestratorError, TaskSpec, TaskState
 from ai_orchestrator.persistence import (
     HUMAN_GATE_DB_READABLE_VERSIONS,
     PERSISTED_CONTRACT_RULES,
@@ -134,7 +134,16 @@ def test_store_rejects_unknown_task_version_without_rewriting(engine):
 
 def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
     controller, _reasoning, _engineering = engine
-    raw = retained()["task_states"][3]
+    task = TaskSpec(
+        id="fixture-approval-scope",
+        goal="prove legacy artifact scope stability",
+        acceptance=["scope is unchanged"],
+        risk="T0",
+    )
+    state = controller.create(task)
+    # Exercise the oldest Workflow Schema state version whose approval scope
+    # binds Artifact metadata.
+    state.schema_version = 4
 
     # approval_scope verifies artifact bytes first, so retain an actual v1
     # artifact on disk rather than weakening the production verifier in this
@@ -150,9 +159,6 @@ def test_legacy_artifact_wire_shape_and_approval_scope_are_stable(engine):
     legacy_artifact = Artifact.model_validate(legacy_raw)
     assert legacy_artifact.model_dump() == legacy_raw
 
-    state = decode_versioned_model_json(
-        json.dumps(raw), rule_key="task_state", model=TaskState
-    )
     state.artifacts = [legacy_artifact]
     before = controller.approval_scope(state)
 
