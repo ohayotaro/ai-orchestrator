@@ -531,3 +531,33 @@ rest of the application. SQLite WAL durability and event checkpoints are not an
 exactly-once protocol with remote model providers, validators, or the filesystem.
 See `RECOVERY.md` for the full marker/classification matrix.
 
+
+
+## v0.13 provider plugin trust boundary
+
+Third-party provider adapters are in-process Python code. Once loaded they share
+the controller's OS user and Python process and are part of the trusted
+computing base. Workspace isolation and provider-native sandboxes constrain the
+provider worker invocation; they do not confine the adapter implementation
+itself.
+
+Package installation is not authorization. The controller inspects
+`ai_orchestrator.providers` entry-point metadata without importing it, and only
+loads external code for an exact project profile pin (adapter ID, distribution,
+version and entry-point target) after that exact profile digest is explicitly
+trusted. Missing/mismatched pins, built-in ID collisions, unsupported contract
+versions and conformance/load failures remove the adapter from the effective
+registry and fail provider resolution closed.
+
+The pin is provenance and operator intent, not a cryptographic software-supply-
+chain guarantee. A hostile same-user process can still replace installed code or
+controller state, which is already outside the trusted-local threat model.
+Operators should install only trusted provider packages and use ordinary package
+verification/signing practices appropriate to their environment.
+
+External adapter diagnostics must remain bounded and content-free when persisted.
+`ProviderExecutionError` may carry sanitized identifiers/counters/categories,
+but plugins must not place prompts, credentials, provider response bodies,
+commands, arguments or arbitrary stderr in durable diagnostics. The SDK
+conformance helper checks structural adapter contracts; it is not a security
+audit of third-party code.
