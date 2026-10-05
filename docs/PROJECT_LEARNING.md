@@ -176,3 +176,43 @@ promotion writes active context.
 v0.14 performs semantic consolidation (dedupe, supersession, contradiction
 exclusion). It does not delete historical artifacts/tasks/events. Physical
 retention, backup/restore and garbage collection remain v0.15 scope.
+
+
+## Live closure evidence (v0.14 / v0.14.1)
+
+The owner-reported live closure ran Project Learning over an accumulated
+calculator project.
+
+- 45 historical tasks / 1592 events deterministically produced 12 inactive
+  candidates.
+- Re-running distillation with unchanged evidence produced no new files and
+  retained the exact same 12 IDs.
+- v0.14.0 live inspection exposed a missing `digest` import in the non-empty
+  MCP list/get paths. v0.14.1 fixed it and added `evidence_coverage`; live
+  list/get then passed.
+- `P-L72e7ee2ae69d` (`validator-history:pytest`) was promoted with six
+  complete retained typed refs. Promotion created accepted Markdown, changed the
+  profile digest and automatically made the project untrusted.
+- After explicit trust, both the baseline policy and promoted learning were
+  selected into a live IntakeState v5 and TaskState v8 ContextInfluence.
+- Task `v014-p2c-increment` completed Start / Execution / Acceptance,
+  isolated two-file integration, **46 passing pytest tests**, independent review
+  and final `succeeded`.
+- Acceptance automatically generated materially new candidate identities and
+  supersession relations; none became authority automatically.
+- Cleanup removed only the promoted accepted authority, restored the original
+  candidate bytes/profile digest and retained the new task/evidence/candidates.
+  The restored old digest was untrusted until the operator explicitly trusted it
+  again.
+- Final state: original trusted authority, no accepted Project Learning
+  Markdown, 24 inactive candidates, successful task evidence retained, and the
+  completed task's historical ContextInfluence still recording the learning
+  that influenced it at execution time.
+
+The resulting live invariants are:
+
+`learning accumulates; authority does not`
+
+and:
+
+`historical influence provenance is durable even when current accepted context changes`.
