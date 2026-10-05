@@ -61,6 +61,10 @@ still affects the stable candidate identity and is preserved as
 `evidence_count` / `independent_task_count`. This prevents candidate and
 promoted Markdown from growing without bound while ensuring materially new
 evidence changes identity. Promotion verifies every retained typed reference.
+Because historical Artifact v1 metadata has no stable artifact ID, a support
+count can exceed the retained typed validation/review artifact refs; the
+read-only MCP inspection surfaces report this explicitly rather than implying
+complete typed coverage.
 
 Repeated identical evidence produces the same candidate identity. Rejecting that
 candidate suppresses it on later identical distillation. Materially new evidence
@@ -151,6 +155,9 @@ Agents may use read-only:
 - `list_learning_candidates` (bounded to 200 summaries per response, with
   `total` / `truncated` metadata);
 - `get_learning_candidate`;
+- both candidate inspection responses include derived `evidence_coverage`
+  metadata that distinguishes full recurrence counts from retained bounded
+  evidence/task-ID samples and reports retained validation/review artifact refs;
 - `preview_learning_context`;
 - `get_task` / `get_artifact(kind=context_influence)`.
 

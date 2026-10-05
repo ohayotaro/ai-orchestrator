@@ -8,6 +8,7 @@ from ai_orchestrator import knowledge, learning
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.models import OrchestratorError, TaskSpec, TaskState
 from ai_orchestrator.project import Project, digest
+from ai_orchestrator.service import ApplicationService
 
 
 class LocalAdapter:
@@ -445,3 +446,27 @@ def test_malformed_accepted_learning_metadata_fails_closed(workspace):
     _, _, universe = project.load()
     with pytest.raises(OrchestratorError, match="accepted learning metadata is malformed"):
         learning.select_context(universe, "broken")
+
+
+def test_mcp_learning_list_and_get_work_with_nonempty_candidates_and_explain_coverage(engine):
+    instance, _, _ = engine
+    for index in range(12):
+        _task(instance, f"mcp-learning-{index:02d}", path="mcp-learning.py")
+    learning.distill(instance.project.root, instance.store)
+    candidate = _candidate(instance.project, "validated-path:mcp-learning.py")
+
+    service = ApplicationService(instance.project.root)
+    listed = service.invoke("list_learning_candidates", {})
+    assert listed["total"] > 0
+    row = next(item for item in listed["candidates"] if item["id"] == candidate.id)
+    assert row["scope"] == digest(candidate.model_dump())
+    assert row["evidence_coverage"]["retained_evidence_refs"] == len(candidate.evidence_refs)
+    assert row["evidence_coverage"]["total_evidence_refs"] == candidate.support.evidence_count
+    assert row["evidence_coverage"]["evidence_refs_truncated"] is True
+    assert row["evidence_coverage"]["total_task_ids"] == 12
+
+    detail = service.invoke("get_learning_candidate", {"proposal_id": candidate.id})
+    assert detail["id"] == candidate.id
+    assert detail["scope"] == digest(candidate.model_dump())
+    assert detail["evidence_coverage"] == row["evidence_coverage"]
+    assert detail["authority"].startswith("read-only candidate")
