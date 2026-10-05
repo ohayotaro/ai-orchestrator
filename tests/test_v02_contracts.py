@@ -17,7 +17,7 @@ from conftest import approve_and_run, spec
 def test_new_tasks_use_explicit_v2_role_contracts(engine):
     controller, reasoning, engineering = engine
     state = controller.create(spec())
-    assert state.schema_version == 7
+    assert state.schema_version == 8
     state = approve_and_run(controller)
     assert state.status == "awaiting_acceptance"
     assert reasoning.requests[0].result_model is PlanResult

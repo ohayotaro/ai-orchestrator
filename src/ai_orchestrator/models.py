@@ -503,11 +503,87 @@ class ProviderPermissionGrant(Contract):
         return normalized
 
 
+class EvidenceRef(Contract):
+    schema_version: Literal[1] = 1
+    source: Literal["task", "intake", "artifact", "event"]
+    id: str
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    owner_id: str | None = None
+    kind: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def valid_evidence_id(cls, value: str) -> str:
+        return identifier(value)
+
+    @field_validator("owner_id")
+    @classmethod
+    def valid_owner_id(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
+
+    @field_validator("kind")
+    @classmethod
+    def valid_evidence_kind(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value.strip() or len(value) > 256
+            or any(ord(char) < 32 or ord(char) == 127 for char in value)
+        ):
+            raise ValueError("evidence kind must be bounded printable text")
+        return value
+
+
+class LearningSupport(Contract):
+    schema_version: Literal[1] = 1
+    independent_task_ids: list[str] = Field(default_factory=list, max_length=32)
+    independent_task_count: int = Field(ge=1, le=10000, strict=True)
+    evidence_count: int = Field(ge=1, le=10000, strict=True)
+    corroborating_validations: int = Field(default=0, ge=0, le=10000, strict=True)
+    corroborating_reviews: int = Field(default=0, ge=0, le=10000, strict=True)
+    contradiction_count: int = Field(default=0, ge=0, le=10000, strict=True)
+
+    @field_validator("independent_task_ids")
+    @classmethod
+    def valid_task_ids(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if normalized != sorted(set(normalized)):
+            raise ValueError("learning support task IDs must be sorted and unique")
+        return normalized
+
+
+class LearningProvenance(Contract):
+    schema_version: Literal[1] = 1
+    algorithm: Literal["project-learning-v1"] = "project-learning-v1"
+    canonical_key: str = Field(min_length=1, max_length=1000)
+    polarity: Literal["positive", "negative", "neutral"] = "neutral"
+    evidence_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ContextInfluenceEntry(Contract):
+    schema_version: Literal[1] = 1
+    path: str = Field(min_length=1, max_length=1000)
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    bytes: int = Field(ge=0, le=1048576, strict=True)
+    kind: Literal["policy", "skill", "knowledge"]
+    score: int = Field(ge=0, le=1000000, strict=True)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=32)
+
+
+class ContextInfluence(Contract):
+    schema_version: Literal[1] = 1
+    selector_version: Literal[1] = 1
+    query_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    budget_bytes: int = Field(ge=1024, le=65536, strict=True)
+    selected_bytes: int = Field(ge=0, le=65536, strict=True)
+    universe_items: int = Field(ge=0, le=10000, strict=True)
+    excluded_items: int = Field(ge=0, le=10000, strict=True)
+    entries: list[ContextInfluenceEntry] = Field(default_factory=list)
+
+
 class TaskState(Contract):
     # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows,
-    # v6 freezes provider-local model/effort/runtime-option provenance, and v7
-    # binds usage/budget evidence.
-    schema_version: Literal[1, 2, 3, 4, 5, 6, 7] = 1
+    # v6 freezes provider-local model/effort/runtime-option provenance, v7
+    # binds usage/budget evidence, and v8 freezes selected project-context influence.
+    schema_version: Literal[1, 2, 3, 4, 5, 6, 7, 8] = 1
     intake_id: str | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
@@ -528,6 +604,7 @@ class TaskState(Contract):
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
     profile_digest: str
+    context_influence: ContextInfluence | None = None
     status: Literal["ready", "running", "awaiting_approval", "awaiting_acceptance", "succeeded", "blocked", "failed", "cancelled", "abandoned"] = "ready"
     phase: Literal["plan", "execute", "validate", "review", "accept"] = "plan"
     attempt: int = 0
@@ -540,15 +617,56 @@ class TaskState(Contract):
 
 
 class Proposal(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     id: str
-    kind: Literal["knowledge", "policy", "skill"]
+    kind: Literal["knowledge", "policy", "skill", "workflow"]
     statement: str = Field(min_length=1, max_length=20000)
     evidence: list[str] = Field(min_length=1)
     status: Literal["candidate", "approved", "rejected"] = "candidate"
     approved_by: str | None = None
+    statement_type: Literal["observation", "recommendation"] = "observation"
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=32)
+    support: LearningSupport | None = None
+    provenance: LearningProvenance | None = None
+    canonical_key: str | None = Field(default=None, min_length=1, max_length=1000)
+    supersedes: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+    revised_from: str | None = None
+    rejected_by: str | None = None
+    rejection_reason: str | None = Field(default=None, max_length=4000)
 
     @field_validator("id")
     @classmethod
     def valid_id(cls, value: str) -> str:
         return identifier(value)
+
+    @field_validator("supersedes", "contradictions")
+    @classmethod
+    def valid_proposal_ids(cls, values: list[str]) -> list[str]:
+        normalized = [identifier(value) for value in values]
+        if normalized != sorted(set(normalized)):
+            raise ValueError("proposal relationship IDs must be sorted and unique")
+        return normalized
+
+    @field_validator("revised_from")
+    @classmethod
+    def valid_revised_from(cls, value: str | None) -> str | None:
+        return identifier(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def coherent_learning_contract(self) -> "Proposal":
+        if self.schema_version == 1:
+            if self.kind == "workflow":
+                raise ValueError("Proposal schema v1 does not support workflow candidates")
+            # Preserve the historical v1 contract exactly: rejected candidates
+            # may predate rejected_by/rejection_reason and remain readable.
+            return self
+        if not self.evidence_refs or self.support is None or self.provenance is None or self.canonical_key is None:
+            raise ValueError("Proposal schema v2 requires typed evidence, support, provenance and canonical_key")
+        if self.canonical_key != self.provenance.canonical_key:
+            raise ValueError("proposal canonical_key must match learning provenance")
+        if self.status == "approved" and not self.approved_by:
+            raise ValueError("approved proposal requires approved_by")
+        if self.status == "rejected" and not self.rejected_by:
+            raise ValueError("rejected proposal requires rejected_by")
+        return self

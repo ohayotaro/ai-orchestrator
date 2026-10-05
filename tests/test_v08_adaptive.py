@@ -132,7 +132,7 @@ def test_supervisor_can_author_task_scoped_workflow_without_profile_mutation(wor
         intake = supervisor.ask("Split this task using the structure that best fits", task_id="adaptive-task")
 
         assert intake.status == "proposed", intake.error
-        assert intake.schema_version == 4
+        assert intake.schema_version == 5
         assert intake.workflow_source == "supervisor_proposed"
         assert intake.workflow_ref == "adaptive-flow"
         assert intake.workflow_spec is not None
@@ -153,7 +153,7 @@ def test_supervisor_can_author_task_scoped_workflow_without_profile_mutation(wor
             broker.close()
 
         state = supervisor.start(intake.id, supervisor.scope(intake), "operator")
-        assert state.schema_version == 7
+        assert state.schema_version == 8
         assert state.workflow_selection_source == "supervisor_proposed"
         assert state.workflow_spec == intake.workflow_spec
 

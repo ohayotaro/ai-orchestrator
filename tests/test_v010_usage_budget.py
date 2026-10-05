@@ -302,7 +302,7 @@ def test_workflow_records_usage_and_budget_artifacts(workspace):
     try:
         engine.trust("operator")
         state = engine.create(spec("usage-flow"))
-        assert state.schema_version == 7
+        assert state.schema_version == 8
 
         state = engine.run(state.spec.id)
         assert state.status == "awaiting_approval", state.error

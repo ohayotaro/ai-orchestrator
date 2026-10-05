@@ -72,7 +72,7 @@ def test_retained_intake_and_gate_versions_remain_readable():
             TaskState,
             {
                 **retained()["task_states"][-1],
-                "schema_version": 8,
+                "schema_version": 9,
             },
         ),
         (
@@ -80,7 +80,7 @@ def test_retained_intake_and_gate_versions_remain_readable():
             IntakeState,
             {
                 **retained()["intake_states"][-1],
-                "schema_version": 5,
+                "schema_version": 6,
             },
         ),
         (
@@ -270,7 +270,7 @@ def test_cli_persistence_report(workspace, capsys):
 
     assert main(["--project", str(workspace), "persistence"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["contracts"]["task_state"]["write_version"] == 7
+    assert report["contracts"]["task_state"]["write_version"] == 8
     assert report["contracts"]["artifact"]["write_version"] == 2
 
 
@@ -283,7 +283,10 @@ def test_persistence_report_is_explicit_and_complete():
         "readable_versions": [0, 1],
         "write_version": 1,
     }
-    assert report["contracts"]["task_state"]["readable_versions"] == list(range(1, 8))
+    assert report["contracts"]["task_state"]["readable_versions"] == list(range(1, 9))
     assert report["contracts"]["artifact"]["write_version"] == 2
+    assert report["contracts"]["project_learning_candidate"]["readable_versions"] == [1, 2]
+    assert report["contracts"]["project_learning_candidate"]["write_version"] == 2
+    assert report["contracts"]["context_influence"]["write_version"] == 1
     assert report["contracts"]["recovery_evidence"]["readable_versions"] == [0, 1]
     assert set(PERSISTED_CONTRACT_RULES) <= set(report["contracts"])

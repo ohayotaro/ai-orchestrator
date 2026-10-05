@@ -32,14 +32,16 @@ while refusing to guess when a future or malformed version is encountered.
 | Runtime SQLite `state.sqlite3` | user_version 0, 1, 2 | 2 | versions outside this set fail closed |
 | HumanGate SQLite `gates.sqlite3` | user_version 0, 1 | 1 | terminal gate history is never replayed |
 | Jobs SQLite `jobs.sqlite3` | user_version 0, 1 | 1 | current-version read/open does not restamp the header |
-| TaskState | 1-7 | 7 | older authority fields remain absent/default; no row rewrite |
-| IntakeState | 1-4 | 4 | older Supervisor/runtime/usage fields remain absent |
+| TaskState | 1-8 | 8 | v8 adds frozen Project Learning context influence; older rows are not rewritten |
+| IntakeState | 1-5 | 5 | v5 adds intake context influence; older rows remain unchanged |
 | HumanGate | 1 | 1 | unknown gate schema cannot be applied |
 | Artifact metadata | 1-2 | 2 | v2 adds stable `id`, `owner_id`, and `created_at` |
 | Runtime event envelope | 1 | 1 | SQLite sequence yields stable `event_id`; payload stays unchanged |
 | Usage evidence | 1 | 1 | missing telemetry remains unknown/unsupported |
 | Budget evidence | 1 | 1 | no policy or limit is inferred during migration |
 | Provider provenance | 1 | 1 | append-only, content-free dispatch evidence |
+| Project Learning candidate | 1-2 | 2 | v1 manual proposals remain readable; v2 adds typed evidence/support/provenance |
+| Context influence | 1 | 1 | frozen selected-context provenance; unknown versions fail closed |
 | Recovery evidence | legacy unversioned v0, 1 | 1 | v0.11 recovery JSON is exposed as v1 in memory only |
 
 Workflow runtime state remains embedded in TaskState and continues to bind
@@ -91,10 +93,12 @@ Before upgrading, stop active controllers/workers and back up the complete
 `.orchestrator/runtime/` directory. Upgrade the checkout/package, run the
 offline suite, then inspect existing tasks/intakes/gates before resuming work.
 
-v0.12 does not automatically rewrite TaskState v1-v7, IntakeState v1-v4,
-HumanGate v1, runtime events or legacy Artifact v1 metadata. Existing v0.11
-recovery artifacts are hash-verified first and then presented through an
-in-memory schema-v1 compatibility view.
+v0.14 does not automatically rewrite TaskState v1-v7, IntakeState v1-v4,
+HumanGate v1, runtime events or legacy Artifact v1 metadata. New v0.14 work
+writes TaskState v8 / IntakeState v5 with deterministic Project Learning
+`context_influence`; older state is never rewritten to manufacture that
+provenance. Existing v0.11 recovery artifacts are hash-verified first and then
+presented through an in-memory schema-v1 compatibility view.
 
 If v0.12 reports an unsupported version, do not edit the version number by hand.
 Use the software version that created the state, or add an explicit reviewed

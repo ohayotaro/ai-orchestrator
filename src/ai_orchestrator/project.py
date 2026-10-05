@@ -16,7 +16,12 @@ import yaml
 from .models import OrchestratorError, Profile
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
+# Provider prompts remain bounded at 64 KiB, while v0.14 separates the accepted
+# project-context universe from the task/intake-specific subset injected into a
+# prompt. Each active Markdown item is still individually bounded by read_text.
 MAX_CONTEXT_BYTES = 64 * 1024
+MAX_CONTEXT_UNIVERSE_BYTES = 4 * 1024 * 1024
+MAX_CONTEXT_ITEMS = 2048
 
 
 def encode(value: Any) -> str:
@@ -175,8 +180,14 @@ class Project:
                     if path.suffix != ".md":
                         raise OrchestratorError(f"active context must be Markdown: {relative}")
                     context[relative] = read_text(path)
-        if len(encode(context).encode()) > MAX_CONTEXT_BYTES:
-            raise OrchestratorError("active project context exceeds 64 KiB; curate it before running")
+                    if len(context) > MAX_CONTEXT_ITEMS:
+                        raise OrchestratorError(
+                            f"accepted project context exceeds {MAX_CONTEXT_ITEMS} items; consolidate it before running"
+                        )
+        if len(encode(context).encode()) > MAX_CONTEXT_UNIVERSE_BYTES:
+            raise OrchestratorError(
+                "accepted project context exceeds 4 MiB; consolidate historical context before running"
+            )
         return profile, self.fingerprint(profile, context), context
 
     @contextlib.contextmanager

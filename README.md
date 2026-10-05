@@ -1,16 +1,18 @@
 # AI Orchestrator
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.13.0 alpha** publishes the Provider Adapter / Plugin SDK. Third-party
-provider adapters can be discovered through a versioned entry-point contract,
-but installation alone is inert: external code is imported only for an exact
-project-owned package/version/entry-point pin after that profile digest has been
-explicitly trusted. SDK/API conformance is checked fail-closed, plugin identity
-is frozen into provider resolution and dispatch provenance, and built-in
-HumanGate, workspace, validation, budget and recovery controls remain kernel
-contracts. In-process plugins are trusted controller code, not sandboxed worker
-extensions. This remains a trusted-local application, not authenticated human
-identity, provider billing attestation or a general OS-isolated control plane.
+**v0.14.0 alpha** adds governed Project Learning. Controller-owned historical
+evidence can deterministically produce typed, inspectable learning candidates;
+those candidates are observations/recommendations only and never become project
+authority by themselves. Operators may explicitly reject, revise or promote an
+exact candidate, and schema-v2 promotion re-verifies its evidence before writing
+accepted context. Future intakes/tasks then use a deterministic bounded subset
+of accepted project knowledge/policies/skills and retain a `context_influence`
+manifest describing exactly what entered the prompt. Provider selection,
+permissions, validators, effects, write scope, runtime/budget policy, workflow
+installation and project trust remain separate authority contracts. This remains
+a trusted-local application, not authenticated human identity, provider billing
+attestation or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -36,6 +38,38 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.14 Knowledge Distillation / Project Learning
+
+v0.14 separates three states that must not be conflated:
+
+```text
+controller-owned historical evidence
+  -> non-authoritative candidate
+  -> explicit operator promotion + profile re-trust
+  -> accepted project context
+  -> deterministic bounded selection for one intake/task
+```
+
+Project Learning consumes hash-verifiable task/artifact/event evidence including
+validation/review/recovery, provider provenance and usage/budget records.
+Candidates carry stable provenance, support counts, typed evidence references,
+supersession and contradiction metadata. Re-running distillation with identical
+evidence is idempotent; an exactly rejected candidate stays suppressed until
+materially new evidence changes the candidate identity.
+
+Accepted Markdown remains project authority and therefore changes the profile
+digest. v0.14 does not inject the whole accepted universe into every prompt:
+new intakes/tasks persist a `ContextInfluence` manifest and pass only a
+deterministically selected bounded subset. Superseded or contradictory accepted
+learning remains inspectable but is not silently injected.
+
+Use `orchestrator learning report`, `learning distill`, and
+`learning context --query ...` for operator inspection. Agent-facing MCP
+surfaces are read-only for candidate/context inspection; promotion/rejection/
+revision and trust remain operator actions.
+
+See **[Project Learning](docs/PROJECT_LEARNING.md)**.
 
 ## v0.13 Provider Adapter / Plugin SDK
 
@@ -465,11 +499,12 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.12 is complete for its trusted-local alpha scope. The v0.9 provider/model
-control-plane foundation, v0.10 usage/budget policy, v0.11 conservative
-recovery/durability boundary, and v0.12 persisted-contract/migration boundary are
-now implemented without automatic provider fallback, ambiguous replay or lossy
-implicit state conversion.
+v0.14 is complete for its offline trusted-local alpha scope. The v0.9
+provider/model control-plane foundation, v0.10 usage/budget policy, v0.11
+conservative recovery/durability boundary, v0.12 persisted-contract/migration
+boundary, v0.13 Provider SDK boundary, and v0.14 governed Project Learning loop
+are implemented without automatic provider fallback, ambiguous replay, lossy
+implicit state conversion or hidden learning authority.
 
 See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
 contracts. AGY native-permission, HumanGate host compatibility and remote

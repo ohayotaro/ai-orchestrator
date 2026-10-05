@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
-from .models import AgentResult, Artifact, Contract, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
+from .models import AgentResult, Artifact, ContextInfluence, Contract, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
 from .runtime_options import RuntimeOverride
 
 
@@ -131,7 +131,7 @@ class SupervisorResult(Contract):
 
 
 class IntakeState(Contract):
-    schema_version: Literal[1, 2, 3, 4] = 1
+    schema_version: Literal[1, 2, 3, 4, 5] = 1
     id: str
     task_id: str
     profile_digest: str
@@ -155,6 +155,7 @@ class IntakeState(Contract):
     # intake work instead of restarting at task registration.
     usage_evidence: dict[str, object] | None = None
     budget_status: dict[str, object] | None = None
+    context_influence: ContextInfluence | None = None
     requested_workflow_ref: str | None = None
     workflow_ref: str | None = None
     workflow_spec: WorkflowSpec | None = None
