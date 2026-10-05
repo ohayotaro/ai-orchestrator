@@ -461,7 +461,10 @@ def _maintenance_log_report(project: Project) -> dict[str, Any]:
                         raise ValueError("unsupported maintenance event schema")
                     if item.get("action") not in ("restore", "cleanup"):
                         raise ValueError("unsupported maintenance action")
-                    _maintenance_actor(str(item.get("actor", "")))
+                    actor = item.get("actor")
+                    if not isinstance(actor, str):
+                        raise ValueError("maintenance actor must be text")
+                    _maintenance_actor(actor)
                     if not _is_sha256(item.get("scope")):
                         raise ValueError("maintenance scope is invalid")
                     event_id = item.get("id")
