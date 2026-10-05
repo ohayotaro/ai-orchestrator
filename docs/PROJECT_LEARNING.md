@@ -52,8 +52,15 @@ Candidates are JSON under
 - independent task IDs and evidence count;
 - validation/review corroboration counts;
 - contradiction count;
-- typed evidence references;
+- a bounded deterministic sample of typed evidence references;
 - supersession and contradiction relationships.
+
+For long-lived projects, Proposal v2 retains at most 32 typed evidence
+references and 32 example task IDs in the candidate payload. The full recurrence
+still affects the stable candidate identity and is preserved as
+`evidence_count` / `independent_task_count`. This prevents candidate and
+promoted Markdown from growing without bound while ensuring materially new
+evidence changes identity. Promotion verifies every retained typed reference.
 
 Repeated identical evidence produces the same candidate identity. Rejecting that
 candidate suppresses it on later identical distillation. Materially new evidence

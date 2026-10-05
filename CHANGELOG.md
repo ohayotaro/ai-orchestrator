@@ -13,7 +13,8 @@
   continues to require the existing explicit `workflow-save` authority path.
 - Add stable candidate IDs, exact-evidence suppression for rejected candidates,
   material-new-evidence regeneration, supersession links and contradiction
-  detection.
+  detection. Bound retained typed evidence/task-ID samples while preserving full
+  support counts and identity changes for long-lived projects.
 - Add operator-only candidate rejection/revision commands and preserve explicit
   digest-scoped promotion. Schema-v2 promotion re-resolves and hash-verifies all
   typed controller evidence before writing accepted context.
