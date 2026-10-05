@@ -66,7 +66,9 @@ orchestrator backup inspect full.zip
 
 restore は、検証済み archive の exact scope、`--replace`、quiescent な
 project を要求します。full restore では authority を復元し得るため、
-さらに `--ack-authority-restore` が必要です。
+さらに `--ack-authority-restore` が必要です。current controller/authority
+state が読めない場合、それを verified backup で置換するには
+`--ack-unreadable-current-state` も必要です。
 
 physical cleanup も preview-first です。
 
@@ -78,9 +80,10 @@ orchestrator --project "$PROJECT" cleanup \
 
 cleanup は TaskState / IntakeState / runtime event / HumanGate history、
 TaskState が参照する artifact、accepted/candidate Project Learning が参照する
-evidence を保持します。初期 v0.15 で削除対象になるのは、古い stale
-disposable worktree、terminal job/job-event、参照されていない古い runtime
-JSON に限定されます。
+型付き evidence を保持します。初期 v0.15 で削除対象になるのは、古い stale
+disposable worktree、terminal job/job-event、参照されていない古い
+Artifact-v2-shaped runtime JSON に限定されます。legacy/untyped evidence は
+推測で削除せず保守的に保持します。
 
 成功した restore / cleanup は
 `.orchestrator/runtime/maintenance.jsonl` に provenance を残します。
