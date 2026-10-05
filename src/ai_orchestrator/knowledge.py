@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from .models import OrchestratorError, Proposal, identifier
+from .persistence import decode_versioned_model_json
 from .project import MAX_CONTEXT_BYTES, Project, atomic_write, confined, digest, read_text
 from .store import Store
 
@@ -27,7 +28,11 @@ def load_proposal(root: Path, proposal_id: str) -> Proposal:
     identifier(proposal_id)
     project = Project(root)
     path = confined(project.root, f".orchestrator/knowledge/candidates/{proposal_id}.json")
-    return Proposal.model_validate_json(read_text(path, limit=1024 * 1024))
+    return decode_versioned_model_json(
+        read_text(path, limit=1024 * 1024),
+        rule_key="project_learning_candidate",
+        model=Proposal,
+    )
 
 
 def _scope(proposal: Proposal) -> str:

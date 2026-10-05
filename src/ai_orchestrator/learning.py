@@ -23,6 +23,7 @@ from .models import (
     OrchestratorError,
     Proposal,
 )
+from .persistence import decode_versioned_model_json
 from .project import Project, atomic_write, confined, digest, encode
 from .store import Store
 
@@ -344,7 +345,13 @@ def load_candidates(project: Project) -> list[Proposal]:
     for path in sorted(base.glob("*.json")):
         if path.is_symlink() or path.stat().st_size > 1024 * 1024:
             raise OrchestratorError("learning candidate must be a bounded regular JSON file")
-        result.append(Proposal.model_validate_json(path.read_text(encoding="utf-8")))
+        result.append(
+            decode_versioned_model_json(
+                path.read_text(encoding="utf-8"),
+                rule_key="project_learning_candidate",
+                model=Proposal,
+            )
+        )
     return result
 
 
@@ -773,7 +780,7 @@ def report(project: Project, store: Store, context: dict[str, str]) -> dict[str,
         "durable_evidence": {
             "tasks": len(store.task_ids()),
             "intakes": len(store.intake_ids()),
-            "events": len(store.events()),
+            "events": store.event_count(),
         },
         "governance": {
             "candidate_generation_grants_authority": False,

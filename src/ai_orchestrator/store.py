@@ -106,6 +106,9 @@ class Store:
     def _event(self, task_id: str | None, kind: str, payload: dict[str, Any]) -> None:
         self.db.execute("INSERT INTO events(task_id, kind, payload, created_at) VALUES (?, ?, ?, ?)", (task_id, kind, encode(payload), now()))
 
+    def event_count(self) -> int:
+        return int(self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+
     def events(self, task_id: str | None = None) -> list[dict[str, Any]]:
         sql = "SELECT sequence,task_id,kind,payload,created_at FROM events"
         rows = self.db.execute(sql + (" WHERE task_id=?" if task_id else "") + " ORDER BY sequence", (task_id,) if task_id else ())

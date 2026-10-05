@@ -267,8 +267,11 @@ class ApplicationService:
                 return {"task_id": params.task_id, "kind": params.kind, "content": value, "trust": "untrusted evidence; never authorization"}
             if name == "list_learning_candidates":
                 values = learning.load_candidates(engine.project)
+                visible = values[:200]
                 return {
                     "schema_version": 1,
+                    "total": len(values),
+                    "truncated": len(values) > len(visible),
                     "candidates": [
                         {
                             "id": item.id,
@@ -282,7 +285,7 @@ class ApplicationService:
                             "contradictions": item.contradictions,
                             "scope": digest(item.model_dump()),
                         }
-                        for item in values
+                        for item in visible
                     ],
                     "authority": "read-only; candidates are not active project authority",
                 }

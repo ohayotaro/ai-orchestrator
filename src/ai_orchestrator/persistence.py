@@ -74,6 +74,18 @@ PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
         "write_version": 1,
         "strategy": "content-free dispatch provenance is append-only evidence",
     },
+    "project_learning_candidate": {
+        "name": "ProjectLearningCandidate",
+        "readable_versions": (1, 2),
+        "write_version": 2,
+        "strategy": "v1 manual proposals remain readable; v2 adds typed evidence/support/provenance",
+    },
+    "context_influence": {
+        "name": "ContextInfluence",
+        "readable_versions": (1,),
+        "write_version": 1,
+        "strategy": "frozen selected-context provenance; unknown selector contracts fail closed",
+    },
     "recovery_evidence": {
         "name": "RecoveryEvidence",
         "readable_versions": (0, 1),
@@ -89,6 +101,7 @@ EVIDENCE_RULES = {
     "usage": "usage_evidence",
     "budget": "budget_evidence",
     "provider_provenance": "provider_provenance",
+    "context_influence": "context_influence",
     "recovery": "recovery_evidence",
 }
 
