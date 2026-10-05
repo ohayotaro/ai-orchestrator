@@ -1,8 +1,8 @@
 # AI Orchestrator Roadmap
 
-This document describes the implemented path through the completed v0.14
-Knowledge Distillation / Project Learning milestone and the remaining path
-toward stable v1.0 contracts. Version numbers describe sequencing and design boundaries, not
+This document describes the implemented path through the completed v0.15
+Operational Hardening milestone and the remaining path toward stable v1.0
+contracts. Version numbers describe sequencing and design boundaries, not
 promised release dates. Live E2E evidence, security findings and implementation
 experience may change the details or order.
 
@@ -578,8 +578,8 @@ effect replay, distributed transactions, or general rollback.
 ## Provisional roadmap to v1.0
 
 The milestones below are a **provisional sequencing plan**, not a frozen release
-contract. v0.15 is the next intended milestone; the exact boundaries of
-v0.15-v0.17 may be adjusted when implementation, compatibility testing or live
+contract. v0.16 is the next intended milestone; the exact boundaries of
+v0.16-v0.17 may be adjusted when implementation, compatibility testing or live
 host evidence shows a better split. Architectural authority and durability
 principles should remain stable even if milestone packaging changes.
 
@@ -796,29 +796,61 @@ The remaining long-lived-storage work is physical retention/backup/restore in
 v0.15; v0.14 semantic consolidation deliberately does not garbage-collect
 historical evidence.
 
-### v0.15 — Operational Hardening
+### v0.15 — Operational Hardening — implemented
 
-Primary goal: make long-lived trusted-local operation diagnosable and
-recoverable without introducing unsafe automatic repair.
+Primary goal achieved: long-lived trusted-local installations can now be
+diagnosed, backed up, restored and physically cleaned through explicit
+controller contracts without introducing unsafe automatic repair.
 
-Planned scope:
+Implemented:
 
-- expand `doctor` / integrity diagnostics for runtime DBs, persisted task state,
-  workspaces, gate ledgers and provider/plugin compatibility;
-- improve stale worker/job/gate diagnosis and explicit operator repair guidance;
-- document and test both runtime-evidence backup/restore and complete
-  controller/project-authority backup/restore, including config, policies,
-  skills, accepted knowledge and trusted workflow templates;
-- define safe **physical** cleanup/retention policy for disposable workspaces,
-  job records, artifacts and historical evidence, including Project Learning
-  provenance; evidence still referenced by accepted/promoted context must not be
-  silently garbage-collected;
-- detect partial or inconsistent runtime state without silently rewriting it;
-- keep repair operations explicit, provenance-recorded and separate from normal
-  agent authority.
+- expand `doctor` with read-only runtime SQLite quick/foreign-key integrity,
+  persisted TaskState/IntakeState decoding, artifact existence/hash/evidence
+  verification, stale job/worker diagnosis, HumanGate ledger diagnosis,
+  disposable-worktree classification and maintenance-log inspection;
+- diagnose a structurally unreadable runtime database before normal Engine
+  construction so inspection does not depend on startup mutation or hidden state
+  surgery;
+- add backup manifest schema v1 with exact file hashes/sizes, source version,
+  source profile/trust provenance and deterministic restore scope;
+- support both runtime-evidence backup and complete controller/project-authority
+  backup, including config, policies, skills, accepted knowledge, Project
+  Learning candidates, workflow templates and durable runtime/gate/job state;
+- snapshot SQLite through its backup API while excluding disposable worktrees,
+  process locks and WAL/SHM/journal sidecars from backup authority;
+- require exact verified scope, quiescence and explicit `--replace` for
+  restore; full authority restore additionally requires
+  `--ack-authority-restore`, verifies the restored profile digest and stages
+  pre-restore managed state for rollback on failure;
+- separate runtime-only restore from project authority: current config/context
+  is never overwritten by a runtime archive, and profile mismatch is surfaced
+  as `retrust_required` rather than silently granting trust;
+- add read-only physical retention planning plus exact-scope cleanup. Initial
+  deletion is deliberately narrow: stale disposable worktrees, old terminal
+  job/job-event rows and old orphan runtime JSON only;
+- retain canonical task/intake/runtime-event/HumanGate history, every
+  TaskState-referenced artifact and evidence referenced by accepted or retained
+  Project Learning candidates, so semantic learning provenance is not silently
+  garbage-collected;
+- append bounded provenance records for successful restore/cleanup operations to
+  `.orchestrator/runtime/maintenance.jsonl`;
+- expose operational diagnostics in read-only `inspect_project` while keeping
+  backup/restore/cleanup/database repair out of the agent-facing MCP mutation
+  surface;
+- keep runtime/HumanGate/jobs SQLite versions and TaskState/IntakeState schema
+  versions unchanged. v0.15 adds operational contracts rather than rewriting
+  execution-history contracts.
 
-Completion target: an operator can inspect, back up, restore, clean and diagnose
-a long-lived installation without depending on undocumented state surgery.
+Completion boundary: an operator can inspect, back up, verify, restore and clean
+a long-lived installation through documented commands and exact scopes. Runtime
+diagnosis remains read-only, restore/cleanup remain explicit and
+provenance-recorded, interrupted effects still use the v0.11 conservative
+recovery contract, and no v0.15 maintenance path grants normal agent execution
+authority or performs automatic repair/replay. Offline CI covers physical
+read-only diagnosis, malformed persisted-state detection, full/runtime restore
+authority boundaries, scope drift and Project Learning-aware retention.
+
+See `docs/OPERATIONS.md` for the operator contract and command flow.
 
 ### v0.16 — Exploration / Deliberation Sessions
 
