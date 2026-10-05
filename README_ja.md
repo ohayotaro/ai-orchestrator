@@ -4,7 +4,7 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.15.0 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
+**v0.15.1 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
 
 restore / cleanup は agent authority ではなく operator-only の maintenance action です。自動 repair、自動 replay、暗黙の authority 復元は行いません。v0.14 の Project Learning も引き続き、evidence が蓄積しても authority は自動的に蓄積しない契約を維持します。
 
@@ -79,7 +79,8 @@ orchestrator --project "$PROJECT" cleanup \
 ```
 
 cleanup は TaskState / IntakeState / runtime event / HumanGate history、
-TaskState が参照する artifact、accepted/candidate Project Learning が参照する
+TaskState または IntakeState が参照する artifact（Supervisor evidence を含む）、
+accepted/candidate Project Learning が参照する
 型付き evidence を保持します。初期 v0.15 で削除対象になるのは、古い stale
 disposable worktree、terminal job/job-event、参照されていない古い
 Artifact-v2-shaped runtime JSON に限定されます。legacy/untyped evidence は

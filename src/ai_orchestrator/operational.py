@@ -193,62 +193,78 @@ def _read_task_states(path: Path) -> tuple[list[TaskState], list[str]]:
     return values, errors
 
 
+def _read_intake_states(path: Path) -> tuple[list[IntakeState], list[str]]:
+    if not path.exists():
+        return [], []
+    values: list[IntakeState] = []
+    errors: list[str] = []
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = _readonly_connection(path)
+        rows = connection.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
+        if len(rows) > MAX_DIAGNOSTIC_ROWS:
+            return [], [f"intake row count exceeds diagnostic bound ({MAX_DIAGNOSTIC_ROWS})"]
+        for intake_id, data in rows:
+            try:
+                intake = decode_versioned_model_json(
+                    data, rule_key="intake_state", model=IntakeState
+                )
+                if intake.id != intake_id:
+                    raise OrchestratorError(
+                        "intake row ID does not match embedded IntakeState ID"
+                    )
+                values.append(intake)
+            except (ValueError, OrchestratorError) as exc:
+                errors.append(f"{intake_id}: {exc}")
+    except (sqlite3.DatabaseError, OSError) as exc:
+        errors.append(str(exc))
+    finally:
+        if connection is not None:
+            connection.close()
+    return values, errors
+
+
 def _state_report(project: Project) -> dict[str, Any]:
     path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
     report = _quick_database_report(path, "runtime", RUNTIME_DB_READABLE_VERSIONS)
     if not report["present"] or not report["integrity_ok"]:
         return report
     states, errors = _read_task_states(path)
+    intakes, intake_errors = _read_intake_states(path)
+    errors.extend(intake_errors)
     referenced: set[str] = set()
     artifact_ids: set[str] = set()
     missing: list[str] = []
     corrupt: list[str] = []
-    intakes = 0
-    try:
-        connection = _readonly_connection(path)
-        try:
-            intake_rows = connection.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
-            intakes = len(intake_rows)
-            if len(intake_rows) > MAX_DIAGNOSTIC_ROWS:
-                errors.append(f"intake row count exceeds diagnostic bound ({MAX_DIAGNOSTIC_ROWS})")
-            else:
-                for intake_id, data in intake_rows:
-                    try:
-                        intake = decode_versioned_model_json(
-                            data, rule_key="intake_state", model=IntakeState
-                        )
-                        if intake.id != intake_id:
-                            raise OrchestratorError(
-                                "intake row ID does not match embedded IntakeState ID"
-                            )
-                    except (ValueError, OrchestratorError) as exc:
-                        errors.append(f"{intake_id}: {exc}")
-        finally:
-            connection.close()
-    except (sqlite3.DatabaseError, OSError) as exc:
-        errors.append(str(exc))
+    artifacts_by_path = {
+        artifact.path: artifact
+        for state in states
+        for artifact in state.artifacts
+    }
+    for intake in intakes:
+        if intake.artifact is not None:
+            artifacts_by_path.setdefault(intake.artifact.path, intake.artifact)
 
-    for state in states:
-        for artifact in state.artifacts:
-            referenced.add(artifact.path)
-            if artifact.id:
-                artifact_ids.add(artifact.id)
-            try:
-                artifact_path = confined(project.root, artifact.path)
-                if not artifact_path.is_file():
-                    missing.append(artifact.path)
-                    continue
-                raw = artifact_path.read_bytes()
-                if hashlib.sha256(raw).hexdigest() != artifact.sha256:
-                    corrupt.append(artifact.path)
-                    continue
-                normalize_control_evidence(artifact.kind, json.loads(raw.decode("utf-8")))
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError, OrchestratorError) as exc:
-                corrupt.append(f"{artifact.path}: {exc}")
+    for artifact in artifacts_by_path.values():
+        referenced.add(artifact.path)
+        if artifact.id:
+            artifact_ids.add(artifact.id)
+        try:
+            artifact_path = confined(project.root, artifact.path)
+            if not artifact_path.is_file():
+                missing.append(artifact.path)
+                continue
+            raw = artifact_path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != artifact.sha256:
+                corrupt.append(artifact.path)
+                continue
+            normalize_control_evidence(artifact.kind, json.loads(raw.decode("utf-8")))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, OrchestratorError) as exc:
+            corrupt.append(f"{artifact.path}: {exc}")
 
     report.update(
         task_count=len(states),
-        intake_count=intakes,
+        intake_count=len(intakes),
         running_tasks=sorted(state.spec.id for state in states if state.status == "running"),
         active_tasks=sorted(
             state.spec.id for state in states if state.status not in _TERMINAL_TASKS
@@ -1372,12 +1388,20 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
 
     state_path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
     states, state_errors = _read_task_states(state_path)
-    if state_errors:
-        raise OrchestratorError("retention planning requires readable task state")
+    intakes, intake_errors = _read_intake_states(state_path)
+    if state_errors or intake_errors:
+        raise OrchestratorError(
+            "retention planning requires readable task and intake state"
+        )
     status = {state.spec.id: state.status for state in states}
     referenced_paths = {
         artifact.path for state in states for artifact in state.artifacts
     }
+    referenced_paths.update(
+        intake.artifact.path
+        for intake in intakes
+        if intake.artifact is not None
+    )
     protected_ids, legacy_untyped_evidence = _protected_evidence_ids(project)
 
     worktrees: list[str] = []
@@ -1467,7 +1491,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
             "intake_rows": "retain",
             "runtime_events": "retain",
             "human_gate_ledger": "retain",
-            "referenced_artifacts": "retain",
+            "referenced_artifacts": "retain (TaskState and IntakeState)",
             "accepted/promoted Project Learning evidence": "retain",
             "candidate evidence": "retain",
             "legacy/unidentified runtime JSON": "retain",
