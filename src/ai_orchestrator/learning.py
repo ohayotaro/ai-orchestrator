@@ -381,6 +381,8 @@ def distill(root: Path, store: Store | None = None) -> dict[str, Any]:
         validator_pass: dict[str, list[dict[str, Any]]] = defaultdict(list)
         validator_fail: dict[str, list[dict[str, Any]]] = defaultdict(list)
         recovery_signals: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        usage_signals: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+        budget_signals: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
         artifact_counts: dict[str, int] = defaultdict(int)
 
         for task_id in store.task_ids():
@@ -417,6 +419,46 @@ def distill(root: Path, store: Store | None = None) -> dict[str, Any]:
                         "task_id": task_id,
                         "refs": [task_reference, _event_ref(event)],
                     })
+
+            usage_artifact = _latest_artifact(state, "usage")
+            if usage_artifact is not None:
+                value = store.read_artifact(usage_artifact)
+                ref = _artifact_ref(usage_artifact)
+                summary = value.get("summary") if isinstance(value, dict) else None
+                if isinstance(summary, dict) and ref is not None:
+                    for metric in (
+                        "input_tokens", "output_tokens", "reasoning_tokens",
+                        "total_tokens", "provider_elapsed_seconds", "cost",
+                    ):
+                        metric_value = summary.get(metric)
+                        status = metric_value.get("status") if isinstance(metric_value, dict) else None
+                        if status in ("known", "unknown", "unsupported"):
+                            usage_signals[(metric, status)].append({
+                                "task_id": task_id,
+                                "refs": [task_reference, ref],
+                            })
+
+            budget_artifact = _latest_artifact(state, "budget")
+            if budget_artifact is not None:
+                value = store.read_artifact(budget_artifact)
+                ref = _artifact_ref(budget_artifact)
+                blockers = value.get("blockers") if isinstance(value, dict) else None
+                if isinstance(blockers, list) and ref is not None:
+                    seen_budget: set[tuple[str, str]] = set()
+                    for blocker in blockers:
+                        if not isinstance(blocker, dict):
+                            continue
+                        dimension, status = blocker.get("dimension"), blocker.get("status")
+                        if not isinstance(dimension, str) or not isinstance(status, str):
+                            continue
+                        key = (dimension, status)
+                        if key in seen_budget:
+                            continue
+                        seen_budget.add(key)
+                        budget_signals[key].append({
+                            "task_id": task_id,
+                            "refs": [task_reference, ref],
+                        })
 
             if state.status != "succeeded":
                 continue
@@ -514,6 +556,27 @@ def distill(root: Path, store: Store | None = None) -> dict[str, Any]:
                 reviews=len(task_ids),
             ))
 
+        for key, signals in sorted(observation_signals.items()):
+            task_ids = {item["task_id"] for item in signals}
+            if len(task_ids) < 3:
+                continue
+            observation = sorted({item["observation"] for item in signals})[0]
+            refs = [ref for item in signals for ref in item["refs"]]
+            generated.append(_proposal(
+                kind="skill",
+                statement=(
+                    f"Across {len(task_ids)} independently accepted tasks, reviewers repeatedly recorded: "
+                    f"{observation} Consider whether this should become reusable project guidance."
+                ),
+                statement_type="recommendation",
+                canonical_key=f"skill-review-observation:{key}",
+                polarity="neutral",
+                task_ids=task_ids,
+                evidence_refs=refs,
+                validations=len(task_ids),
+                reviews=len(task_ids),
+            ))
+
         for workflow_digest, signals in sorted(workflow_signals.items()):
             task_ids = {item["task_id"] for item in signals}
             if len(task_ids) < 2:
@@ -586,6 +649,47 @@ def distill(root: Path, store: Store | None = None) -> dict[str, Any]:
                 statement=f"Controller recovery outcome `{kind}` occurred across {len(task_ids)} independent tasks.",
                 statement_type="observation",
                 canonical_key=f"recovery-history:{kind}",
+                polarity="neutral",
+                task_ids=task_ids,
+                evidence_refs=refs,
+                validations=0,
+                reviews=0,
+            ))
+
+        for (metric, status), signals in sorted(usage_signals.items()):
+            task_ids = {item["task_id"] for item in signals}
+            if len(task_ids) < 3:
+                continue
+            refs = [ref for item in signals for ref in item["refs"]]
+            generated.append(_proposal(
+                kind="knowledge",
+                statement=(
+                    f"Controller usage evidence reports `{metric}` telemetry as `{status}` across "
+                    f"{len(task_ids)} independent task records. Missing telemetry must not be inferred or zero-filled."
+                ),
+                statement_type="observation",
+                canonical_key=f"usage-telemetry:{metric}",
+                polarity="positive" if status == "known" else "negative",
+                task_ids=task_ids,
+                evidence_refs=refs,
+                validations=0,
+                reviews=0,
+            ))
+
+        for (dimension, status), signals in sorted(budget_signals.items()):
+            task_ids = {item["task_id"] for item in signals}
+            if len(task_ids) < 2:
+                continue
+            refs = [ref for item in signals for ref in item["refs"]]
+            generated.append(_proposal(
+                kind="policy",
+                statement=(
+                    f"Controller budget evidence repeatedly reported `{dimension}:{status}` across "
+                    f"{len(task_ids)} independent tasks. Consider an explicit operator review of the relevant "
+                    "budget/telemetry policy; this candidate does not change any limit."
+                ),
+                statement_type="recommendation",
+                canonical_key=f"budget-pattern:{dimension}:{status}",
                 polarity="neutral",
                 task_ids=task_ids,
                 evidence_refs=refs,

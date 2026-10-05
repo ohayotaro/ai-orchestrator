@@ -282,3 +282,59 @@ def test_conflicting_accepted_learning_is_preserved_but_not_injected(workspace):
     assert ".orchestrator/policies/baseline.md" in selected
     assert influence.universe_items == 3
     assert influence.excluded_items == 2
+
+
+def test_distillation_covers_skill_usage_and_budget_candidate_kinds(engine):
+    instance, _, _ = engine
+    states = [
+        _task(instance, f"learning-kind-{index}", observation="keep the shared helper small")
+        for index in range(3)
+    ]
+    for state in states:
+        instance.store.artifact(
+            state,
+            "usage",
+            {
+                "schema_version": 1,
+                "records": [],
+                "summary": {
+                    "input_tokens": {"status": "unknown", "value": None, "source": None},
+                    "output_tokens": {"status": "unknown", "value": None, "source": None},
+                    "reasoning_tokens": {"status": "unsupported", "value": None, "source": None},
+                    "total_tokens": {"status": "unknown", "value": None, "source": None},
+                    "provider_elapsed_seconds": {"status": "unsupported", "value": None, "source": None},
+                    "cost": {"status": "unsupported", "amount": None, "currency": None, "source": "unavailable", "pricing": None},
+                },
+            },
+        )
+    for state in states[:2]:
+        instance.store.artifact(
+            state,
+            "budget",
+            {
+                "schema_version": 1,
+                "blockers": [
+                    {
+                        "dimension": "total_tokens",
+                        "status": "unprovable",
+                        "limit": 1000,
+                        "observed": None,
+                    }
+                ],
+                "can_dispatch": False,
+            },
+        )
+        instance.store.save(state, "learning.fixture_artifacts")
+
+    learning.distill(instance.project.root, instance.store)
+    candidates = learning.load_candidates(instance.project)
+    skill = [item for item in candidates if item.kind == "skill"]
+    policy = [item for item in candidates if item.kind == "policy"]
+    usage = [
+        item for item in candidates
+        if item.kind == "knowledge" and item.canonical_key == "usage-telemetry:input_tokens"
+    ]
+    assert skill and skill[0].statement_type == "recommendation"
+    assert policy and policy[0].canonical_key == "budget-pattern:total_tokens:unprovable"
+    assert usage and usage[0].provenance.polarity == "negative"
+    assert all(item.status == "candidate" for item in [*skill, *policy, *usage])
