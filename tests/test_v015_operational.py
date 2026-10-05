@@ -111,8 +111,8 @@ def test_full_backup_restore_is_scope_bound_and_restores_authority(workspace, tm
     accepted.write_text("# operator note\n\noriginal authority\n", encoding="utf-8")
     engine = Engine(workspace)
     try:
-        trusted = engine.trust("backup-test")
-        original_digest = trusted["profile_digest"]
+        engine.trust("backup-test")
+        original_digest = engine.profile_digest
     finally:
         engine.close()
 
@@ -239,7 +239,8 @@ def test_restore_over_unreadable_current_state_requires_extra_ack(workspace, tmp
 def test_runtime_only_restore_never_replaces_current_project_authority(workspace, tmp_path):
     engine = Engine(workspace)
     try:
-        source_digest = engine.trust("backup-test")["profile_digest"]
+        engine.trust("backup-test")
+        source_digest = engine.profile_digest
     finally:
         engine.close()
 
