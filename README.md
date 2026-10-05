@@ -554,7 +554,7 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.15 is complete for its offline trusted-local alpha scope. The v0.9
+v0.15 is complete for its trusted-local alpha scope, including the v0.15.1 live Operational Hardening closure. The v0.9
 provider/model control-plane foundation, v0.10 usage/budget policy, v0.11
 conservative recovery/durability boundary, v0.12 persisted-contract/migration
 boundary, v0.13 Provider SDK boundary, v0.14 governed Project Learning loop and
@@ -578,6 +578,10 @@ The offline matrix covers malformed/negative confirmations, correlation/replay,
 stale state, expiration/cancellation/disconnect, worker lifecycle, provider
 resolution, model-variant provenance, workspace isolation and subprocess wire E2E.
 Optional official MCP SDK interoperability runs in CI via `.[interop]`.
+Live v0.15.1 operational E2E also verifies read-only diagnosis, full/runtime
+backup, exact-scope restore, runtime-only authority separation, plan-first
+cleanup, IntakeState/TaskState artifact retention roots and original-project
+non-interference.
 
 Live owner-reported v0.9 evidence includes Claude-only Fresh-Write completion and
 AGY host MCP-tool interoperability. HumanGate transport evidence is
