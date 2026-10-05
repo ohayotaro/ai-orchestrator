@@ -784,6 +784,23 @@ def inspect_backup(path: Path) -> dict[str, Any]:
             manifest = json.loads(archive.read(manifest_info).decode("utf-8"))
             if not isinstance(manifest, dict):
                 raise OrchestratorError("backup manifest must be a JSON object")
+            expected_manifest_keys = {
+                "schema_version",
+                "kind",
+                "mode",
+                "created_at",
+                "source_version",
+                "source_profile_digest",
+                "source_trusted_profile",
+                "file_count",
+                "total_bytes",
+                "files",
+                "excluded",
+            }
+            if set(manifest) != expected_manifest_keys:
+                raise OrchestratorError(
+                    "backup manifest v1 has unknown or missing fields"
+                )
             if (
                 manifest.get("schema_version") != BACKUP_SCHEMA_VERSION
                 or manifest.get("kind") != "ai-orchestrator-backup"
@@ -810,6 +827,17 @@ def inspect_backup(path: Path) -> dict[str, Any]:
             if created_at.tzinfo is None:
                 raise OrchestratorError("backup creation timestamp must include timezone")
 
+            excluded = manifest.get("excluded")
+            if (
+                not isinstance(excluded, list)
+                or len(excluded) > 16
+                or any(
+                    not isinstance(item, str) or not item or len(item) > 512
+                    for item in excluded
+                )
+            ):
+                raise OrchestratorError("backup exclusion metadata is invalid")
+
             file_count = manifest.get("file_count")
             total_bytes = manifest.get("total_bytes")
             files = manifest.get("files")
@@ -823,9 +851,15 @@ def inspect_backup(path: Path) -> dict[str, Any]:
             expected_names = {"manifest.json"}
             total = 0
             for item in files:
-                if not isinstance(item, dict):
+                if not isinstance(item, dict) or set(item) != {
+                    "path",
+                    "bytes",
+                    "sha256",
+                }:
                     raise OrchestratorError("backup manifest file entry is invalid")
-                relative = _safe_member_name(str(item.get("path", "")))
+                if not isinstance(item.get("path"), str):
+                    raise OrchestratorError("backup manifest path is invalid")
+                relative = _safe_member_name(item["path"])
                 if relative in expected_names:
                     raise OrchestratorError("backup manifest contains duplicate file entries")
                 if not relative.startswith(".orchestrator/"):
