@@ -1,8 +1,8 @@
 # AI Orchestrator Roadmap
 
-This document describes the implemented path through the completed v0.13
-Provider Adapter / Plugin SDK milestone and the remaining path toward stable
-v1.0 contracts. Version numbers describe sequencing and design boundaries, not
+This document describes the implemented path through the completed v0.14
+Knowledge Distillation / Project Learning milestone and the remaining path
+toward stable v1.0 contracts. Version numbers describe sequencing and design boundaries, not
 promised release dates. Live E2E evidence, security findings and implementation
 experience may change the details or order.
 
@@ -769,10 +769,22 @@ The intended product property is that ai-orchestrator becomes more
 project-specific with use, but the durable learning remains reviewable,
 version-controlled and evidence-backed rather than hidden in model memory.
 
-Completion target: a long-lived project can turn repeated execution evidence
-into useful reusable project knowledge with clear provenance and human
-governance, while a fresh software/model upgrade or an unreviewed historical
-pattern can never silently change project authority.
+Completion boundary: implemented in v0.14.0. Project Learning v1 now provides
+typed/hash-verifiable evidence references, deterministic multi-source
+distillation, stable support/provenance, knowledge/policy/skill/workflow
+recommendation candidates, rejection/revision/promotion governance,
+deduplication/supersession/contradiction handling, bounded accepted-context
+selection and persisted intake/task influence manifests. New TaskState v8 and
+IntakeState v5 carry influence provenance while historical versions remain
+readable without rewrite. Post-acceptance distillation is advisory and cannot
+roll back task acceptance. Promotion changes project context and therefore still
+requires explicit profile re-trust; workflow recommendations do not install a
+workflow template. Offline CI covers the full behavior across supported Linux
+and macOS/Python matrices.
+
+The remaining long-lived-storage work is physical retention/backup/restore in
+v0.15; v0.14 semantic consolidation deliberately does not garbage-collect
+historical evidence.
 
 ### v0.15 — Operational Hardening
 

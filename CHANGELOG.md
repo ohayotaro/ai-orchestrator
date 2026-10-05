@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.14.0 — Knowledge Distillation / Project Learning
+
+- Add versioned Project Learning contracts with typed controller-resolvable
+  `EvidenceRef` values for task, intake, artifact and event evidence, plus
+  inspectable support/provenance instead of opaque model confidence.
+- Add deterministic distillation over durable task acceptance, write-set,
+  validation, review, recovery, provider provenance, usage and budget evidence.
+  Generated candidates remain non-authoritative observations/recommendations.
+- Generate bounded knowledge, policy, skill and workflow-reuse candidates.
+  Workflow candidates are recommendations only; reusable workflow installation
+  continues to require the existing explicit `workflow-save` authority path.
+- Add stable candidate IDs, exact-evidence suppression for rejected candidates,
+  material-new-evidence regeneration, supersession links and contradiction
+  detection.
+- Add operator-only candidate rejection/revision commands and preserve explicit
+  digest-scoped promotion. Schema-v2 promotion re-resolves and hash-verifies all
+  typed controller evidence before writing accepted context.
+- Separate the accepted project-context universe from per-intake/task prompt
+  context. New intakes/tasks bind a deterministic `ContextInfluence` manifest
+  and inject only the bounded selected subset into Supervisor/Planner/
+  Implementer/Reviewer prompts.
+- Preserve accepted but superseded/contradictory learning as durable provenance
+  while excluding it from automatic prompt injection until explicitly resolved.
+- Raise the accepted-context universe bound to 4 MiB / 2048 Markdown items while
+  keeping deterministic prompt selection at 24 KiB and the existing 64 KiB
+  complete-prompt ceiling.
+- Persist `context_influence` evidence on new TaskState v8 and IntakeState v5,
+  while keeping TaskState v1-v7 and IntakeState v1-v4 readable without rewrite.
+  Runtime/HumanGate/jobs SQLite user versions do not change.
+- Expose Project Learning status in `inspect_project.project_learning`, add
+  read-only MCP candidate/context-preview surfaces, and add
+  `orchestrator learning report|distill|context` plus proposal
+  reject/revise operator commands.
+- Run post-acceptance distillation as a best-effort advisory step: a learning
+  failure cannot roll back or alter an explicitly accepted task.
+- Add v0.14 regression coverage for deterministic generation, typed-evidence
+  tamper failure, rejection/new-evidence behavior, contradiction handling,
+  bounded context selection, influence persistence, and knowledge/policy/skill/
+  workflow candidate classes.
+- Preserve the authority boundary: Project Learning cannot select providers,
+  grant permissions, register validators, authorize external effects/write
+  scope, change model/runtime or budget policy, install workflow templates, or
+  grant project trust.
+
 ## 0.13.0 — Provider Adapter / Plugin SDK
 
 - Publish Provider SDK v1 with Provider Adapter API v2 as the supported
