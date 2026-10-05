@@ -25,7 +25,7 @@ from urllib.parse import quote
 from . import __version__
 from .contracts import IntakeState
 from .jobs import Job
-from .models import OrchestratorError, TaskState
+from .models import EvidenceRef, OrchestratorError, TaskState
 from .persistence import (
     HUMAN_GATE_DB_READABLE_VERSIONS,
     JOB_DB_READABLE_VERSIONS,
@@ -42,6 +42,8 @@ RETENTION_SCHEMA_VERSION = 1
 MAX_DIAGNOSTIC_ROWS = 50000
 MAX_BACKUP_FILES = 100000
 MAX_BACKUP_BYTES = 2 * 1024 * 1024 * 1024
+MAX_BACKUP_MANIFEST_BYTES = 64 * 1024 * 1024
+IO_CHUNK_BYTES = 1024 * 1024
 DEFAULT_RETENTION_DAYS = 30
 
 _DB_SPECS = {
@@ -58,6 +60,47 @@ _SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def _sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as stream:
+        while True:
+            chunk = stream.read(IO_CHUNK_BYTES)
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _maintenance_actor(actor: str) -> str:
+    value = actor.strip()
+    if (
+        not value
+        or len(value) > 256
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+    ):
+        raise OrchestratorError(
+            "maintenance actor must be nonblank bounded printable text"
+        )
+    return value
+
+
+def _validate_maintenance_identity(action: str, actor: str, scope: str) -> str:
+    if action not in ("restore", "cleanup"):
+        raise OrchestratorError("unsupported maintenance action")
+    value = _maintenance_actor(actor)
+    if not _is_sha256(scope):
+        raise OrchestratorError("maintenance scope must be an exact sha256 digest")
+    return value
 
 
 def cutoff_from_days(days: int) -> str:
@@ -126,8 +169,9 @@ def _read_task_states(path: Path) -> tuple[list[TaskState], list[str]]:
         return [], []
     values: list[TaskState] = []
     errors: list[str] = []
-    connection = _readonly_connection(path)
+    connection: sqlite3.Connection | None = None
     try:
+        connection = _readonly_connection(path)
         rows = connection.execute("SELECT id,data FROM tasks ORDER BY id").fetchall()
         if len(rows) > MAX_DIAGNOSTIC_ROWS:
             return [], [f"task row count exceeds diagnostic bound ({MAX_DIAGNOSTIC_ROWS})"]
@@ -139,8 +183,11 @@ def _read_task_states(path: Path) -> tuple[list[TaskState], list[str]]:
                 values.append(state)
             except (ValueError, OrchestratorError) as exc:
                 errors.append(f"{task_id}: {exc}")
+    except (sqlite3.DatabaseError, OSError) as exc:
+        errors.append(str(exc))
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
     return values, errors
 
 
@@ -435,8 +482,7 @@ def _append_maintenance(
     scope: str,
     details: dict[str, Any],
 ) -> dict[str, Any]:
-    if not actor.strip():
-        raise OrchestratorError("maintenance operation requires a nonblank operator actor")
+    actor = _validate_maintenance_identity(action, actor, scope)
     event = {
         "schema_version": MAINTENANCE_EVENT_SCHEMA_VERSION,
         "id": "M-" + uuid.uuid4().hex,
