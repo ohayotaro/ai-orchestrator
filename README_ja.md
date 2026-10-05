@@ -4,9 +4,9 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.14.1 alpha** では、Project Learning / Knowledge Distillation を追加しました。実行履歴・検証・レビュー・provider provenance・usage/budget などの controller-owned evidence から、型付きで追跡可能な learning candidate を決定的に生成できます。
+**v0.15.0 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
 
-ただし candidate は自動的に権限を持ちません。promotion、profile trust、provider 選択、validator、write scope、budget、workflow installation などの authority はそれぞれ独立した契約として扱われます。
+restore / cleanup は agent authority ではなく operator-only の maintenance action です。自動 repair、自動 replay、暗黙の authority 復元は行いません。v0.14 の Project Learning も引き続き、evidence が蓄積しても authority は自動的に蓄積しない契約を維持します。
 
 このプロジェクトは **trusted-local alpha** です。認証済みの人間本人性、provider 側の請求証明、汎用 OS sandbox、production 向けの独立 security boundary を提供するものではありません。
 
@@ -33,6 +33,61 @@ User <-> Claude Code / Codex + portable Skill
 通常の single-terminal mode では、worker は会話中の agent session とは別の managed process で動きます。MCP client が interactive form elicitation をサポートしていれば、初期 setup と trust 後の通常操作は同じクライアント terminal 内で完結できます。
 
 No / cancel / timeout / disconnect / scope drift は自動承認されません。
+
+## v0.15 Operational Hardening
+
+v0.15 では、diagnosis と maintenance authority を分離します。
+
+```text
+read-only integrity diagnosis
+  -> backup / retention preview
+  -> operator が exact scope を確認
+  -> explicit restore / cleanup
+  -> maintenance provenance
+```
+
+`orchestrator doctor` は、runtime SQLite の version/integrity、TaskState /
+IntakeState、参照 artifact の SHA-256 と evidence schema、stale job、
+HumanGate ledger、disposable worktree を read-only で診断します。診断のために
+古い row を書き換えたり、gate を expire したり、job/workspace を削除したりは
+しません。
+
+backup は 2 種類です。
+
+```bash
+orchestrator --project "$PROJECT" backup create --mode runtime --output runtime.zip
+orchestrator --project "$PROJECT" backup create --mode full --output full.zip
+orchestrator backup inspect full.zip
+```
+
+- `runtime`: durable controller evidence のみ
+- `full`: 上記に加えて config、policies、skills、accepted knowledge、
+  trusted workflow configuration などの project authority
+
+restore は、検証済み archive の exact scope、`--replace`、quiescent な
+project を要求します。full restore では authority を復元し得るため、
+さらに `--ack-authority-restore` が必要です。
+
+physical cleanup も preview-first です。
+
+```bash
+orchestrator --project "$PROJECT" retention --days 30
+orchestrator --project "$PROJECT" cleanup \
+  --before "<exact-cutoff>" --scope "<exact-scope>" --by "$USER"
+```
+
+cleanup は TaskState / IntakeState / runtime event / HumanGate history、
+TaskState が参照する artifact、accepted/candidate Project Learning が参照する
+evidence を保持します。初期 v0.15 で削除対象になるのは、古い stale
+disposable worktree、terminal job/job-event、参照されていない古い runtime
+JSON に限定されます。
+
+成功した restore / cleanup は
+`.orchestrator/runtime/maintenance.jsonl` に provenance を残します。
+agent-facing MCP は `inspect_project` から read-only diagnosis を確認できますが、
+backup / restore / cleanup / database repair の mutation tool は持ちません。
+
+詳細: [Operational Hardening](docs/OPERATIONS.md)
 
 ## v0.14.1 Project Learning
 
@@ -148,7 +203,7 @@ in-process plugin は controller と同じ Python process / OS user で動く tr
 
 ## Persistence / migration
 
-v0.14.1 時点の主要 persisted contract:
+v0.15.0 時点の主要 persisted contract（v0.15 では schema version の変更なし）:
 
 - Runtime SQLite: user_version 2
 - HumanGate SQLite: user_version 1
@@ -242,7 +297,7 @@ host の form response は client-mediated であり、暗号学的に「本人�
 
 Python 3.11+、Linux/macOS を対象にしています。
 
-既存環境を更新する前に active controller / worker を止め、少なくとも project の `.orchestrator/runtime/` をバックアップしてください。
+既存環境を更新する前に active controller / worker を止め、project の `.orchestrator/` 全体をバックアップしてください。v0.15 導入後は、その後の運用 backup に versioned `backup create` を使用できます。
 
 ```bash
 cd "$HOME/ai-orchestrator"
@@ -253,7 +308,7 @@ git pull --ff-only
 .venv/bin/python -m pip install -e '.[dev,interop]'
 
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.14.1
+.venv/bin/orchestrator --version  # 0.15.0
 ```
 
 新規 checkout の場合:
@@ -432,11 +487,10 @@ historical evidence
 
 ## Roadmap
 
-v0.14 / v0.14.1 まで完了しています。
+v0.15 まで完了しています。
 
 次の主な milestone:
 
-- v0.15 Operational Hardening
 - v0.16 Exploration / Deliberation Sessions
 - v0.17 Release Candidate Hardening
 - v1.0 Stable Kernel Contracts
@@ -454,6 +508,7 @@ v0.16 では、仕様が曖昧な段階で repository を調べ、仮説・選�
 
 ## 関連ドキュメント
 
+- [Operational Hardening](docs/OPERATIONS.md)
 - [Project Learning](docs/PROJECT_LEARNING.md)
 - [Provider SDK](docs/PROVIDER_SDK.md)
 - [Persistence](docs/PERSISTENCE.md)
