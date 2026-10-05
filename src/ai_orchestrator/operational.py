@@ -1165,18 +1165,24 @@ def restore_backup(
     }
 
 
-def _protected_evidence_ids(project: Project) -> set[str]:
+def _protected_evidence_ids(project: Project) -> tuple[set[str], bool]:
     protected: set[str] = set()
-    accepted = confined(project.root, ".orchestrator/knowledge/accepted")
+    legacy_untyped = False
+    accepted_directories = (
+        confined(project.root, ".orchestrator/knowledge/accepted"),
+        confined(project.root, ".orchestrator/policies"),
+        confined(project.root, ".orchestrator/skills"),
+    )
     candidates = confined(project.root, ".orchestrator/knowledge/candidates")
     from . import knowledge, learning
 
-    if accepted.exists():
-        for path in accepted.glob("*.md"):
+    for directory in accepted_directories:
+        if not directory.exists():
+            continue
+        for path in directory.glob("*.md"):
             try:
-                metadata = learning._learning_metadata(
-                    path.read_text(encoding="utf-8")
-                )
+                text = path.read_text(encoding="utf-8")
+                metadata = learning._learning_metadata(text)
             except (OSError, UnicodeDecodeError, OrchestratorError) as exc:
                 raise OrchestratorError(
                     f"retention cannot verify accepted learning metadata: {path.name}"
@@ -1190,6 +1196,15 @@ def _protected_evidence_ids(project: Project) -> set[str]:
                             f"retention cannot verify accepted learning evidence: {path.name}"
                         ) from exc
                     protected.add(reference.id)
+            elif (
+                path.stem.startswith("P-")
+                and "## Evidence references (not automatically verified)" in text
+            ):
+                # v1 promotion intentionally had untyped human-readable evidence.
+                # Do not guess whether an apparently orphan Artifact v2 file is
+                # referenced by that prose.
+                legacy_untyped = True
+
     if candidates.exists():
         for path in candidates.glob("*.json"):
             try:
@@ -1198,9 +1213,10 @@ def _protected_evidence_ids(project: Project) -> set[str]:
                 raise OrchestratorError(
                     f"retention cannot verify Project Learning candidate: {path.name}"
                 ) from exc
+            if proposal.schema_version == 1 and proposal.evidence:
+                legacy_untyped = True
             protected.update(ref.id for ref in proposal.evidence_refs)
-    return protected
-
+    return protected, legacy_untyped
 
 def _artifact_id_from_path(path: Path) -> str | None:
     stem = path.stem
@@ -1263,7 +1279,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     referenced_paths = {
         artifact.path for state in states for artifact in state.artifacts
     }
-    protected_ids = _protected_evidence_ids(project)
+    protected_ids, legacy_untyped_evidence = _protected_evidence_ids(project)
 
     worktrees: list[str] = []
     worktree_markers: dict[str, str] = {}
@@ -1315,7 +1331,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     orphan_hashes: dict[str, str] = {}
     runtime = project.runtime
     artifact_candidates = 0
-    if runtime.exists():
+    if runtime.exists() and not legacy_untyped_evidence:
         for path in sorted(runtime.rglob("*.json")):
             relative = path.relative_to(project.root).as_posix()
             if _runtime_excluded(relative) or relative in referenced_paths:
@@ -1346,6 +1362,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         "orphan_artifacts": orphan_artifacts,
         "orphan_artifact_sha256": orphan_hashes,
         "protected_evidence_ids": len(protected_ids),
+        "legacy_untyped_learning_evidence": legacy_untyped_evidence,
         "policy": {
             "task_rows": "retain",
             "intake_rows": "retain",
@@ -1355,6 +1372,11 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
             "accepted/promoted Project Learning evidence": "retain",
             "candidate evidence": "retain",
             "legacy/unidentified runtime JSON": "retain",
+            "legacy untyped Project Learning evidence": (
+                "retain all orphan artifacts; do not guess evidence identity"
+                if legacy_untyped_evidence
+                else "none detected"
+            ),
             "disposable_worktrees": "delete only when no running task owns them",
             "job_records": "delete terminal rows/events older than cutoff",
             "orphan_artifacts": (
