@@ -3,18 +3,17 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.14.1 alpha** adds governed Project Learning. Controller-owned historical
-evidence can deterministically produce typed, inspectable learning candidates;
-those candidates are observations/recommendations only and never become project
-authority by themselves. Operators may explicitly reject, revise or promote an
-exact candidate, and schema-v2 promotion re-verifies its evidence before writing
-accepted context. Future intakes/tasks then use a deterministic bounded subset
-of accepted project knowledge/policies/skills and retain a `context_influence`
-manifest describing exactly what entered the prompt. Provider selection,
-permissions, validators, effects, write scope, runtime/budget policy, workflow
-installation and project trust remain separate authority contracts. This remains
-a trusted-local application, not authenticated human identity, provider billing
-attestation or a general OS-isolated control plane.
+**v0.15.0 alpha** adds Operational Hardening for long-lived trusted-local
+projects. `doctor` now performs read-only runtime/database/task/artifact/job/
+HumanGate/workspace integrity diagnosis; operators can create verified
+runtime-only or full controller/authority backups, restore an exact verified
+scope explicitly, and preview/apply narrowly bounded physical retention cleanup.
+Restore and cleanup are operator-only, provenance-recorded maintenance actions:
+they do not become agent authority and never trigger automatic repair or replay.
+The governed Project Learning contracts from v0.14 remain intact, including the
+rule that historical evidence may accumulate without silently accumulating
+authority. This remains a trusted-local application, not authenticated human
+identity, provider billing attestation or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -40,6 +39,57 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.15 Operational Hardening
+
+v0.15 separates diagnosis from maintenance authority:
+
+```text
+read-only integrity diagnosis
+  -> explicit backup / retention preview
+  -> exact scope inspected by operator
+  -> explicit restore / cleanup
+  -> maintenance provenance
+```
+
+`orchestrator doctor` now checks runtime SQLite integrity/versioning, persisted
+task/intake rows, referenced artifact hashes/evidence schemas, stale jobs,
+HumanGate ledger state and disposable workspaces without rewriting them.
+
+Verified backups have two modes:
+
+```bash
+orchestrator --project "$PROJECT" backup create --mode runtime --output runtime.zip
+orchestrator --project "$PROJECT" backup create --mode full --output full.zip
+orchestrator backup inspect full.zip
+```
+
+Runtime mode contains durable controller evidence only. Full mode also contains
+project authority such as config, policies, skills, accepted knowledge and
+trusted workflow configuration. Restore requires the exact inspected scope,
+`--replace`, a quiescent project and, for full authority restore,
+`--ack-authority-restore`.
+
+Physical cleanup is also plan-first:
+
+```bash
+orchestrator --project "$PROJECT" retention --days 30
+orchestrator --project "$PROJECT" cleanup \
+  --before "<exact-cutoff>" --scope "<exact-scope>" --by "$USER"
+```
+
+Cleanup retains canonical task/intake/event/HumanGate history, every
+TaskState-referenced artifact, and evidence referenced by accepted or candidate
+Project Learning. It initially removes only stale disposable worktrees,
+old terminal jobs/job-events and old orphan runtime JSON. Successful restore and
+cleanup operations are recorded in
+`.orchestrator/runtime/maintenance.jsonl`.
+
+Agent-facing MCP exposes read-only operational diagnostics through
+`inspect_project`; it does not expose backup, restore, cleanup or database
+repair mutation tools.
+
+See **[Operational Hardening](docs/OPERATIONS.md)**.
 
 ## v0.14 Knowledge Distillation / Project Learning
 
@@ -319,15 +369,16 @@ See [Single-terminal design and setup](docs/SINGLE_TERMINAL.md).
 ## Install / upgrade
 
 Use Python 3.11+ on Linux/macOS. An old Python 3.9 virtualenv must be replaced,
-not upgraded by installing a newer pip. Existing users should stop active workers
-and back up each project's complete `.orchestrator/runtime/` before upgrading.
+not upgraded by installing a newer pip. Existing users should stop active workers and back up each project's complete
+`.orchestrator/` control/runtime state before upgrading. After v0.15 is installed,
+use the versioned `backup create` flow for subsequent operational backups.
 
 ```bash
 git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.14.1
+.venv/bin/orchestrator --version  # 0.15.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -501,18 +552,18 @@ never automatically replayed.
 
 ## Roadmap
 
-v0.14 is complete for its offline trusted-local alpha scope. The v0.9
+v0.15 is complete for its offline trusted-local alpha scope. The v0.9
 provider/model control-plane foundation, v0.10 usage/budget policy, v0.11
 conservative recovery/durability boundary, v0.12 persisted-contract/migration
-boundary, v0.13 Provider SDK boundary, and v0.14 governed Project Learning loop
-are implemented without automatic provider fallback, ambiguous replay, lossy
-implicit state conversion or hidden learning authority.
+boundary, v0.13 Provider SDK boundary, v0.14 governed Project Learning loop and
+v0.15 operational diagnosis/backup/restore/retention boundary are implemented
+without automatic provider fallback, ambiguous replay, lossy implicit state
+conversion, hidden learning authority or automatic repair.
 
-The remaining path adds v0.15 Operational Hardening, then v0.16
-Exploration/Deliberation Sessions for multi-turn ambiguous work without execution
-authority, followed by v0.17 Release Candidate Hardening. Exploration is planned
-as a separate pre-authority contract rather than a relaxation of TaskSpec or
-HumanGate.
+The remaining path adds v0.16 Exploration/Deliberation Sessions for multi-turn
+ambiguous work without execution authority, followed by v0.17 Release Candidate
+Hardening. Exploration is planned as a separate pre-authority contract rather
+than a relaxation of TaskSpec or HumanGate.
 
 See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
 contracts. AGY native-permission, HumanGate host compatibility and remote
@@ -533,8 +584,9 @@ form. The tested Antigravity client advertised form elicitation but returned
 `action=cancel` after receiving the server request.
 
 Read [Single-terminal design/setup](docs/SINGLE_TERMINAL.md),
-[security boundaries](docs/SECURITY.md), [live E2E evidence](docs/E2E.md),
-[changelog](CHANGELOG.md) and [migration guidance](docs/MIGRATION.md).
+[security boundaries](docs/SECURITY.md), [operational maintenance](docs/OPERATIONS.md),
+[live E2E evidence](docs/E2E.md), [changelog](CHANGELOG.md) and
+[migration guidance](docs/MIGRATION.md).
 
 
 ## v0.7 isolated parallel execution
