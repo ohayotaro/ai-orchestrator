@@ -1315,3 +1315,24 @@ The final operational invariants are therefore live-verified:
 > interrupted/ambiguous effects are never automatically repaired or replayed
 
 **Result: PASS.** v0.15.1 closes the v0.15 Operational Hardening milestone.
+
+
+## v0.16 Exploration / Deliberation offline verification and live target
+
+The v0.16 regression suite adds an actual stdio MCP -> managed worker ->
+deterministic provider-shim flow. It starts with an ambiguous request, changes
+direction in a second turn, proves no task/approval exists, explicitly produces
+one provenance-bound intake, declines one Start, then confirms fresh Start,
+Execution and Acceptance separately. Integrated pytest validation and independent
+review complete the task, and usage includes both exploration turns. This is
+offline subprocess evidence, not a live external-provider or human-click claim.
+
+Live closure remains to be performed in an updated host/MCP/Skill environment.
+Use a fresh fixture exploration: start with an underspecified goal, inspect and
+compare alternatives, change one assumption/direction, verify no task or write
+appeared, then explicitly request a bounded task proposal. Confirm the source
+revision on Start and complete the existing execution/validation/review/acceptance
+flow. Also revise/abandon a separate unconsumed proposal and verify its old Start
+fails. Check cumulative usage, retained turn/transition evidence, unchanged
+profile/trust and exploration-aware retention. Never simulate host approval or
+invoke operator-only maintenance from the agent to make a live test pass.

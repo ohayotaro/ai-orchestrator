@@ -3,17 +3,16 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.15.1 alpha** adds Operational Hardening for long-lived trusted-local
-projects. `doctor` now performs read-only runtime/database/task/artifact/job/
-HumanGate/workspace integrity diagnosis; operators can create verified
-runtime-only or full controller/authority backups, restore an exact verified
-scope explicitly, and preview/apply narrowly bounded physical retention cleanup.
-Restore and cleanup are operator-only, provenance-recorded maintenance actions:
-they do not become agent authority and never trigger automatic repair or replay.
-The governed Project Learning contracts from v0.14 remain intact, including the
-rule that historical evidence may accumulate without silently accumulating
-authority. This remains a trusted-local application, not authenticated human
-identity, provider billing attestation or a general OS-isolated control plane.
+**v0.16.0 alpha** adds durable Exploration / Deliberation Sessions for
+multi-turn ambiguous work. Explore the repository, compare options and revise
+assumptions without creating an executable task. An explicit user decision
+freezes the source revision into a normal Supervisor proposal; the existing
+Start, Execution and Acceptance HumanGates remain separate authority boundaries.
+Provider reasoning uses read-only disposable snapshots, cumulative usage/budget
+checks and immutable evidence. Interrupted sessions are never automatically
+replayed, and exploration never promotes itself into accepted Project Learning.
+This remains a trusted-local application, not authenticated human identity,
+provider billing attestation or a general OS-isolated control plane.
 
 ```text
 User <-> Claude Code / Codex + portable Skill
@@ -39,6 +38,23 @@ Workers run in separate managed processes, not in the conversational agent's
 session. After initial setup and project trust, normal work can remain in the
 same client terminal **when the client supports interactive form elicitation**.
 Unsupported forms, No/cancel, expired dialogs and changed scopes never auto-approve.
+
+## v0.16 Exploration / Deliberation Sessions
+
+```text
+ambiguous goal -> explore -> clarify/revise -> explicit proposal decision
+  -> bounded intake -> Start HumanGate -> normal task execution gates
+```
+
+MCP `explore` queues a read-only reasoning turn; `get_exploration` inspects it.
+Revisions require the exact `expected_revision`. `propose_from_exploration`
+creates only a proposal, never a task or execution approval. Revising/abandoning
+an unconsumed exploration invalidates its old proposal. Cumulative usage follows
+the session into the eventual task; retained turns and transition provenance are
+protected by operational backup/retention.
+
+See **[Exploration sessions](docs/EXPLORATION.md)** for the state, context,
+authority, interruption and compatibility contracts.
 
 ## v0.15 Operational Hardening
 
@@ -380,7 +396,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.15.0
+.venv/bin/orchestrator --version  # 0.16.0
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -562,10 +578,11 @@ v0.15 operational diagnosis/backup/restore/retention boundary are implemented
 without automatic provider fallback, ambiguous replay, lossy implicit state
 conversion, hidden learning authority or automatic repair.
 
-The remaining path adds v0.16 Exploration/Deliberation Sessions for multi-turn
-ambiguous work without execution authority, followed by v0.17 Release Candidate
-Hardening. Exploration is planned as a separate pre-authority contract rather
-than a relaxation of TaskSpec or HumanGate.
+v0.16 Exploration/Deliberation Sessions are now implemented and covered by
+offline/wire regression tests. Live host/provider closure remains separate.
+The next implementation milestone is v0.17 Release Candidate Hardening.
+Exploration remains a separate pre-authority contract, not relaxed TaskSpec or
+HumanGate semantics.
 
 See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
 contracts. AGY native-permission, HumanGate host compatibility and remote

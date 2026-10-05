@@ -4,9 +4,14 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.15.1 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
+**v0.16.0 alpha** では、仕様が曖昧な段階を扱う Exploration / Deliberation Sessions を追加しました。
+repository の read-only 調査、仮説・選択肢・未確定事項の整理、方針変更を複数ターンで継続できます。
+探索だけでは task や実行承認は作られません。明示的な提案遷移で具体的な intake を生成し、
+既存の Start / Execution / Acceptance HumanGate を経て実行します。
 
-restore / cleanup は agent authority ではなく operator-only の maintenance action です。自動 repair、自動 replay、暗黙の authority 復元は行いません。v0.14 の Project Learning も引き続き、evidence が蓄積しても authority は自動的に蓄積しない契約を維持します。
+探索の usage / budget は提案・task へ引き継ぎます。履歴は hash 検証可能な artifact として保持し、
+次の prompt には直近の理解を決定的に選択します。中断した session を自動 replay せず、
+探索結果を accepted knowledge や project trust に自動昇格させません。
 
 このプロジェクトは **trusted-local alpha** です。認証済みの人間本人性、provider 側の請求証明、汎用 OS sandbox、production 向けの独立 security boundary を提供するものではありません。
 
@@ -33,6 +38,19 @@ User <-> Claude Code / Codex + portable Skill
 通常の single-terminal mode では、worker は会話中の agent session とは別の managed process で動きます。MCP client が interactive form elicitation をサポートしていれば、初期 setup と trust 後の通常操作は同じクライアント terminal 内で完結できます。
 
 No / cancel / timeout / disconnect / scope drift は自動承認されません。
+
+## v0.16 Exploration / Deliberation Sessions
+
+通常は host へ「まだ実装せず、選択肢を比較して方針を相談したい」と依頼できます。
+MCP `explore` で開始・更新し、`get_exploration` で状態を確認します。
+更新には exact `expected_revision` が必要です。方針が決まったときだけ
+`propose_from_exploration` で task proposal に移行し、通常の Start HumanGate へ進みます。
+
+提案後に探索をやり直すと古い intake は superseded になります。
+`abandon_exploration` は未消費の探索・提案を終了し、履歴は削除しません。
+Start 後の task authority を探索側から巻き戻すことはできません。
+
+詳細: [Exploration sessions](docs/EXPLORATION.md)
 
 ## v0.15 Operational Hardening
 
@@ -207,16 +225,18 @@ in-process plugin は controller と同じ Python process / OS user で動く tr
 
 ## Persistence / migration
 
-v0.15.0 時点の主要 persisted contract（v0.15 では schema version の変更なし）:
+v0.16.0 時点の主要 persisted contract:
 
-- Runtime SQLite: user_version 2
+- Runtime SQLite: user_version 3
 - HumanGate SQLite: user_version 1
 - Jobs SQLite: user_version 1
-- TaskState: readable v1-v8 / new writes v8
-- IntakeState: readable v1-v5 / new writes v5
+- TaskState: readable v1-v9 / new writes v9
+- IntakeState: readable v1-v6 / new writes v6
 - Artifact metadata: readable v1-v2 / new writes v2
 - ProjectLearningCandidate: readable v1-v2 / new writes v2
 - ContextInfluence: v1
+- ExplorationState / turn / transition evidence: v1
+- Job: readable v1-v2（exploration job は v2）
 
 古い supported state は read 時に書き換えません。unknown / future schema は fail closed です。
 
@@ -312,7 +332,7 @@ git pull --ff-only
 .venv/bin/python -m pip install -e '.[dev,interop]'
 
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.15.0
+.venv/bin/orchestrator --version  # 0.16.0
 ```
 
 新規 checkout の場合:
@@ -501,12 +521,13 @@ v0.15.1 の live Operational Hardening E2E まで完了し、v0.15.x はクロ�
 
 次の主な milestone:
 
-- v0.16 Exploration / Deliberation Sessions
+- v0.16 Exploration / Deliberation Sessions（実装済み、live closure は別途）
 - v0.17 Release Candidate Hardening
 - v1.0 Stable Kernel Contracts
 
 v0.16 では、仕様が曖昧な段階で repository を調べ、仮説・選択肢・未確定事項を
-何度も更新できる non-authoritative な探索 session を追加する予定です。
+何度も更新できる non-authoritative な探索 session を実装しました。
+offline / subprocess wire の検証と、実ユーザー環境での live closure は区別しています。
 探索結果だけでは実行 authority は増えず、具体的な TaskSpec への明示的 transition
 と通常の Start HumanGate を経て初めて実行可能になります。
 

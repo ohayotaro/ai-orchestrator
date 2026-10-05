@@ -1,7 +1,7 @@
 # AI Orchestrator Roadmap
 
-This document describes the implemented path through the completed v0.15
-Operational Hardening milestone and the remaining path toward stable v1.0
+This document describes the implemented path through v0.16 Exploration /
+Deliberation Sessions (live closure pending) and the remaining path toward stable v1.0
 contracts. Version numbers describe sequencing and design boundaries, not
 promised release dates. Live E2E evidence, security findings and implementation
 experience may change the details or order.
@@ -862,7 +862,7 @@ v0.15.1.
 See `docs/OPERATIONS.md` for the operator contract and command flow and
 `docs/E2E.md` for the live closure evidence.
 
-### v0.16 — Exploration / Deliberation Sessions
+### v0.16 — Exploration / Deliberation Sessions — implemented (live closure pending)
 
 Primary goal: support ambiguous, exploratory and specification-forming work
 without weakening the execution authority model that protects concrete tasks.
@@ -891,7 +891,7 @@ ambiguous user goal
   -> existing execution / validation / review / acceptance
 ```
 
-Planned scope:
+Implemented scope (the live external-host exercise below remains a separate closure target):
 
 - define a versioned `ExplorationState` / session contract that can survive
   multiple conversational turns without pretending the goal or acceptance
@@ -946,6 +946,20 @@ change", inspect and refine the problem over multiple turns, compare alternative
 change assumptions, and eventually produce one concrete task proposal. Until
 that explicit transition and the normal Start HumanGate, project execution
 authority does not increase.
+
+Implementation evidence: v0.16.0 provides ExplorationState v1, immutable
+turn/transition artifacts, revision-bound session operations, deterministic
+latest-understanding context selection, read-only Supervisor-provider reasoning,
+cumulative budget/usage transfer, stale-proposal invalidation, atomic Start
+consumption and inspection/abandonment without automatic replay. Runtime SQLite
+v3, IntakeState v6 and TaskState v9 carry the new provenance; historical shapes
+remain readable and hash-compatible. Operational retention includes exploration
+history and evidence. Offline regressions include real subprocess MCP/managed
+worker transport through all three normal HumanGates with deterministic shims.
+No live external-provider/human-click completion is claimed by those tests.
+
+See `docs/EXPLORATION.md` for exact contracts and `docs/E2E.md` for the live
+closure target. The next implementation milestone is v0.17.
 
 ### v0.17 — Release Candidate Hardening
 

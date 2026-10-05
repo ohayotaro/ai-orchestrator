@@ -529,11 +529,11 @@ def test_retention_scope_must_be_replanned_when_inputs_change(workspace):
 
 def test_operational_contracts_are_published_without_execution_schema_bumps():
     report = persistence_compatibility_report()
-    assert report["databases"]["runtime_state"]["write_version"] == 2
+    assert report["databases"]["runtime_state"]["write_version"] == 3
     assert report["databases"]["human_gate"]["write_version"] == 1
     assert report["databases"]["jobs"]["write_version"] == 1
-    assert report["contracts"]["task_state"]["write_version"] == 8
-    assert report["contracts"]["intake_state"]["write_version"] == 5
+    assert report["contracts"]["task_state"]["write_version"] == 9
+    assert report["contracts"]["intake_state"]["write_version"] == 6
     assert report["contracts"]["backup_manifest"]["write_version"] == 1
     assert report["contracts"]["maintenance_event"]["write_version"] == 1
     assert report["contracts"]["retention_plan"]["write_version"] == 1

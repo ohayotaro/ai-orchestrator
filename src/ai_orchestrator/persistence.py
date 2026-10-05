@@ -17,8 +17,8 @@ from .models import OrchestratorError
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
-RUNTIME_DB_VERSION = 2
-RUNTIME_DB_READABLE_VERSIONS = (0, 1, 2)
+RUNTIME_DB_VERSION = 3
+RUNTIME_DB_READABLE_VERSIONS = (0, 1, 2, 3)
 HUMAN_GATE_DB_VERSION = 1
 HUMAN_GATE_DB_READABLE_VERSIONS = (0, 1)
 JOB_DB_VERSION = 1
@@ -28,15 +28,31 @@ EVENT_SCHEMA_VERSION = 1
 PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
     "task_state": {
         "name": "TaskState",
-        "readable_versions": (1, 2, 3, 4, 5, 6, 7, 8),
-        "write_version": 8,
+        "readable_versions": (1, 2, 3, 4, 5, 6, 7, 8, 9),
+        "write_version": 9,
         "strategy": "read-compatible; never rewrite on read",
     },
     "intake_state": {
         "name": "IntakeState",
-        "readable_versions": (1, 2, 3, 4, 5),
-        "write_version": 5,
+        "readable_versions": (1, 2, 3, 4, 5, 6),
+        "write_version": 6,
         "strategy": "read-compatible; never rewrite on read",
+    },
+    "exploration_state": {
+        "name": "ExplorationState", "readable_versions": (1,), "write_version": 1,
+        "strategy": "non-authoritative durable sessions; no rewrite or automatic replay on read",
+    },
+    "exploration_turn": {
+        "name": "ExplorationTurn", "readable_versions": (1,), "write_version": 1,
+        "strategy": "immutable hash-verified reasoning evidence, never project authority",
+    },
+    "exploration_transition": {
+        "name": "ExplorationTransition", "readable_versions": (1,), "write_version": 1,
+        "strategy": "exact source revision and decision bound into intake and Start gate",
+    },
+    "job": {
+        "name": "Job", "readable_versions": (1, 2), "write_version": 2,
+        "strategy": "v1 ask/run remains readable; v2 adds exploration queue actions",
     },
     "human_gate": {
         "name": "HumanGate",
@@ -116,6 +132,8 @@ PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
 }
 
 EVIDENCE_RULES = {
+    "exploration_turn": "exploration_turn",
+    "exploration_transition": "exploration_transition",
     "usage": "usage_evidence",
     "budget": "budget_evidence",
     "provider_provenance": "provider_provenance",

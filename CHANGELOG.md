@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.16.0 — Exploration / Deliberation Sessions
+
+- Add durable, non-authoritative ExplorationState v1 with bounded multi-turn
+  understanding, hypotheses/options/questions/decisions and immutable evidence.
+- Execute reasoning on the existing read-only disposable Supervisor workspace;
+  freeze provider/model identity and apply cumulative usage/budget contracts.
+- Add deterministic latest-understanding context selection with selected/omitted
+  turn provenance; retain historical/discarded turn artifacts.
+- Add explicit revision-bound exploration-to-intake proposals. Start still
+  requires the normal HumanGate; Execution and Acceptance are not implied.
+- Bind source revision/snapshot/decision evidence into IntakeState v6, TaskState
+  v9 and Start previews. Atomically consume the source when registering a task.
+- Supersede/withdraw old unconsumed intakes on revision/abandonment and reject
+  linked intake reply-to bypass. Interrupted reasoning/proposal calls are never
+  automatically replayed; durable reservations preserve missing usage as unknown.
+- Add six MCP exploration surfaces, managed worker queue integration and operator
+  CLI inspection/reasoning/proposal/abandonment commands. No new maintenance,
+  permission, validator, accepted-knowledge or profile-trust authority is added.
+- Add runtime SQLite v3 exploration storage; Job v2 supports exploration actions
+  while ordinary ask/run v1 jobs remain compatible. Legacy TaskState/IntakeState
+  model dumps omit new fields so historical learning/evidence hashes stay stable.
+- Include exploration rows/turns/transitions in read-only diagnostics and physical
+  retention roots, and preserve them through runtime/full backup and restore.
+- Add offline lifecycle, negative-authority, budget, interruption, migration and
+  retention regressions plus a subprocess MCP/managed-worker/three-gate E2E.
+  Live external host/provider closure is a separate verification step.
+
 ## 0.15.1 — Intake artifact retention follow-up
 
 - Fix physical retention so immutable Supervisor artifacts referenced directly

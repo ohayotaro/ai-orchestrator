@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from .engine import Engine
+from .exploration import Explorations, ExploreInput, ExplorationProposalInput
 from .jobs import JobQueue
 from .models import OrchestratorError
 from .process import redact
@@ -58,7 +59,24 @@ def process_one(queue: JobQueue, *, registry: dict[str, ProviderAdapter] | None 
         engine = Engine(queue.project.root, registry, cancel_check=cancelled)
         if engine.profile_digest != job.profile_digest:
             raise OrchestratorError("profile changed since queueing; no model was called")
-        if job.action == "ask":
+        if job.action == "explore":
+            params = ExploreInput.model_validate({**job.arguments, "request_id": job.request_id})
+            state = Explorations(engine).turn(
+                params.request, exploration_id=params.exploration_id,
+                expected_revision=params.expected_revision,
+                supervisor_runtime_override=params.supervisor_runtime_override,
+                expected_workspace=job.workspace_snapshot,
+            )
+            job.result = Explorations(engine).describe(state.id)
+        elif job.action == "exploration_propose":
+            params = ExplorationProposalInput.model_validate({**job.arguments, "request_id": job.request_id})
+            intake = Explorations(engine).propose(
+                params.exploration_id, params.expected_revision, params.decision,
+                task_id=params.task_id, advisory=params.advisory, workflow_ref=params.workflow_ref,
+                expected_workspace=job.workspace_snapshot,
+            )
+            job.result = Supervisor(engine).describe(intake.id)
+        elif job.action == "ask":
             params = AskInput.model_validate({**job.arguments, "request_id": job.request_id})
             intake = Supervisor(engine).ask(
                 params.request, task_id=params.task_id, advisory=params.advisory,

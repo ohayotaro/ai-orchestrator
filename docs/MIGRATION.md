@@ -565,3 +565,35 @@ Re-export the packaged Agent Skill after upgrade so connected hosts learn that
 operational diagnostics are inspectable but backup/restore/cleanup remain
 operator-only.
 
+
+
+## v0.15.1 to v0.16.0
+
+Stop MCP servers/controllers and workers before upgrading. Preserve a verified
+full `.orchestrator/` backup using v0.15.1 first; keep the project worktree and
+Git state backed up separately. Do not use a running old MCP process with a new
+editable-installed CLI when verifying the upgrade.
+
+v0.16 adds runtime SQLite user_version 3 (`explorations` table), TaskState v9,
+IntakeState v6 and exploration Job v2. Existing TaskState v1-v8, IntakeState v1-v5,
+ordinary Job v1, gates and artifact bytes remain readable. Legacy serialized
+state shapes do not gain an `exploration: null` field, preserving their evidence
+hashes. The profile fingerprint and trust are unchanged by installing the code.
+
+The gate/jobs database versions stay 1. After the runtime schema is upgraded,
+v0.15.1 will fail closed on that DB. Downgrade by restoring the complete retained
+pre-upgrade backup with its matching software; never lower PRAGMA user_version
+or strip state fields manually.
+
+After reinstalling, re-export both host Skills as applicable:
+
+```bash
+ORCH="$HOME/ai-orchestrator/.venv/bin/orchestrator"
+"$ORCH" skill --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" --replace
+"$ORCH" skill --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" --replace
+```
+
+Restart/reload the connected hosts/MCP servers and verify `orchestrator --version`,
+`orchestrator persistence`, `doctor` and MCP `inspect_project`. An unchanged
+profile does not need a new trust grant. New exploration work remains
+non-authoritative until an explicit proposal and the existing Start HumanGate.

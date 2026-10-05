@@ -18,6 +18,8 @@ from .project import Project, digest
 from . import knowledge, learning
 from .runtime_options import RuntimeOverride
 from .supervisor import Supervisor
+from .exploration import (Explorations, ExploreInput, ExplorationInput,
+                          ExplorationRevisionInput, ExplorationProposalInput, ExplorationArtifactInput)
 
 
 class Empty(Contract):
@@ -130,6 +132,12 @@ class ArtifactInput(TaskInput):
 
 # Immutable dispatch definitions; additional fields are rejected, not ignored.
 TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
+    "explore": (ExploreInput, "Queue a read-only exploration turn, not a task. Omit exploration_id/revision to start; revising requires exact expected_revision. Stable request_id is idempotent. Provider reasoning uses trusted budgets and cannot authorize execution.", False),
+    "get_exploration": (ExplorationInput, "Read exploration understanding, immutable evidence references, usage and status. Hypotheses/decisions are not accepted knowledge or authorization.", True),
+    "list_explorations": (Empty, "List bounded exploration session summaries without changing any state.", True),
+    "get_exploration_artifact": (ExplorationArtifactInput, "Read one hash-verified artifact owned by this exploration; never an arbitrary path.", True),
+    "propose_from_exploration": (ExplorationProposalInput, "Explicitly queue a concrete task proposal from an exact active exploration revision and user decision. Does not start a task or grant authority: the existing Start HumanGate is still required.", False),
+    "abandon_exploration": (ExplorationRevisionInput, "Abandon an unconsumed exploration and withdraw its unconsumed proposal. History is retained; no rollback, repair, replay or task authorization.", False),
     "inspect_project": (Empty, "Inspect the fixed project's profile and validator diagnostics. Does not execute validators or check model authentication.", True),
     "preview_provider_change": (ProviderChangeInput, "Preview one bounded persistent provider-adapter change. This does not edit config or grant trust. Use request_provider_change in single-terminal mode for the exact confirmed change.", True),
     "preview_provider_change_set": (ProviderChangeSetInput, "Preview an atomic bounded provider-adapter change-set across multiple existing provider slots. The final profile is validated as one unit; no intermediate profile is applied. Use request_provider_change_set in single-terminal mode for the exact confirmed set.", True),
@@ -233,6 +241,36 @@ class ApplicationService:
                 job = queue.cancel(params.job_id) if name == "cancel_job" else queue.get(params.job_id)
                 return job.model_dump()
         with self.engine() as engine:
+            if name == "get_exploration":
+                return Explorations(engine).describe(params.exploration_id)
+            if name == "get_exploration_artifact":
+                return Explorations(engine).artifact(params.exploration_id, params.artifact_id)
+            if name == "list_explorations":
+                ids = engine.store.exploration_ids()
+                values = [engine.store.get_exploration(value) for value in ids[:200]]
+                return {"schema_version": 1, "total": len(ids), "truncated": len(ids) > 200,
+                        "sessions": [{"id": s.id, "revision": s.revision, "status": s.status,
+                                      "latest_intake_id": s.latest_intake_id, "task_id": s.task_id} for s in values],
+                        "authority": "read-only; exploration is not execution authority"}
+            if name == "abandon_exploration":
+                state = Explorations(engine).abandon(params.exploration_id, params.expected_revision)
+                return state.model_dump()
+            if name in ("explore", "propose_from_exploration"):
+                with engine.project.lock(), self.queue() as queue:
+                    action = "explore" if name == "explore" else "exploration_propose"
+                    data = params.model_dump(exclude={"request_id"})
+                    old = queue.existing(params.request_id, action, data)
+                    if old:
+                        return old.model_dump()
+                    Explorations(engine)._check()
+                    if params.exploration_id is not None:
+                        state = engine.store.get_exploration(params.exploration_id)
+                        if state.revision != params.expected_revision:
+                            raise OrchestratorError("exploration revision changed; inspect the current session")
+                        if state.status not in (("active", "proposed") if action == "explore" else ("active",)):
+                            raise OrchestratorError("exploration cannot queue this operation in its current state")
+                    return queue.enqueue(action, data, params.request_id, engine.profile_digest,
+                                         engine.project.snapshot()).model_dump()
             if name == "inspect_project":
                 return {"project": str(self.root), "name": engine.profile.name, "profile_digest": engine.profile_digest,
                         "trusted": engine.store.trusted(engine.profile_digest),
@@ -244,6 +282,13 @@ class ApplicationService:
                         "usage_observability": engine.usage_observability_report(),
                         "budget_policy": engine.budget_policy_report(),
                         "project_learning": engine.project_learning_report(),
+                        "exploration_sessions": {
+                            "schema_version": 1, "session_count": len(engine.store.exploration_ids()),
+                            "lifecycle": "explore -> revise -> explicit propose_from_exploration -> Start HumanGate",
+                            "read_only_workspaces": True, "authority": "none until normal task HumanGates",
+                            "automatic_promotion": False, "automatic_replay": False,
+                            "context_selection": "latest-understanding-v1; historical turn artifacts retained",
+                        },
                         "operational_hardening": {
                             "diagnostics": diagnose_runtime(self.root),
                             "backup": "operator-only CLI; runtime-evidence and full controller/authority modes are explicit",

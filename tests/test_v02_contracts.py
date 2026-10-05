@@ -17,7 +17,7 @@ from conftest import approve_and_run, spec
 def test_new_tasks_use_explicit_v2_role_contracts(engine):
     controller, reasoning, engineering = engine
     state = controller.create(spec())
-    assert state.schema_version == 8
+    assert state.schema_version == 9
     state = approve_and_run(controller)
     assert state.status == "awaiting_acceptance"
     assert reasoning.requests[0].result_model is PlanResult
@@ -139,7 +139,7 @@ def test_database_upgrade_preserves_existing_rows_and_blocks_downgrade(workspace
     store.db.commit()
     store.close()
     store = Store(project)
-    assert store.db.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert store.db.execute("PRAGMA user_version").fetchone()[0] == 3
     assert store.db.execute("SELECT value FROM metadata WHERE key='keep'").fetchone()[0] == "present"
     store.db.execute("PRAGMA user_version=999")
     store.close()

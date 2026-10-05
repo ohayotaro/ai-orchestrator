@@ -343,3 +343,18 @@ v0.15 does not provide:
 - authenticated human identity.
 
 The supported model remains trusted-local, fail-closed and provenance-first.
+
+
+## v0.16 exploration roots
+
+Runtime SQLite v3 adds durable exploration sessions. Doctor validates their
+versioned rows and referenced turn/transition artifacts and reports unfinished
+`running`/`proposing` sessions without repairing them. Maintenance quiescence
+includes those states. Inspect and explicitly abandon interrupted sessions;
+never rewrite them or automatically retry provider work.
+
+Retention preserves exploration rows and every referenced artifact, including
+abandoned sessions, discarded understanding and proposal transitions. Intake/task
+transition artifacts remain roots as well. Runtime/full backups include this
+state; restore keeps the existing scope, quiescence and authority acknowledgement
+rules. No MCP maintenance authority is added by exploration.

@@ -29,6 +29,9 @@ from .worker import WORKER_MARKER
 PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 INSTRUCTIONS = (
+    "For ambiguous work, use explore and exact expected_revision to refine a non-authoritative session. "
+    "Only an explicit user decision should trigger propose_from_exploration; its intake still requires request_start. "
+    "Never treat exploration hypotheses or an agent-chosen decision as permission, and never replay an interrupted session. "
     "Use inspect_project, then propose_task with a stable request_id; get_job retrieves progress. "
     "Model execution requires an operator-started separate worker. Never call provider CLIs recursively. "
     "A scope is not authority. No MCP tool can trust, start, approve or accept. Ask the human to "
@@ -370,7 +373,7 @@ class StdioServer:
         elif method == "tools/list":
             if set(params) - {"cursor", "_meta"} or params.get("cursor") is not None:
                 return error(request_id, -32602, "Unknown cursor or tools/list parameter")
-            result = {"tools": [{"name": name, "description": description, "inputSchema": model.model_json_schema(), "annotations": {"readOnlyHint": readonly, "destructiveHint": name in ("cancel_job", "request_execution", "request_provider_change", "request_provider_change_set", "request_binding_cleanup", "request_provider_permission"), "idempotentHint": True, "openWorldHint": name in ("propose_task", "run_task", "request_start", "request_execution", "request_provider_permission")}} for name, (model, description, readonly) in tools.items()]}
+            result = {"tools": [{"name": name, "description": description, "inputSchema": model.model_json_schema(), "annotations": {"readOnlyHint": readonly, "destructiveHint": name in ("cancel_job", "request_execution", "request_provider_change", "request_provider_change_set", "request_binding_cleanup", "request_provider_permission"), "idempotentHint": True, "openWorldHint": name in ("explore", "propose_from_exploration", "propose_task", "run_task", "request_start", "request_execution", "request_provider_permission")}} for name, (model, description, readonly) in tools.items()]}
         elif method == "tools/call":
             name, arguments = params.get("name"), params.get("arguments", {})
             if set(params) - {"name", "arguments", "_meta"} or not isinstance(name, str) or name not in tools or not isinstance(arguments, dict):
@@ -460,7 +463,7 @@ class StdioServer:
                     return elicitation
                 output = self.service.invoke(name, arguments)
                 if self.single_terminal:
-                    if name in ("propose_task", "run_task") and output.get("status") in ("queued", "running"):
+                    if name in ("propose_task", "run_task", "explore", "propose_from_exploration") and output.get("status") in ("queued", "running"):
                         self.auto_worker.kick()
                     if name == "inspect_project":
                         output["execution"] = "automatically managed separate workers; no host-session model recursion"
@@ -475,7 +478,7 @@ class StdioServer:
                             },
                         }
                         output["worker"] = self.auto_worker.status()
-                    if name in ("get_job", "propose_task", "run_task"):
+                    if name in ("get_job", "propose_task", "run_task", "explore", "propose_from_exploration"):
                         output["poll_after_seconds"] = 2
                         output["worker"] = self.auto_worker.status()
                 return self._result(request_id, output)

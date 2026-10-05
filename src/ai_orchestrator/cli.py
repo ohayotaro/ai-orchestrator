@@ -17,6 +17,7 @@ import yaml
 from . import __version__, knowledge, learning, workflow_templates
 from .capabilities import CapabilityRegistryDescriptor, ProviderDescriptor, ProviderResolution
 from .engine import Engine
+from .exploration import Explorations, ExplorationState, ExplorationResult
 from .contracts import IntakeState, PlanResult, ImplementationResult, ReviewResult, SupervisorResult
 from .supervisor import Supervisor
 from .validators import register_validator
@@ -27,7 +28,7 @@ from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, R
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.15 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.16 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -113,6 +114,24 @@ def parser() -> argparse.ArgumentParser:
     workflow_save.add_argument("--scope", required=True)
     workflow_save.add_argument("--by", required=True)
     workflow_save.add_argument("--replace", action="store_true")
+    explore = commands.add_parser("explore", help="Read-only, non-authoritative exploration or revision")
+    explore.add_argument("request")
+    explore.add_argument("--session", dest="exploration_id")
+    explore.add_argument("--revision", dest="expected_revision", type=int)
+    explore.add_argument("--model")
+    explore.add_argument("--effort")
+    session = commands.add_parser("exploration", help="Inspect a durable exploration; never replay it")
+    session.add_argument("exploration_id")
+    transition = commands.add_parser("exploration-propose", help="Explicitly propose a task from exploration; Start is still required")
+    transition.add_argument("exploration_id")
+    transition.add_argument("--revision", type=int, required=True)
+    transition.add_argument("--decision", required=True)
+    transition.add_argument("--task-id")
+    transition.add_argument("--advisory", action="store_true")
+    transition.add_argument("--workflow")
+    abandon = commands.add_parser("exploration-abandon", help="Abandon non-authoritative exploration without deleting history")
+    abandon.add_argument("exploration_id")
+    abandon.add_argument("--revision", type=int, required=True)
     ask = commands.add_parser("ask", help="Propose a TaskSpec from natural language; never auto-approve execution")
     ask.add_argument("prompt")
     ask.add_argument("--task-id")
@@ -161,7 +180,7 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("task_id")
     accept.add_argument("--by", required=True)
     schema = commands.add_parser("schema")
-    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "evidence-ref", "context-influence", "provider-plugin-pin", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution"])
+    schema.add_argument("kind", choices=["profile", "task", "result", "plan", "implementation", "review", "supervisor", "intake", "state", "artifact", "proposal", "evidence-ref", "context-influence", "provider-plugin-pin", "capability-registry", "provider-descriptor", "provider-resolution", "workflow", "workflow-node", "workflow-input", "workflow-artifact", "runtime-value", "runtime-options", "runtime-override", "model-variant-resolution", "exploration", "exploration-result"])
     schema.add_argument("--output", type=Path)
     proposal = commands.add_parser("propose")
     proposal.add_argument("--kind", choices=["knowledge", "policy", "skill"], required=True)
@@ -224,7 +243,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         initialize(root, args.name)
         return {"project": str(root), "initialized": True, "trusted": False}, 0
     if args.command == "schema":
-        model = {"profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "evidence-ref": EvidenceRef, "context-influence": ContextInfluence, "provider-plugin-pin": ProviderPluginPin, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
+        model = {"exploration": ExplorationState, "exploration-result": ExplorationResult, "profile": Profile, "task": TaskSpec, "result": AgentResult, "state": TaskState, "artifact": Artifact, "proposal": Proposal, "evidence-ref": EvidenceRef, "context-influence": ContextInfluence, "provider-plugin-pin": ProviderPluginPin, "plan": PlanResult, "implementation": ImplementationResult, "review": ReviewResult, "supervisor": SupervisorResult, "intake": IntakeState, "capability-registry": CapabilityRegistryDescriptor, "provider-descriptor": ProviderDescriptor, "provider-resolution": ProviderResolution, "workflow": WorkflowSpec, "workflow-node": WorkflowNodeSpec, "workflow-input": WorkflowInputSpec, "workflow-artifact": WorkflowArtifactSpec, "runtime-value": RuntimeValueDescriptor, "runtime-options": RuntimeOptionsDescriptor, "runtime-override": RuntimeOverride, "model-variant-resolution": ModelVariantResolution}[args.kind]
         schema = model.model_json_schema()
         if args.output:
             atomic_write(args.output, json.dumps(schema, indent=2) + "\n")
@@ -302,6 +321,21 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         return register_validator(root, args.name, argv, timeout=args.timeout, env=env, generated_paths=args.generated_path, replace=args.replace), 0
     engine = Engine(root)
     try:
+        if args.command == "explore":
+            override = RuntimeOverride(model=args.model, effort=args.effort) if args.model or args.effort else None
+            state = Explorations(engine).turn(args.request, exploration_id=args.exploration_id,
+                                               expected_revision=args.expected_revision,
+                                               supervisor_runtime_override=override)
+            return Explorations(engine).describe(state.id), 1 if state.status == "failed" else 0
+        if args.command == "exploration":
+            return Explorations(engine).describe(args.exploration_id), 0
+        if args.command == "exploration-abandon":
+            return Explorations(engine).abandon(args.exploration_id, args.revision).model_dump(), 0
+        if args.command == "exploration-propose":
+            intake = Explorations(engine).propose(args.exploration_id, args.revision, args.decision,
+                                                   task_id=args.task_id, advisory=args.advisory,
+                                                   workflow_ref=args.workflow)
+            return Supervisor(engine).describe(intake.id), 1 if intake.status in ("failed", "blocked", "cancelled") else 0
         if args.command == "trust":
             return engine.trust(args.by), 0
         if args.command == "doctor":
@@ -413,6 +447,8 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        if (os.environ.get("CLAUDECODE") or os.environ.get("AI_ORCHESTRATOR_INTERNAL_WORKER")) and args.command in ("explore", "exploration-propose"):
+            raise OrchestratorError("use MCP exploration requests or a separate operator terminal; nested provider calls are prohibited")
         if os.environ.get("CLAUDECODE") and (args.command in ("ask", "run") or (args.command == "start" and not args.no_run)):
             raise OrchestratorError("this command would start a nested model session; use MCP single-terminal requests or a separate operator terminal. No task was created or changed")
         if os.environ.get("CLAUDECODE") and args.command in ("restore", "cleanup"):
