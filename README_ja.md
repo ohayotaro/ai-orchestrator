@@ -4,7 +4,7 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.15.0 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
+**v0.15.1 alpha** では、長期運用向けの Operational Hardening を追加しました。`doctor` は runtime DB・persisted state・artifact・job・HumanGate・disposable workspace を read-only で診断し、operator は runtime-only / full の検証可能な backup、exact-scope restore、plan-first の physical retention/cleanup を実行できます。
 
 restore / cleanup は agent authority ではなく operator-only の maintenance action です。自動 repair、自動 replay、暗黙の authority 復元は行いません。v0.14 の Project Learning も引き続き、evidence が蓄積しても authority は自動的に蓄積しない契約を維持します。
 
