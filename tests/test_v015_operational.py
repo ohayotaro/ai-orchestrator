@@ -22,6 +22,7 @@ from ai_orchestrator.models import (
     TaskSpec,
     TaskState,
 )
+from ai_orchestrator.persistence import persistence_compatibility_report
 from ai_orchestrator.operational import (
     apply_retention,
     create_backup,
@@ -170,6 +171,67 @@ def test_full_backup_restore_is_scope_bound_and_restores_authority(workspace, tm
     check = Engine(workspace)
     try:
         assert check.store.trusted(check.profile_digest) is True
+    finally:
+        check.close()
+
+
+def test_restore_over_unreadable_current_state_requires_extra_ack(workspace, tmp_path):
+    engine = Engine(workspace)
+    try:
+        engine.trust("backup-test")
+    finally:
+        engine.close()
+
+    archive = tmp_path / "pre-corruption-full.zip"
+    created = create_backup(workspace, archive, mode="full")
+
+    path = workspace / ".orchestrator/runtime/state.sqlite3"
+    connection = sqlite3.connect(path)
+    try:
+        raw = (
+            '{"schema_version":99,"spec":{"id":"future-row","goal":"x",'
+            '"acceptance":["x"],"risk":"T0","validators":[],"external_effects":false},'
+            '"profile_digest":"'
+            + ("0" * 64)
+            + '"}'
+        )
+        with connection:
+            connection.execute(
+                "INSERT INTO tasks(id,data) VALUES (?,?)", ("future-row", raw)
+            )
+    finally:
+        connection.close()
+
+    assert diagnose_runtime(workspace)["runtime:state"]["integrity_ok"] is False
+
+    with pytest.raises(OrchestratorError, match="ack-unreadable-current-state"):
+        restore_backup(
+            workspace,
+            archive,
+            scope=created["scope"],
+            actor="operator",
+            replace=True,
+            acknowledge_authority_restore=True,
+        )
+
+    restored = restore_backup(
+        workspace,
+        archive,
+        scope=created["scope"],
+        actor="operator",
+        replace=True,
+        acknowledge_authority_restore=True,
+        acknowledge_unreadable_current_state=True,
+    )
+    assert restored["restored"] is True
+    assert restored["current_profile_trusted"] is True
+    assert diagnose_runtime(workspace)["runtime:state"]["integrity_ok"] is True
+
+    check = sqlite3.connect(path)
+    try:
+        assert check.execute(
+            "SELECT 1 FROM tasks WHERE id='future-row'"
+        ).fetchone() is None
     finally:
         check.close()
 
@@ -345,3 +407,15 @@ def test_retention_scope_must_be_replanned_when_inputs_change(workspace):
             actor="operator",
         )
     assert stale.exists()
+
+def test_operational_contracts_are_published_without_execution_schema_bumps():
+    report = persistence_compatibility_report()
+    assert report["databases"]["runtime_state"]["write_version"] == 2
+    assert report["databases"]["human_gate"]["write_version"] == 1
+    assert report["databases"]["jobs"]["write_version"] == 1
+    assert report["contracts"]["task_state"]["write_version"] == 8
+    assert report["contracts"]["intake_state"]["write_version"] == 5
+    assert report["contracts"]["backup_manifest"]["write_version"] == 1
+    assert report["contracts"]["maintenance_event"]["write_version"] == 1
+    assert report["contracts"]["retention_plan"]["write_version"] == 1
+
