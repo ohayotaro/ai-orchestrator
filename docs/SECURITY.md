@@ -699,3 +699,27 @@ authority. `inspect_project.operational_hardening` is read-only. Existing
 HumanGate execution authority and operational maintenance authority remain
 separate.
 
+
+
+## v0.16 pre-authority exploration
+
+ExplorationState is controller-owned evidence, not project authority. Structured
+reasoning fields cannot supply TaskSpec write scope, validators, permission
+grants, budgets or trust. The provider runs in the existing read-only disposable
+Supervisor snapshot. That is a cooperating trusted-local boundary, not a hostile
+same-user security sandbox; reported inspected paths are snapshot-hash-bound
+provider claims, not access attestation.
+
+Only an explicit proposal decision freezes exploration context into an intake.
+The exact source revision, snapshot and immutable artifact are bound to Start;
+revision/abandonment invalidates stale unconsumed proposals. Start atomically
+consumes the source alongside normal task registration. Exploration cannot undo
+that authority afterward. Model statements and tool arguments are never HumanGate
+answers.
+
+Turn/proposal call reservations survive interruption. Usage/budgets accumulate
+into the task and do not reset between discussion turns. Reads/restarts never
+replay an ambiguous call. Explicit abandonment preserves history and does not
+claim remote cancellation or zero cost. Exploration prose is not auto-promoted
+into accepted Project Learning. All retained exploration evidence is a physical
+retention root. See [Exploration](EXPLORATION.md).

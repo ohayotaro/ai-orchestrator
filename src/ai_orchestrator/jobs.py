@@ -7,6 +7,8 @@ import time
 import uuid
 from typing import Any, Literal
 
+from pydantic import model_validator
+
 from .models import Contract, OrchestratorError, identifier
 from .persistence import (
     JOB_DB_READABLE_VERSIONS,
@@ -20,10 +22,10 @@ JOB_TTL_SECONDS = 3600
 
 
 class Job(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     id: str
     request_id: str
-    action: Literal["ask", "run"]
+    action: Literal["ask", "run", "explore", "exploration_propose"]
     arguments: dict[str, Any]
     profile_digest: str
     workspace_snapshot: str
@@ -33,6 +35,13 @@ class Job(Contract):
     result: dict[str, Any] | None = None
     error: str | None = None
     cancel_requested: bool = False
+
+
+    @model_validator(mode="after")
+    def action_version(self):
+        if self.action in ("explore", "exploration_propose") and self.schema_version != 2:
+            raise ValueError("exploration jobs require Job schema v2")
+        return self
 
 
 class JobQueue:
@@ -89,11 +98,11 @@ class JobQueue:
             raise OrchestratorError("request_id was already used with different arguments")
         return self.get(row[0])
 
-    def enqueue(self, action: Literal["ask", "run"], arguments: dict[str, Any], request_id: str, profile_digest: str, snapshot: str) -> Job:
+    def enqueue(self, action: Literal["ask", "run", "explore", "exploration_propose"], arguments: dict[str, Any], request_id: str, profile_digest: str, snapshot: str) -> Job:
         identifier(request_id)
-        target = arguments.get("task_id") or arguments.get("reply_to") or request_id
+        target = arguments.get("exploration_id") or arguments.get("task_id") or arguments.get("reply_to") or request_id
         timestamp = time.time()
-        job = Job(id="J-" + uuid.uuid4().hex[:12], request_id=request_id, action=action, arguments=arguments, profile_digest=profile_digest, workspace_snapshot=snapshot, created_at=timestamp, expires_at=timestamp + JOB_TTL_SECONDS)
+        job = Job(schema_version=2 if action in ("explore", "exploration_propose") else 1, id="J-" + uuid.uuid4().hex[:12], request_id=request_id, action=action, arguments=arguments, profile_digest=profile_digest, workspace_snapshot=snapshot, created_at=timestamp, expires_at=timestamp + JOB_TTL_SECONDS)
         try:
             self.db.execute("BEGIN IMMEDIATE")
             old = self.existing(request_id, action, arguments)

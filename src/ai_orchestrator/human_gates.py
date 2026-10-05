@@ -376,6 +376,9 @@ def compact_gate_summary(gate: "HumanGate") -> str:
             f"Budget: {_budget_summary(p)}",
             "Effect: register task and queue planning only; implementation still requires a separate confirmation.",
         ]
+        if p.get("exploration"):
+            source = p["exploration"]
+            lines.append(f"Exploration source: {_clean_inline(source.get('session_id'))}, revision {source.get('revision')} (proposal context only)")
     elif gate.kind == "execution":
         task = p.get("task") or {}
         resolutions = p.get("provider_resolutions") or {}
@@ -704,7 +707,8 @@ class HumanGateBroker:
             else:
                 workflow_report = engine.workflow_report(selected_workflow)
                 workflow_persistence = "trusted_registry"
-            payload = {"task": task.model_dump(), "allowed_paths": intake.allowed_paths,
+            payload = {**({"exploration": intake.exploration.model_dump()} if intake.exploration is not None else {}),
+                       "task": task.model_dump(), "allowed_paths": intake.allowed_paths,
                        "capability_requirements": intake.capability_requirements,
                        "runtime_overrides": intake.runtime_overrides,
                        "supervisor_runtime_override": intake.supervisor_runtime_override,

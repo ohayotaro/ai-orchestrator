@@ -29,11 +29,11 @@ while refusing to guess when a future or malformed version is encountered.
 
 | Contract | Readable | New writes | Rule |
 | --- | --- | --- | --- |
-| Runtime SQLite `state.sqlite3` | user_version 0, 1, 2 | 2 | versions outside this set fail closed |
+| Runtime SQLite `state.sqlite3` | user_version 0, 1, 2, 3 | 3 | versions outside this set fail closed |
 | HumanGate SQLite `gates.sqlite3` | user_version 0, 1 | 1 | terminal gate history is never replayed |
 | Jobs SQLite `jobs.sqlite3` | user_version 0, 1 | 1 | current-version read/open does not restamp the header |
-| TaskState | 1-8 | 8 | v8 adds frozen Project Learning context influence; older rows are not rewritten |
-| IntakeState | 1-5 | 5 | v5 adds intake context influence; older rows remain unchanged |
+| TaskState | 1-9 | 9 | v9 adds exploration provenance; pre-v9 serialized shapes remain unchanged |
+| IntakeState | 1-6 | 6 | v6 adds exploration provenance; pre-v6 serialized shapes remain unchanged |
 | HumanGate | 1 | 1 | unknown gate schema cannot be applied |
 | Artifact metadata | 1-2 | 2 | v2 adds stable `id`, `owner_id`, and `created_at` |
 | Runtime event envelope | 1 | 1 | SQLite sequence yields stable `event_id`; payload stays unchanged |
@@ -128,3 +128,21 @@ recognize the database/contract versions present. Restoring only SQLite without 
 SQLite) is not a valid rollback; runtime state is one evidence set. Use the
 v0.15 verified backup/restore contract or restore the complete pre-upgrade
 control/runtime backup together with the matching executable/configuration.
+
+
+## v0.16 exploration persistence
+
+Runtime SQLite user_version 3 adds `explorations(id,data)` and preserves all
+existing rows/events/approvals/trust metadata. Read-only operational diagnostics
+accept a supported v2 DB with no exploration table without creating it. Store
+opening performs the explicit v2 -> v3 schema upgrade; future versions fail closed.
+
+ExplorationState, exploration_turn and exploration_transition are schema v1.
+New TaskState v9 / IntakeState v6 carry typed ExplorationProvenance. A serializer
+omits the new field for old TaskState/IntakeState versions; this preserves
+historical Project Learning task/intake digests rather than introducing `null`.
+
+Exploration queue actions use Job schema v2; normal ask/run jobs remain v1.
+The jobs SQLite layout/user_version 1 and HumanGate schema/layout are unchanged.
+Exploration artifacts are immutable and retained even after abandonment. Reads
+never resume an interrupted session. See [Exploration](EXPLORATION.md).

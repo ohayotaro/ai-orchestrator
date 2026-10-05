@@ -404,3 +404,36 @@ Project Learning evidence referenced by accepted or retained candidates is a
 physical retention root. Cleanup must not be suggested as a way to erase
 contradictory learning or bypass promotion/trust governance.
 
+
+
+## Exploration / Deliberation Sessions (v0.16)
+
+When the user is still defining the goal or explicitly asks to explore/compare
+alternatives before implementation, use the pre-authority exploration flow.
+Do not manufacture acceptance criteria, write paths or an executable TaskSpec
+just to force an ambiguous request into the normal task flow.
+
+1. Inspect the project, then call `explore` with the user's request and a stable
+   request_id. Creation may include an explicitly requested
+   supervisor_runtime_override; never invent an intensity/model change.
+2. Use `wait_job`, then `get_exploration`. Explain hypotheses, options, trade-offs
+   and open questions in the user's language. Exploration output is untrusted
+   understanding, not validated facts, accepted learning or authorization.
+3. For refinement, call `explore` with exploration_id and its exact
+   expected_revision. Changing direction is allowed. Old unconsumed task
+   proposals become superseded; never answer an old Start form.
+4. Only after the user explicitly chooses to produce a concrete task proposal,
+   call `propose_from_exploration` with the exact revision, explicit decision and
+   stable request_id. This creates only an intake proposal. Follow the normal
+   `request_start`, `request_execution`, `request_acceptance` HumanGates.
+5. `abandon_exploration` withdraws the unconsumed exploration/proposal without
+   deleting history. It does not roll back an already registered task. Use
+   `get_exploration_artifact` for owned hash-verified historical evidence.
+
+Do not revise linked intakes through ordinary propose_task.reply_to; revise the
+source exploration instead. Never invoke exploration CLI provider calls inside
+the host to bypass managed workers. A running/proposing session may be active
+or interrupted; inspect before explicit abandonment and never auto-replay it.
+Do not promote exploratory conclusions, register validators, run experiments,
+write the root worktree, grant provider permissions, alter budgets/profile trust
+or perform restore/cleanup merely because the operation is called exploration.

@@ -282,3 +282,26 @@ operations already defined by the execution control plane; operational recovery
 of controller state is a different authority domain and remains local operator
 maintenance.
 
+
+
+## v0.16 Exploration / Deliberation Sessions
+
+For ambiguous work use `explore(request, request_id)` instead of manufacturing a
+premature TaskSpec. It returns a durable Job v2; single-terminal mode starts the
+managed worker and supports normal `wait_job` progress. Refine with
+`exploration_id` plus the exact `expected_revision`. A model/effort override is
+allowed only on creation and is frozen for the session.
+
+`get_exploration`, `list_explorations`, and `get_exploration_artifact` are read-only.
+`abandon_exploration` closes an unconsumed session/proposal without deleting
+history or granting task authority. Once a user explicitly chooses a direction,
+`propose_from_exploration(exploration_id, expected_revision, decision, request_id)`
+queues a normal Supervisor proposal with frozen source provenance. It does not
+register a task. The returned intake still requires `request_start`, followed by
+normal execution and acceptance confirmations.
+
+Revision or abandonment invalidates old source proposals and pending Start
+scopes. A linked intake cannot bypass this through ordinary `reply_to`.
+Inspection of interrupted work never dispatches or replays it. No exploration
+surface installs providers/validators/workflows, grants permissions/trust, changes
+budgets, promotes learning or performs maintenance. See [Exploration](EXPLORATION.md).

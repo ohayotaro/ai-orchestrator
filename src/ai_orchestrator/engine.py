@@ -423,7 +423,7 @@ class Engine:
                 identifier(key)
                 normalized_runtime[key] = RuntimeOverride.model_validate(value).model_dump()
             _, context_influence = self.select_project_context(self.task_context_query(spec))
-            state = TaskState(schema_version=8, spec=spec, profile_digest=self.profile_digest,
+            state = TaskState(schema_version=9, spec=spec, profile_digest=self.profile_digest,
                               context_influence=context_influence,
                               capability_requirements=requested or None,
                               runtime_overrides=normalized_runtime or None)

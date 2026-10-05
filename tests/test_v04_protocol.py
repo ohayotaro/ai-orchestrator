@@ -197,7 +197,7 @@ def test_legacy_serve_has_no_native_authority_tools(gate_setup):
     server = StdioServer(broker.service)
     initialize(server)
     tools = server.handle(rpc("tools/list"))["result"]["tools"]
-    assert len(tools) == 14
+    assert len(tools) == 20
     assert tool(server, "request_start", {"intake_id": intake.id, "request_id": "request-1"})["error"]["code"] == -32602
     assert server.auto_worker is None
 

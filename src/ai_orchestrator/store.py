@@ -50,6 +50,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS approvals (task_id TEXT NOT NULL, scope TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(task_id, scope));
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS intakes (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """)
         if version < RUNTIME_DB_VERSION:
             self.db.execute(f"PRAGMA user_version={RUNTIME_DB_VERSION}")
@@ -156,6 +157,36 @@ class Store:
 
     def intake_ids(self) -> list[str]:
         return [row[0] for row in self.db.execute("SELECT id FROM intakes ORDER BY id").fetchall()]
+
+    def get_exploration(self, session_id: str):
+        from .exploration import ExplorationState
+        identifier(session_id)
+        row = self.db.execute("SELECT data FROM explorations WHERE id=?", (session_id,)).fetchone()
+        if row is None:
+            raise OrchestratorError(f"unknown exploration: {session_id}")
+        state = decode_versioned_model_json(row[0], rule_key="exploration_state", model=ExplorationState)
+        if state.id != session_id:
+            raise OrchestratorError("exploration row ID disagrees with stored state")
+        return state
+
+    def exploration_ids(self) -> list[str]:
+        return [row[0] for row in self.db.execute("SELECT id FROM explorations ORDER BY id")]
+
+    def _put_exploration(self, state, kind: str, *, create: bool = False) -> None:
+        # Caller owns the SQLite transaction and project lock.
+        data = state.model_dump_json()
+        if len(data.encode()) > 1024 * 1024:
+            raise OrchestratorError("exploration state exceeds 1 MiB")
+        if create:
+            self.db.execute("INSERT INTO explorations(id,data) VALUES (?,?)", (state.id, data))
+        elif self.db.execute("UPDATE explorations SET data=? WHERE id=?", (data, state.id)).rowcount != 1:
+            raise OrchestratorError("exploration disappeared during state update")
+        self._event(None, kind, {"exploration_id": state.id, "revision": state.revision,
+                                "status": state.status, "calls": state.calls})
+
+    def save_exploration(self, state, kind: str, *, create: bool = False) -> None:
+        with self.db:
+            self._put_exploration(state, kind, create=create)
 
     def active_intake_ids(self) -> list[str]:
         rows = self.db.execute("SELECT id,data FROM intakes ORDER BY id").fetchall()
@@ -337,6 +368,19 @@ class Store:
             else:
                 self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake.id))
             self._event(None, kind, {"intake_id": intake.id, "status": intake.status, "calls": intake.calls})
+            if intake.exploration is not None:
+                # Keep the source session linked and conservatively accounted
+                # even if a process dies inside the Supervisor call. Both writes
+                # commit in the same transaction; read paths never repair them.
+                source = self.get_exploration(intake.exploration.session_id)
+                if source.status != "proposing" or source.pending_transition != intake.exploration:
+                    raise OrchestratorError("exploration proposal source changed during intake")
+                source.latest_intake_id = intake.id
+                source.calls, source.elapsed_seconds = intake.calls, intake.elapsed_seconds
+                if intake.usage_evidence is not None:
+                    source.usage_evidence = dict(intake.usage_evidence)
+                source.updated_at = now()
+                self._put_exploration(source, "exploration.intake_accounted")
 
     def create_from_intake(self, state: TaskState, intake: IntakeState, actor: str, scope: str) -> None:
         # The project lock serializes controllers; this transaction binds consumption
@@ -346,6 +390,12 @@ class Store:
                 self.db.execute("INSERT INTO tasks(id,data) VALUES (?,?)", (state.spec.id, state.model_dump_json()))
             except sqlite3.IntegrityError as exc:
                 raise OrchestratorError(f"task already exists: {state.spec.id}") from exc
+            if intake.exploration is not None:
+                from .exploration import check_intake_source
+                source = check_intake_source(self, intake)
+                source.status = "transitioned"
+                source.task_id = state.spec.id
+                self._put_exploration(source, "exploration.transitioned")
             intake.status = "consumed"
             self.db.execute("UPDATE intakes SET data=? WHERE id=?", (intake.model_dump_json(), intake.id))
             self._event(state.spec.id, "task.created", {

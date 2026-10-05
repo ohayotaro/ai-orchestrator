@@ -224,6 +224,38 @@ def _read_intake_states(path: Path) -> tuple[list[IntakeState], list[str]]:
     return values, errors
 
 
+def _read_exploration_states(path: Path):
+    from .exploration import ExplorationState
+    values, errors = [], []
+    if not path.exists():
+        return values, errors
+    connection = None
+    try:
+        connection = _readonly_connection(path)
+        exists = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='explorations'").fetchone()
+        if not exists:
+            if connection.execute("PRAGMA user_version").fetchone()[0] >= 3:
+                errors.append("runtime v3 is missing exploration state")
+            return values, errors
+        rows = connection.execute("SELECT id,data FROM explorations ORDER BY id").fetchmany(MAX_DIAGNOSTIC_ROWS + 1)
+        if len(rows) > MAX_DIAGNOSTIC_ROWS:
+            return [], ["exploration row count exceeds diagnostic bound"]
+        for session_id, data in rows:
+            try:
+                state = decode_versioned_model_json(data, rule_key="exploration_state", model=ExplorationState)
+                if state.id != session_id:
+                    raise OrchestratorError("exploration row ID mismatch")
+                values.append(state)
+            except (ValueError, OrchestratorError) as exc:
+                errors.append(f"{session_id}: {exc}")
+    except (sqlite3.DatabaseError, OSError) as exc:
+        errors.append(str(exc))
+    finally:
+        if connection is not None:
+            connection.close()
+    return values, errors
+
+
 def _state_report(project: Project) -> dict[str, Any]:
     path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
     report = _quick_database_report(path, "runtime", RUNTIME_DB_READABLE_VERSIONS)
@@ -232,6 +264,8 @@ def _state_report(project: Project) -> dict[str, Any]:
     states, errors = _read_task_states(path)
     intakes, intake_errors = _read_intake_states(path)
     errors.extend(intake_errors)
+    explorations, exploration_errors = _read_exploration_states(path)
+    errors.extend(exploration_errors)
     referenced: set[str] = set()
     artifact_ids: set[str] = set()
     missing: list[str] = []
@@ -245,6 +279,13 @@ def _state_report(project: Project) -> dict[str, Any]:
         if intake.artifact is not None:
             artifacts_by_path.setdefault(intake.artifact.path, intake.artifact)
 
+    for session in explorations:
+        for artifact in session.artifacts:
+            artifacts_by_path.setdefault(artifact.path, artifact)
+    for intake in intakes:
+        if intake.exploration is not None:
+            artifact = intake.exploration.transition_artifact
+            artifacts_by_path.setdefault(artifact.path, artifact)
     for artifact in artifacts_by_path.values():
         referenced.add(artifact.path)
         if artifact.id:
@@ -265,6 +306,8 @@ def _state_report(project: Project) -> dict[str, Any]:
     report.update(
         task_count=len(states),
         intake_count=len(intakes),
+        exploration_count=len(explorations),
+        unfinished_explorations=sorted(s.id for s in explorations if s.status in ("running", "proposing")),
         running_tasks=sorted(state.spec.id for state in states if state.status == "running"),
         active_tasks=sorted(
             state.spec.id for state in states if state.status not in _TERMINAL_TASKS
@@ -951,7 +994,7 @@ def _runtime_activity(
     *,
     readable: dict[str, bool] | None = None,
 ) -> dict[str, list[str]]:
-    activity = {"tasks": [], "jobs": [], "gates": []}
+    activity = {"tasks": [], "jobs": [], "gates": [], "explorations": []}
     readable = readable or {"state": True, "jobs": True, "gates": True}
 
     if readable.get("state", True):
@@ -961,6 +1004,10 @@ def _runtime_activity(
             raise OrchestratorError(
                 "cannot determine task quiescence from inconsistent runtime state"
             )
+        sessions, errors = _read_exploration_states(state_path)
+        if errors:
+            raise OrchestratorError("cannot determine exploration quiescence from inconsistent state")
+        activity["explorations"] = sorted(s.id for s in sessions if s.status in ("running", "proposing"))
         activity["tasks"] = sorted(
             state.spec.id for state in states if state.status == "running"
         )
@@ -1402,6 +1449,11 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         for intake in intakes
         if intake.artifact is not None
     )
+    sessions, errors = _read_exploration_states(state_path)
+    if errors:
+        raise OrchestratorError("retention planning requires readable exploration state")
+    referenced_paths.update(artifact.path for session in sessions for artifact in session.artifacts)
+    referenced_paths.update(intake.exploration.transition_artifact.path for intake in intakes if intake.exploration is not None)
     protected_ids, legacy_untyped_evidence = _protected_evidence_ids(project)
 
     worktrees: list[str] = []
@@ -1489,6 +1541,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         "policy": {
             "task_rows": "retain",
             "intake_rows": "retain",
+            "exploration_rows_and_artifacts": "retain, including abandoned sessions and proposal provenance",
             "runtime_events": "retain",
             "human_gate_ledger": "retain",
             "referenced_artifacts": "retain (TaskState and IntakeState)",

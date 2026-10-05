@@ -579,12 +579,25 @@ class ContextInfluence(Contract):
     entries: list[ContextInfluenceEntry] = Field(default_factory=list)
 
 
+class ExplorationProvenance(Contract):
+    """Frozen pre-authority context, not an execution grant."""
+    schema_version: Literal[1] = 1
+    session_id: str
+    revision: int = Field(ge=1, le=64, strict=True)
+    source_snapshot: str = Field(pattern=r"^[a-f0-9]{64}$")
+    transition_artifact: Artifact
+
+    _session_id = field_validator("session_id")(identifier)
+
+
 class TaskState(Contract):
     # Existing rows remain readable; v5 adds task-scoped Supervisor-authored workflows,
     # v6 freezes provider-local model/effort/runtime-option provenance, v7
-    # binds usage/budget evidence, and v8 freezes selected project-context influence.
-    schema_version: Literal[1, 2, 3, 4, 5, 6, 7, 8] = 1
+    # binds usage/budget evidence, v8 freezes selected project-context influence,
+    # and v9 binds an explicit pre-authority exploration transition.
+    schema_version: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9] = 1
     intake_id: str | None = None
+    exploration: ExplorationProvenance | None = None
     require_execution_approval: StrictBool = False
     allowed_paths: list[str] | None = None
     capability_requirements: dict[str, list[str]] | None = None
@@ -614,6 +627,20 @@ class TaskState(Contract):
     feedback: str = ""
     reviewed_snapshot: str | None = None
     error: str | None = None
+
+
+    @model_validator(mode="after")
+    def exploration_version(self) -> "TaskState":
+        if self.exploration is not None and self.schema_version < 9:
+            raise ValueError("exploration provenance requires TaskState v9")
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_pre_exploration_shape(self, handler):
+        value = handler(self)
+        if self.schema_version < 9:
+            value.pop("exploration", None)
+        return value
 
 
 class Proposal(Contract):

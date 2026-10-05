@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator, model_serializer
 
-from .models import AgentResult, Artifact, ContextInfluence, Contract, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
+from .models import AgentResult, Artifact, ContextInfluence, Contract, ExplorationProvenance, TaskSpec, WorkflowSpec, validate_allowed_paths, identifier
 from .runtime_options import RuntimeOverride
 
 
@@ -131,7 +131,7 @@ class SupervisorResult(Contract):
 
 
 class IntakeState(Contract):
-    schema_version: Literal[1, 2, 3, 4, 5] = 1
+    schema_version: Literal[1, 2, 3, 4, 5, 6] = 1
     id: str
     task_id: str
     profile_digest: str
@@ -162,6 +162,7 @@ class IntakeState(Contract):
     workflow_digest: str | None = None
     workflow_source: Literal["profile_default", "requested", "supervisor", "supervisor_proposed"] | None = None
     artifact: Artifact | None = None
+    exploration: ExplorationProvenance | None = None
 
     _allowed_paths = field_validator("allowed_paths")(validate_allowed_paths)
     # Cumulative across clarification rounds; carried into the created task budget.
@@ -179,6 +180,20 @@ class IntakeState(Contract):
     @classmethod
     def valid_optional_workflow_id(cls, value: str | None) -> str | None:
         return identifier(value) if value is not None else None
+
+
+    @model_validator(mode="after")
+    def exploration_version(self) -> "IntakeState":
+        if self.exploration is not None and self.schema_version < 6:
+            raise ValueError("exploration provenance requires IntakeState v6")
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_pre_exploration_shape(self, handler):
+        value = handler(self)
+        if self.schema_version < 6:
+            value.pop("exploration", None)
+        return value
 
 
 def result_contract(phase: str, version: int = 2) -> type[Contract]:

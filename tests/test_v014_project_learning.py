@@ -255,7 +255,7 @@ def test_new_task_persists_context_influence_and_prompt_uses_only_selected_conte
                 validators=["check"],
             )
         )
-        assert state.schema_version == 8
+        assert state.schema_version == 9
         assert state.context_influence is not None
         artifact = instance.store.latest(state, "context_influence")
         assert artifact["query_sha256"] == state.context_influence.query_sha256
