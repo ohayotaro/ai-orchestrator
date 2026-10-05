@@ -406,3 +406,27 @@ def test_context_influence_artifact_unknown_version_fails_closed(engine):
     )
     with pytest.raises(OrchestratorError, match="unsupported persisted ContextInfluence schema_version=2"):
         instance.store.read_artifact(artifact)
+
+
+def test_legacy_v1_rejected_candidate_remains_readable(workspace):
+    candidates = workspace / ".orchestrator/knowledge/candidates"
+    candidates.mkdir(parents=True, exist_ok=True)
+    path = candidates / "P-legacy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "P-legacy",
+                "kind": "knowledge",
+                "statement": "legacy rejected observation",
+                "evidence": ["task:old"],
+                "status": "rejected",
+                "approved_by": None,
+            }
+        )
+        + "\n"
+    )
+    proposal = knowledge.load_proposal(workspace, "P-legacy")
+    assert proposal.schema_version == 1
+    assert proposal.status == "rejected"
+    assert proposal.rejected_by is None

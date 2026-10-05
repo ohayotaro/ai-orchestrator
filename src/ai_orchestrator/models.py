@@ -655,11 +655,16 @@ class Proposal(Contract):
 
     @model_validator(mode="after")
     def coherent_learning_contract(self) -> "Proposal":
-        if self.schema_version >= 2:
-            if not self.evidence_refs or self.support is None or self.provenance is None or self.canonical_key is None:
-                raise ValueError("Proposal schema v2 requires typed evidence, support, provenance and canonical_key")
-            if self.canonical_key != self.provenance.canonical_key:
-                raise ValueError("proposal canonical_key must match learning provenance")
+        if self.schema_version == 1:
+            if self.kind == "workflow":
+                raise ValueError("Proposal schema v1 does not support workflow candidates")
+            # Preserve the historical v1 contract exactly: rejected candidates
+            # may predate rejected_by/rejection_reason and remain readable.
+            return self
+        if not self.evidence_refs or self.support is None or self.provenance is None or self.canonical_key is None:
+            raise ValueError("Proposal schema v2 requires typed evidence, support, provenance and canonical_key")
+        if self.canonical_key != self.provenance.canonical_key:
+            raise ValueError("proposal canonical_key must match learning provenance")
         if self.status == "approved" and not self.approved_by:
             raise ValueError("approved proposal requires approved_by")
         if self.status == "rejected" and not self.rejected_by:
