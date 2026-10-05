@@ -12,6 +12,7 @@ from . import authority
 from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
+from .operational import diagnose_runtime
 from .persistence import persistence_compatibility_report
 from .project import Project, digest
 from . import knowledge, learning
@@ -244,10 +245,7 @@ class ApplicationService:
                         "budget_policy": engine.budget_policy_report(),
                         "project_learning": engine.project_learning_report(),
                         "operational_hardening": {
-                            "diagnostics": __import__(
-                                "ai_orchestrator.operational",
-                                fromlist=["diagnose_runtime"],
-                            ).diagnose_runtime(self.root),
+                            "diagnostics": diagnose_runtime(self.root),
                             "backup": "operator-only CLI; runtime-evidence and full controller/authority modes are explicit",
                             "restore": "operator-only CLI; exact verified backup scope, quiescent runtime and explicit authority acknowledgement for full restore",
                             "retention_cleanup": "operator-only CLI; read-only plan first, exact scope required to delete only bounded physical state",
