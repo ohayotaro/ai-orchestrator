@@ -489,9 +489,15 @@ historical evidence
 
 > historical influence provenance survives even after current accepted context changes
 
+v0.15.1 では、v0.15.0 live E2E で発見された IntakeState の Supervisor artifact
+retention 欠陥を修正したうえで、doctor、full/runtime backup、exact-scope restore、
+unreadable-state restore、runtime-only authority separation、retention/cleanup、
+agent authority boundary、original project 非変更を含む live E2E がすべて PASS しました。
+
+
 ## Roadmap
 
-v0.15 まで完了しています。
+v0.15.1 の live Operational Hardening E2E まで完了し、v0.15.x はクローズしています。
 
 次の主な milestone:
 
