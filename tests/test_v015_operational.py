@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import yaml
 
+from ai_orchestrator.contracts import IntakeState, SupervisorResult, TaskDraft
 from ai_orchestrator.engine import Engine
 from ai_orchestrator.human_gates import GateStore
 from ai_orchestrator.jobs import JobQueue
@@ -33,6 +34,7 @@ from ai_orchestrator.operational import (
 )
 from ai_orchestrator.project import Project, atomic_write
 from ai_orchestrator.store import Store
+from ai_orchestrator.supervisor import Supervisor
 
 
 def _sha(path):
@@ -67,6 +69,37 @@ def test_runtime_diagnostics_are_physically_read_only(workspace):
     assert report["runtime:jobs"]["ok"] is True
     assert report["runtime:gates"]["ok"] is True
     assert report["runtime:workspaces"]["ok"] is True
+
+
+def test_runtime_diagnostics_verify_intake_artifacts(workspace):
+    project = Project(workspace)
+    store = Store(project)
+    try:
+        artifact = store.write_artifact(
+            "I-diagnostic-intake", 1, "supervisor", {"value": "intake-evidence"}
+        )
+        intake = IntakeState(
+            schema_version=5,
+            id="I-diagnostic-intake",
+            task_id="diagnostic-intake-task",
+            profile_digest=project.load()[1],
+            workspace_snapshot=project.snapshot(),
+            request="retain Supervisor evidence",
+            status="proposed",
+            artifact=artifact,
+        )
+        store.save_intake(intake, "fixture.intake", create=True)
+    finally:
+        store.close()
+
+    target = workspace / artifact.path
+    target.write_text('{"corrupted":true}\n', encoding="utf-8")
+
+    report = diagnose_runtime(workspace)
+
+    assert report["runtime:state"]["ok"] is False
+    assert report["runtime:state"]["integrity_ok"] is False
+    assert artifact.path in report["runtime:state"]["corrupt_artifacts"]
 
 
 def test_runtime_diagnostics_detect_unknown_task_state_without_rewrite(workspace):
@@ -325,6 +358,43 @@ def test_retention_is_explicit_and_preserves_canonical_and_learning_evidence(wor
         )
         referenced = store.artifact(state, "fixture", {"value": "referenced"})
         store.save(state, "fixture.created", create=True)
+
+        intake = IntakeState(
+            schema_version=5,
+            id="I-retained-intake",
+            task_id="retained-intake-task",
+            profile_digest=profile_digest,
+            workspace_snapshot=project.snapshot(),
+            request="retain the Supervisor artifact referenced by this intake",
+            status="proposed",
+            result=SupervisorResult(
+                outcome="proposed",
+                summary="Supervisor evidence must remain available.",
+                task=TaskDraft(
+                    goal="retain intake evidence",
+                    acceptance=["Supervisor evidence remains readable"],
+                    risk="T0",
+                    validators=[],
+                    external_effects=False,
+                ),
+                questions=[],
+            ),
+            task=TaskSpec(
+                id="retained-intake-task",
+                goal="retain intake evidence",
+                acceptance=["Supervisor evidence remains readable"],
+                risk="T0",
+            ),
+            allowed_paths=[],
+        )
+        intake.artifact = store.write_artifact(
+            intake.id,
+            intake.round,
+            "supervisor",
+            Supervisor._artifact_value(intake),
+        )
+        store.save_intake(intake, "fixture.intake", create=True)
+        intake_artifact = intake.artifact
         state_events_before = store.event_count()
     finally:
         store.close()
@@ -398,6 +468,7 @@ def test_retention_is_explicit_and_preserves_canonical_and_learning_evidence(wor
     assert orphan.relative_to(workspace).as_posix() in plan["orphan_artifacts"]
     assert protected.relative_to(workspace).as_posix() not in plan["orphan_artifacts"]
     assert referenced.path not in plan["orphan_artifacts"]
+    assert intake_artifact.path not in plan["orphan_artifacts"]
     assert plan["authority"].startswith("read-only")
     assert orphan.is_file() and stale.exists()
 
@@ -413,12 +484,19 @@ def test_retention_is_explicit_and_preserves_canonical_and_learning_evidence(wor
     assert protected.exists()
     assert not (workspace / ".orchestrator/runtime/worktrees/stale-task").exists()
     assert (workspace / referenced.path).is_file()
+    assert (workspace / intake_artifact.path).is_file()
 
     store = Store(project)
     try:
         assert store.get("retained-task").status == "succeeded"
         assert store.event_count() == state_events_before
         assert store.read_artifact(referenced) == {"value": "referenced"}
+        retained_intake = store.get_intake("I-retained-intake")
+        assert retained_intake.status == "proposed"
+        assert retained_intake.artifact is not None
+        assert store.read_artifact(retained_intake.artifact) == Supervisor._artifact_value(
+            retained_intake
+        )
     finally:
         store.close()
 
