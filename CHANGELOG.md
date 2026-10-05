@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.15.0 — Operational Hardening
+
+- Expand `doctor` with read-only integrity diagnostics for runtime SQLite
+  databases, versioned task/intake rows, immutable artifact hashes/evidence
+  schemas, stale jobs, HumanGate ledger state, disposable worktrees and the
+  maintenance audit log. A structurally unreadable runtime database is diagnosed
+  before normal Engine construction; v0.15 does not repair it implicitly.
+- Add versioned backup manifest v1 with exact per-file SHA-256/byte provenance,
+  deterministic restore scope and bounded archive validation. Runtime-only
+  backups preserve controller evidence without project authority; full backups
+  include configuration, policies, skills, accepted knowledge, workflow
+  templates and trust/runtime state.
+- Snapshot SQLite through the SQLite backup API so WAL state is folded into a
+  canonical database copy. Disposable worktrees, process locks and SQLite
+  sidecars remain excluded from backup authority.
+- Add explicit operator-only restore. Restore requires a verified exact scope,
+  a quiescent project and `--replace`; full authority restore additionally
+  requires `--ack-authority-restore`. Current managed state is staged for
+  rollback, restored runtime is structurally re-checked, and full restore must
+  reproduce the archived profile digest.
+- Add read-only physical retention planning and exact-scope cleanup. The initial
+  cleanup surface is deliberately narrow: stale disposable worktrees, terminal
+  job/job-event rows and old orphan runtime JSON only. Task/intake rows, runtime
+  event history, HumanGate history, TaskState-referenced artifacts and evidence
+  referenced by accepted/candidate Project Learning are retained.
+- Record successful restore/cleanup maintenance actions with bounded actor,
+  scope, timestamp and action details under
+  `.orchestrator/runtime/maintenance.jsonl`.
+- Expose operational diagnostics through read-only
+  `inspect_project.operational_hardening` while adding no MCP backup, restore,
+  cleanup or database-repair mutation tools. Maintenance remains separate from
+  normal agent/HumanGate execution authority.
+- Add offline regressions proving physically read-only diagnosis, unknown-state
+  fail-closed behavior, exact-scope/authority-aware restore, runtime-only
+  authority separation, retention scope invalidation and Project Learning
+  evidence protection.
+- Keep runtime/HumanGate/jobs SQLite user versions, TaskState/IntakeState and
+  existing evidence schemas unchanged; v0.15 adds operational contracts rather
+  than rewriting persisted execution history.
+
 ## 0.14.1 — Project Learning inspection follow-up
 
 - Fix the read-only MCP `list_learning_candidates` and
