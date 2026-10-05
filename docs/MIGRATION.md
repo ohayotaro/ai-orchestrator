@@ -454,3 +454,52 @@ After upgrading, re-export the packaged Agent Skill so connected hosts receive
 the v0.13 provider-plugin authority guidance. Use `orchestrator
 provider-plugins` and `orchestrator doctor` before selecting a newly enabled
 external adapter.
+
+
+## v0.13.0 to v0.14.0
+
+Stop active controllers/workers and back up the complete runtime plus project
+authority files before upgrading. Reinstall v0.14 and re-export the packaged
+Skill.
+
+There is no SQLite user-version migration in v0.14. Runtime state remains
+`user_version=2`, HumanGate remains `1`, and jobs remains `1`. Historical
+TaskState v1-v7 and IntakeState v1-v4 rows stay readable without rewrite. Newly
+created tasks use TaskState v8 and new intakes use IntakeState v5 so they can
+freeze deterministic `context_influence` provenance.
+
+An unchanged project does not require re-trust solely for installing v0.14.
+Candidate JSON under `.orchestrator/knowledge/candidates/` is inactive and is
+not part of the effective profile fingerprint. Automatic or manual distillation
+may therefore create/update non-authoritative candidate files without changing
+project trust.
+
+Promotion is different: accepted knowledge/policy/skill Markdown is active
+project context. Promoting a candidate changes the effective profile digest and
+requires normal explicit operator inspection/re-trust before new work can run.
+Schema-v2 promotion first resolves and hash-verifies the candidate's typed
+controller evidence. A workflow recommendation candidate does not install a
+workflow; reusable workflow authority still uses `workflow-save`.
+
+v0.14 separates the accepted-context universe from prompt injection. Projects may
+retain up to 4 MiB / 2048 active Markdown items, while each new intake/task binds
+a deterministic selected subset (24 KiB context budget inside the existing
+64 KiB complete-prompt ceiling). Existing pre-v0.14 persisted tasks/intakes keep
+their historical context behavior; they are not rewritten to manufacture an
+influence manifest.
+
+Rejected schema-v2 candidates with identical evidence remain suppressed.
+Materially new evidence creates a new stable candidate identity and may link it
+as superseding the prior one. Accepted contradictory/superseded learning remains
+durable but is excluded from automatic selected context until explicitly
+resolved.
+
+After upgrade, run:
+
+```bash
+orchestrator --project "$PROJECT" learning report
+orchestrator --project "$PROJECT" persistence
+```
+
+Then re-export the packaged Skill so MCP clients understand the new read-only
+Project Learning inspection surfaces and the operator-only promotion boundary.
