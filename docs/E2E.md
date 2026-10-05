@@ -1001,3 +1001,234 @@ verifies the intended v0.13 trusted-local boundaries:
 
 The run does not claim cryptographic package-byte attestation, sandboxing of
 in-process plugin code, or provider-side attestation of controller dispatch.
+
+
+## Owner-reported live v0.14 / v0.14.1 Project Learning closure E2E — PASS (2026-10-05 JST)
+
+The owner completed an end-to-end Project Learning lifecycle on the accumulated
+calculator fixture. The run began on v0.14.0 and discovered one read-only MCP
+inspection regression; v0.14.1 fixed that regression without changing candidate
+identity/authority semantics. The final closure ran on
+`ai-orchestrator-kernel 0.14.1`.
+
+These are owner-reported host/local observations. The repository does not
+independently capture the interactive host confirmations or cryptographically
+attest the operator identity behind a HumanGate response.
+
+### Baseline and deterministic first distillation
+
+The initial trusted profile digest was:
+
+`fb35016a912363a81c2d2eef02cde83353befb9978b74bf2fb18e513f2eeaa46`
+
+The accumulated runtime exposed 45 tasks, 54 intakes and 1592 runtime events.
+Accepted context contained one 253-byte baseline policy and no accepted Project
+Learning Markdown.
+
+An explicit operator `learning distill` completed successfully with:
+
+- `task_count=45`;
+- `event_count=1592`;
+- `candidate_patterns=12`;
+- 12 newly created candidates;
+- no retained/rejected-suppressed candidates.
+
+All 12 candidates were `knowledge` observations. The live set included
+validated-path recurrence, pytest-validator history, provider-family history and
+usage-telemetry-status observations. Candidate generation did not alter the
+profile digest, trust state, accepted-context universe, provider/model/effort
+resolution, workflow, permissions, budget, task count or intake count.
+
+Representative candidate `P-L72e7ee2ae69d`
+(`canonical_key=validator-history:pytest`, positive polarity) carried six
+typed references: three task references and three validation Artifact-v2
+references. Its support reported three independent tasks and three corroborating
+validations. The referenced validation artifact hashes matched their immutable
+runtime files.
+
+### v0.14.0 MCP inspection regression and v0.14.1 fix
+
+The first live non-empty-candidate inspection exposed a v0.14.0 regression:
+`list_learning_candidates` and `get_learning_candidate` raised an internal
+tool error because `service.py` used the candidate scope `digest()` helper
+without importing it. Empty candidate sets had hidden the defect.
+
+v0.14.1 fixed the missing import, added non-empty-candidate MCP regression
+coverage and added derived `evidence_coverage` diagnostics. After upgrading and
+restarting the MCP server, live verification passed:
+
+- `list_learning_candidates` returned all 12 candidates;
+- `get_learning_candidate P-L72e7ee2ae69d` returned schema v2 typed
+  evidence/support/provenance plus scope;
+- no internal error occurred;
+- `evidence_coverage` explicitly separated full recurrence counts from the
+  bounded retained evidence/task-ID sample.
+
+For example, validated-path candidate `P-L5dac4de5380e` reported 40 total
+evidence refs but 32 retained refs, 17 independent tasks, 17 corroborating
+validations/reviews, and only two retained validation/review Artifact-v2 refs
+each. This correctly reflects legacy Artifact-v1 corroboration plus the bounded
+v2 sample rather than pretending complete typed-artifact coverage.
+
+### Idempotence
+
+The owner re-ran `learning distill` against unchanged evidence. The controller
+reported:
+
+- `candidate_patterns=12`;
+- `created=[]`;
+- `retained` equal to the same 12 candidate IDs;
+- `rejected_suppressed=[]`.
+
+The 12 candidate files remained byte-for-byte unchanged, the accepted-context
+universe remained one item / 253 bytes, the original profile remained trusted,
+and no provider/workflow/budget/task/intake authority changed.
+
+**Result:** same evidence produced the same candidate identity and no duplicate
+candidate creation.
+
+### Explicit promotion and automatic fail-closed trust invalidation
+
+The owner selected `P-L72e7ee2ae69d` because its complete retained evidence
+was typed and hash-verifiable, then promoted its exact pre-promotion scope.
+
+Promotion changed only the candidate status/approved-by fields and created:
+
+`.orchestrator/knowledge/accepted/P-L72e7ee2ae69d.md`
+
+The accepted Markdown preserved the typed evidence references, support metadata,
+canonical key, polarity and the pre-promotion proposal digest. Accepted-context
+size changed from one item / 253 bytes to two items / 2940 bytes.
+
+The profile digest changed from the original value to:
+
+`a00ab4559b8078f81f24589df248bfcada936c04275085f5d7f07744af3a05a7`
+
+and immediately evaluated `trusted=false`. Configuration, provider slots,
+Provider Resolution, model/effort, workflow, permissions and budget remained
+unchanged.
+
+**Result:** candidate promotion became project authority only through accepted
+context, changed the profile fingerprint and failed closed until explicit
+operator trust.
+
+### Explicit trust and ContextInfluence reuse
+
+After the operator explicitly trusted the promoted profile, a read-only context
+preview selected both:
+
+- `.orchestrator/policies/baseline.md`;
+- `.orchestrator/knowledge/accepted/P-L72e7ee2ae69d.md`.
+
+The accepted learning entry retained its content hash, kind=`knowledge` and all
+six typed evidence references. Candidate JSON was not selected.
+
+The owner then proposed the live task `v014-p2c-increment`: add
+`increment(value)` to `calculator.py` plus three pytest cases, preserving all
+existing dirty-worktree changes and limiting writes to
+`calculator.py` / `tests/test_calculator.py`.
+
+The new intake used IntakeState v5 and persisted a `ContextInfluence` manifest
+with the same two selected context items. After Start confirmation, the new task
+used TaskState v8 and persisted a hash-verified `context_influence` artifact
+matching the frozen TaskState manifest. Intake and task query hashes differed, as
+expected, because task selection was recomputed from the confirmed TaskSpec; the
+selected context itself remained the same.
+
+The task then completed the normal single-terminal lifecycle:
+
+- Start HumanGate: applied;
+- Execution HumanGate: applied;
+- isolated implementation/integration: exact two-file write set, no violation;
+- pytest: **46 passed**;
+- independent review: approved, no blocking finding;
+- Acceptance HumanGate: applied;
+- final TaskState: `succeeded`.
+
+The kernel does not durably store full provider prompt bodies, so the live run
+does not claim a byte-for-byte prompt capture. The frozen ContextInfluence,
+source implementation path and unchanged manifest provide the controller-side
+evidence for which accepted context was selected for those calls.
+
+### Post-Acceptance automatic learning without authority escalation
+
+Acceptance triggered the v0.14 advisory post-acceptance distillation. Candidate
+count increased from 12 to 24 without an operator distill command.
+
+Materially new evidence generated new candidate identities. In particular,
+`P-Lb5fce708a1d4` represented pytest success across four independent task
+records and recorded:
+
+`supersedes=["P-L72e7ee2ae69d"]`
+
+The previously promoted candidate remained approved at that point, while the new
+candidate remained inactive. No new candidate was automatically promoted or
+added to active accepted context.
+
+**Result:** successful execution accumulated new Project Learning evidence and
+semantic supersession without automatic authority escalation.
+
+### Promotion cleanup and trust restoration invariant
+
+The owner then removed only the temporary promotion authority:
+
+1. delete the promoted accepted Markdown;
+2. restore `P-L72e7ee2ae69d.json` byte-for-byte to its pre-promotion candidate
+   state;
+3. preserve all post-Acceptance task/runtime evidence and all newly generated
+   candidates.
+
+The original candidate SHA-256 was restored to
+`fa6733698212550709322c4d1834c3246b27e644fa7a1f88863edec44e33e17c`.
+Accepted context returned to one item / 253 bytes and the profile digest returned
+exactly to the original `fb35016a...` value.
+
+As in the v0.13 plugin lifecycle, the prior trust did **not** automatically
+return. The single current trusted-profile record still contained the promoted
+digest, so the restored original profile correctly evaluated
+`trusted=false`. The operator explicitly re-trusted the original digest; the
+runtime recorded one new `profile.trusted` event.
+
+The final project state retained:
+
+- original project authority and trusted profile;
+- no accepted Project Learning Markdown;
+- 24 inactive Project Learning candidates;
+- the successful `v014-p2c-increment` task and its immutable evidence;
+- the task's historical ContextInfluence pointing to the accepted learning that
+  existed at execution time;
+- post-Acceptance supersession evidence.
+
+Thus current authority no longer includes the promoted learning, while historical
+task provenance still records that the learning influenced the completed task.
+
+### v0.14 / v0.14.1 live completion boundary
+
+**Result: PASS.** The live series verifies:
+
+- controller-owned historical evidence can deterministically produce governed
+  candidates;
+- candidates are inactive and non-authoritative;
+- identical evidence is idempotent and does not duplicate candidates;
+- v0.14.1 candidate inspection works on a non-empty real project;
+- exact promotion writes accepted context and invalidates trust through the
+  profile fingerprint;
+- explicit trust is required before that context can govern new work;
+- accepted context is deterministically selected and frozen in IntakeState v5 /
+  TaskState v8 ContextInfluence provenance;
+- normal isolated-write / validator / independent-review / HumanGate execution
+  succeeds with the selected context;
+- Acceptance can generate materially new candidates and supersession relations
+  without automatic promotion;
+- removing promoted authority does not delete accumulated learning evidence;
+- restoring the old profile digest does not revive stale trust;
+- historical ContextInfluence survives after the influencing accepted knowledge
+  is later removed.
+
+The two final product properties demonstrated by the live run are:
+
+> learning accumulates; authority does not
+
+and:
+
+> historical influence provenance survives even after current accepted authority changes

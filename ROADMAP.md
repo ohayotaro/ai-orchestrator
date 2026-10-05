@@ -780,7 +780,17 @@ readable without rewrite. Post-acceptance distillation is advisory and cannot
 roll back task acceptance. Promotion changes project context and therefore still
 requires explicit profile re-trust; workflow recommendations do not install a
 workflow template. Offline CI covers the full behavior across supported Linux
-and macOS/Python matrices.
+and macOS/Python matrices. Owner-reported live v0.14/v0.14.1 closure also passed
+the complete lifecycle over an accumulated project: 45 historical tasks
+distilled to 12 inactive candidates; identical evidence was idempotent; exact
+promotion changed the profile digest and failed closed until explicit trust;
+promoted learning was selected into IntakeState v5 / TaskState v8
+ContextInfluence for a real write task that finished with 46 pytest tests and
+independent review; Acceptance created new superseding candidates without
+automatic authority; cleanup restored the original authority while preserving
+24 inactive candidates and historical influence provenance. The live run also
+found and v0.14.1 fixed the non-empty MCP candidate-inspection `digest` import
+regression.
 
 The remaining long-lived-storage work is physical retention/backup/restore in
 v0.15; v0.14 semantic consolidation deliberately does not garbage-collect

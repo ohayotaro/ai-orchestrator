@@ -15,6 +15,17 @@
   Artifact v1 corroboration has no stable typed artifact ID.
 - Keep candidate bytes, IDs, scopes, profile fingerprints and authority
   semantics unchanged; this is an inspection-only compatibility fix.
+- Owner-reported live closure then passed the full Project Learning lifecycle:
+  deterministic first distillation, non-authoritative candidate inspection,
+  idempotent re-distillation, exact-scope promotion, automatic untrust on profile
+  change, explicit re-trust, IntakeState-v5/TaskState-v8 ContextInfluence reuse,
+  normal isolated execution with `46 passed` and independent review,
+  post-Acceptance automatic candidate/supersession generation, promotion cleanup
+  and final explicit re-trust.
+- The final live state restored the original trusted project authority while
+  retaining 24 inactive candidates, the successful task evidence and historical
+  ContextInfluence. This demonstrates that learning can accumulate without
+  silently accumulating authority.
 
 ## 0.14.0 — Knowledge Distillation / Project Learning
 

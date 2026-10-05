@@ -613,3 +613,26 @@ Project Learning never upgrades recommendation into execution authority:
 change kernel policy, and no candidate can mutate provider/plugin pins,
 permissions, validators, external-effect flags, allowed paths, runtime options,
 budgets or `metadata.trusted_profile`.
+
+
+### Live v0.14 authority/influence invariants
+
+Owner-reported v0.14/v0.14.1 closure exercised the Project Learning authority
+boundary over a real accumulated project.
+
+The run confirmed that candidate generation and post-Acceptance distillation can
+increase durable learning state without changing profile authority. Exact
+promotion created accepted Markdown, changed the profile digest and immediately
+made the project untrusted; no provider/model/workflow/budget/permission setting
+changed. Execution resumed only after an explicit trust action.
+
+Cleanup then removed only the accepted/promotion authority while retaining the
+successful task, immutable runtime evidence and all new inactive candidates.
+Restoring the exact old profile digest did not restore its prior trust; the
+operator had to explicitly trust it again. This is the same single-current-
+trusted-profile invariant exercised by the v0.13 external-plugin lifecycle.
+
+TaskState v8 retained the historical ContextInfluence entry for the promoted
+Markdown even after that Markdown was removed from current accepted context.
+This historical provenance is evidence about the completed task, not current
+authority and not permission to resurrect deleted accepted context.
