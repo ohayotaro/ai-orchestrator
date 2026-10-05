@@ -102,7 +102,14 @@ def _candidate(project: Project, canonical_key: str):
         if item.canonical_key == canonical_key and item.status == "candidate"
     ]
     assert values
-    return sorted(values, key=lambda item: item.id)[-1]
+    return max(
+        values,
+        key=lambda item: (
+            item.support.independent_task_count if item.support is not None else 0,
+            item.support.evidence_count if item.support is not None else 0,
+            item.id,
+        ),
+    )
 
 
 def test_distillation_is_deterministic_and_rejected_evidence_does_not_reappear(engine):
