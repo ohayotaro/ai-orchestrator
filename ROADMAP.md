@@ -578,8 +578,8 @@ effect replay, distributed transactions, or general rollback.
 ## Provisional roadmap to v1.0
 
 The milestones below are a **provisional sequencing plan**, not a frozen release
-contract. v0.14 is the next intended milestone; the exact boundaries of
-v0.14-v0.16 may be adjusted when implementation, compatibility testing or live
+contract. v0.15 is the next intended milestone; the exact boundaries of
+v0.15-v0.17 may be adjusted when implementation, compatibility testing or live
 host evidence shows a better split. Architectural authority and durability
 principles should remain stable even if milestone packaging changes.
 
@@ -820,10 +820,96 @@ Planned scope:
 Completion target: an operator can inspect, back up, restore, clean and diagnose
 a long-lived installation without depending on undocumented state surgery.
 
-### v0.16 — Release Candidate Hardening
+### v0.16 — Exploration / Deliberation Sessions
+
+Primary goal: support ambiguous, exploratory and specification-forming work
+without weakening the execution authority model that protects concrete tasks.
+
+Design principle:
+
+> Exploration may change understanding; only an explicit transition may change authority.
+
+The current kernel is strongest after a task can be expressed as a bounded
+TaskSpec with acceptance criteria, effect/write scope, workflow and validators.
+That is intentionally conservative, but it makes open-ended work awkward when
+the user still needs to inspect the repository, compare approaches, revise
+assumptions or clarify the goal over multiple turns. v0.16 adds a pre-authority
+exploration layer rather than making TaskSpec/HumanGate semantics looser.
+
+Target lifecycle:
+
+```text
+ambiguous user goal
+  -> versioned ExplorationState
+  -> read-only inspection / questions / hypotheses / options
+  -> repeated user refinement
+  -> explicit decision / task proposal transition
+  -> bounded TaskSpec
+  -> existing Start HumanGate
+  -> existing execution / validation / review / acceptance
+```
+
+Planned scope:
+
+- define a versioned `ExplorationState` / session contract that can survive
+  multiple conversational turns without pretending the goal or acceptance
+  criteria are already final;
+- retain bounded provenance for user clarifications, inspected repository state,
+  hypotheses, options, assumptions, open questions, trade-offs and decisions;
+- permit read-oriented repository analysis on disposable/read-only snapshots and
+  normal provider reasoning under the existing usage/budget/provenance rules;
+- allow the user to revise or discard assumptions and proposed directions
+  repeatedly without creating executable tasks or stale approval scopes;
+- keep acceptance criteria, allowed paths, workflow shape and implementation
+  strategy optional while the session is exploratory;
+- keep exploration non-authoritative: it cannot grant write scope, external
+  effects, validator registration/execution authority, provider permissions,
+  provider/plugin activation, model/runtime policy, budgets, workflow
+  installation, accepted Project Learning context or project trust;
+- require an explicit exploration-to-task transition that produces a concrete,
+  inspectable TaskDraft/TaskSpec proposal and binds the relevant exploration
+  provenance into that proposal;
+- keep the existing Start HumanGate as the point where a proposed concrete task
+  becomes executable controller authority; completing exploration alone must
+  never start planning/implementation;
+- prevent stale exploration branches or superseded decisions from later becoming
+  executable without a fresh explicit transition;
+- distinguish exploratory prose from durable Project Learning authority.
+  Exploration output may inform a later task proposal, but should not become
+  accepted project knowledge merely because a model stated it; durable learning
+  should continue to depend on explicit governance and/or later controller
+  evidence such as validation/review;
+- define bounded context selection/compaction for long exploration sessions so
+  repeated discussion does not require replaying an unbounded transcript;
+- expose read-only diagnostics showing which exploration decisions/evidence were
+  carried into a resulting TaskSpec and which were discarded or superseded;
+- add failure/abandonment semantics so an abandoned exploration leaves no
+  executable authority, pending effect or hidden reusable approval behind;
+- exercise multi-round live E2E where the initial goal is intentionally
+  underspecified, the user changes direction at least once, and only the final
+  explicit transition becomes a normal guarded task.
+
+Non-goals:
+
+- exploration is not a second implementation mode;
+- it does not bypass HumanGate because the work is called research or planning;
+- it does not make model hypotheses equivalent to deterministic validation;
+- it does not silently run arbitrary project commands or experiments against the
+  user's root worktree;
+- it does not auto-promote exploration conclusions into Project Learning or
+  trusted workflow/configuration authority.
+
+Completion target: a user can begin with "I am not yet sure what we should
+change", inspect and refine the problem over multiple turns, compare alternatives,
+change assumptions, and eventually produce one concrete task proposal. Until
+that explicit transition and the normal Start HumanGate, project execution
+authority does not increase.
+
+### v0.17 — Release Candidate Hardening
 
 Primary goal: freeze the candidate v1.0 surface and remove remaining
-cross-version/host ambiguities.
+cross-version/host ambiguities after the exploration/deliberation contract is
+implemented.
 
 Planned scope:
 
@@ -834,16 +920,16 @@ Planned scope:
 - resolve or explicitly document remaining Claude Code / Codex / Antigravity
   host interoperability boundaries and freeze a supported / conditional /
   known-incompatible host-provider matrix;
-- freeze public MCP, HumanGate, workflow, provider/plugin, artifact and Project
-  Learning/promotion contracts intended for v1.0;
+- freeze public MCP, HumanGate, workflow, provider/plugin, artifact, Project
+  Learning/promotion and Exploration/Deliberation contracts intended for v1.0;
 - complete security-boundary, deployment-mode, migration and extension
   documentation;
 - remove accidental alpha-only APIs or mark them intentionally unstable before
   the v1.0 contract is declared.
 
 Completion target: the release candidate has no known undocumented authority,
-migration or recovery behavior, and all intended stable surfaces have explicit
-compatibility tests.
+migration, exploration-transition or recovery behavior, and all intended stable
+surfaces have explicit compatibility tests.
 
 ## v1.0 — Stable Control Plane
 
@@ -865,6 +951,8 @@ Candidate stable surfaces:
 - provider/plugin compatibility tests;
 - Project Learning evidence/candidate/promotion/influence contracts; candidate
   discovery/distillation heuristics may evolve without becoming stable authority;
+- Exploration/Deliberation session, supersession and explicit
+  exploration-to-task transition contracts;
 - documented trusted-local security boundary and supported deployment modes.
 
 A v1.0 release should have versioned extension points, tested upgrade/migration
@@ -890,7 +978,10 @@ The order above is intentional.
 - **Do not hard-code vendor model names or effort enums into semantic
   capabilities.** Runtime choices are provider-local adapter data and policy.
 - **Do not weaken HumanGate authority boundaries for convenience.**
-- **Do not treat model-generated plans or reviews as deterministic validation.**
+- **Do not solve exploratory UX by making TaskSpec authority fuzzy.** Keep
+  ambiguity in a non-authoritative ExplorationState and cross into execution only
+  through an explicit proposal transition plus the normal HumanGate.
+- **Do not treat model-generated plans, hypotheses or reviews as deterministic validation.**
 - **Do not automatically replay ambiguous interrupted effects.**
 - **Do not add a new provider merely to demonstrate extensibility.** Adapter
   contracts should be stable enough that adding one is routine first.
