@@ -534,7 +534,8 @@ class EvidenceRef(Contract):
 
 class LearningSupport(Contract):
     schema_version: Literal[1] = 1
-    independent_task_ids: list[str] = Field(default_factory=list)
+    independent_task_ids: list[str] = Field(default_factory=list, max_length=32)
+    independent_task_count: int = Field(ge=1, le=10000, strict=True)
     evidence_count: int = Field(ge=1, le=10000, strict=True)
     corroborating_validations: int = Field(default=0, ge=0, le=10000, strict=True)
     corroborating_reviews: int = Field(default=0, ge=0, le=10000, strict=True)
@@ -564,7 +565,7 @@ class ContextInfluenceEntry(Contract):
     bytes: int = Field(ge=0, le=1048576, strict=True)
     kind: Literal["policy", "skill", "knowledge"]
     score: int = Field(ge=0, le=1000000, strict=True)
-    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=32)
 
 
 class ContextInfluence(Contract):
@@ -624,7 +625,7 @@ class Proposal(Contract):
     status: Literal["candidate", "approved", "rejected"] = "candidate"
     approved_by: str | None = None
     statement_type: Literal["observation", "recommendation"] = "observation"
-    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=32)
     support: LearningSupport | None = None
     provenance: LearningProvenance | None = None
     canonical_key: str | None = Field(default=None, min_length=1, max_length=1000)

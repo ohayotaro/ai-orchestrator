@@ -29,6 +29,8 @@ from .store import Store
 DISTILLATION_VERSION = 1
 CONTEXT_SELECTOR_VERSION = 1
 CONTEXT_SELECTION_BYTES = 24 * 1024
+MAX_CANDIDATE_EVIDENCE_REFS = 32
+MAX_SUPPORT_TASK_IDS = 32
 LEARNING_METADATA_PREFIX = "<!-- ai-orchestrator-learning-v1 "
 LEARNING_METADATA_SUFFIX = " -->"
 
@@ -288,18 +290,21 @@ def _proposal(
     validations: int,
     reviews: int,
 ) -> Proposal:
-    refs = _dedupe_refs(evidence_refs)
-    evidence_digest = digest([item.model_dump() for item in refs])
+    all_refs = _dedupe_refs(evidence_refs)
+    all_task_ids = sorted(task_ids)
+    evidence_digest = digest([item.model_dump() for item in all_refs])
     seed = {
         "kind": kind,
         "statement": statement,
         "statement_type": statement_type,
         "canonical_key": canonical_key,
         "polarity": polarity,
-        "task_ids": sorted(task_ids),
+        "task_ids": all_task_ids,
         "evidence_digest": evidence_digest,
     }
     proposal_id = "P-L" + digest(seed)[:12]
+    refs = all_refs[:MAX_CANDIDATE_EVIDENCE_REFS]
+    sampled_task_ids = all_task_ids[:MAX_SUPPORT_TASK_IDS]
     return Proposal(
         schema_version=2,
         id=proposal_id,
@@ -309,8 +314,9 @@ def _proposal(
         evidence=[f"{item.source}:{item.id}:{item.sha256[:12]}" for item in refs],
         evidence_refs=refs,
         support=LearningSupport(
-            independent_task_ids=sorted(task_ids),
-            evidence_count=len(refs),
+            independent_task_ids=sampled_task_ids,
+            independent_task_count=len(all_task_ids),
+            evidence_count=len(all_refs),
             corroborating_validations=validations,
             corroborating_reviews=reviews,
         ),
@@ -352,7 +358,11 @@ def _apply_relationships(generated: list[Proposal], existing: list[Proposal]) ->
                 contradictions.add(other.id)
                 continue
             other_refs = {(item.source, item.id) for item in other.evidence_refs}
-            if other_refs < refs:
+            if other_refs < refs or (
+                other.support is not None
+                and proposal.support is not None
+                and other.support.evidence_count < proposal.support.evidence_count
+            ):
                 supersedes.add(other.id)
         proposal.supersedes = sorted(supersedes)
         proposal.contradictions = sorted(contradictions)

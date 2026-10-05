@@ -114,6 +114,7 @@ def test_distillation_is_deterministic_and_rejected_evidence_does_not_reappear(e
     candidate = _candidate(instance.project, "validated-path:shared.py")
     assert candidate.schema_version == 2
     assert candidate.support.independent_task_ids == ["learn-one", "learn-two"]
+    assert candidate.support.independent_task_count == 2
     assert candidate.support.corroborating_validations == 2
     assert candidate.support.corroborating_reviews == 2
     assert {ref.source for ref in candidate.evidence_refs} >= {"task", "artifact", "event"}
@@ -137,6 +138,7 @@ def test_distillation_is_deterministic_and_rejected_evidence_does_not_reappear(e
     assert candidate.id in replacement.supersedes
     assert replacement.id in new_evidence["created"]
     assert replacement.support.independent_task_ids == ["learn-one", "learn-three", "learn-two"]
+    assert replacement.support.independent_task_count == 3
 
 
 def test_validator_history_surfaces_contradictions_without_granting_authority(engine):
@@ -341,3 +343,23 @@ def test_distillation_covers_skill_usage_and_budget_candidate_kinds(engine):
     assert policy and policy[0].canonical_key == "budget-pattern:total_tokens:unprovable"
     assert usage and usage[0].provenance.polarity == "negative"
     assert all(item.status == "candidate" for item in [*skill, *policy, *usage])
+
+
+def test_learning_candidate_evidence_is_bounded_but_full_support_changes_identity(engine):
+    instance, _, _ = engine
+    for index in range(12):
+        _task(instance, f"bounded-{index:02d}", path="bounded.py")
+    learning.distill(instance.project.root, instance.store)
+    candidate = _candidate(instance.project, "validated-path:bounded.py")
+    assert len(candidate.evidence_refs) <= learning.MAX_CANDIDATE_EVIDENCE_REFS
+    assert len(candidate.support.independent_task_ids) <= learning.MAX_SUPPORT_TASK_IDS
+    assert candidate.support.independent_task_count == 12
+    assert candidate.support.evidence_count > len(candidate.evidence_refs)
+
+    old_id = candidate.id
+    _task(instance, "bounded-12", path="bounded.py")
+    learning.distill(instance.project.root, instance.store)
+    newer = _candidate(instance.project, "validated-path:bounded.py")
+    assert newer.id != old_id
+    assert old_id in newer.supersedes
+    assert newer.support.independent_task_count == 13

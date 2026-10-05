@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 
 from .models import OrchestratorError, Proposal, identifier
-from .project import Project, atomic_write, confined, digest, read_text
+from .project import MAX_CONTEXT_BYTES, Project, atomic_write, confined, digest, read_text
 from .store import Store
 
 
@@ -90,6 +90,10 @@ def promote(root: Path, proposal_id: str, scope: str, actor: str) -> Proposal:
             "skill": "skills",
             "workflow": "knowledge/accepted",
         }[proposal.kind]
+        if len(text.encode()) > MAX_CONTEXT_BYTES:
+            raise OrchestratorError(
+                "promoted context would exceed the per-item 64 KiB bound; revise/compact the candidate first"
+            )
         target = confined(project.root, f".orchestrator/{directory}/{proposal.id}.md")
         if target.exists():
             raise OrchestratorError("promotion target already exists; inspect interrupted promotion manually")
