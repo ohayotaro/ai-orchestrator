@@ -1,7 +1,9 @@
 # AI Orchestrator
 
+[日本語 README](README_ja.md)
+
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.14.0 alpha** adds governed Project Learning. Controller-owned historical
+**v0.14.1 alpha** adds governed Project Learning. Controller-owned historical
 evidence can deterministically produce typed, inspectable learning candidates;
 those candidates are observations/recommendations only and never become project
 authority by themselves. Operators may explicitly reject, revise or promote an
@@ -325,7 +327,7 @@ git pull --ff-only
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,interop]'
 .venv/bin/python -m pytest -q
-.venv/bin/orchestrator --version  # 0.13.0
+.venv/bin/orchestrator --version  # 0.14.1
 ```
 
 For a new checkout, first create a new environment with `python3.13 -m venv .venv`
@@ -351,8 +353,8 @@ Use a normal terminal for this one-time host setup. Do not reinitialize or reset
 existing projects, tasks or uncommitted calculator changes.
 
 ```bash
-ORCH=/Users/ohayotaro/ai-orchestrator/.venv/bin/orchestrator
-PROJECT=/Users/ohayotaro/ai-orchestrator-e2e
+ORCH="$HOME/ai-orchestrator/.venv/bin/orchestrator"
+PROJECT="/path/to/your/project"
 ```
 
 Plain `serve` is the standard single-terminal mode. The historical

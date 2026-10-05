@@ -1,0 +1,456 @@
+# AI Orchestrator
+
+[English README](README.md)
+
+既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
+
+**v0.14.1 alpha** では、Project Learning / Knowledge Distillation を追加しました。実行履歴・検証・レビュー・provider provenance・usage/budget などの controller-owned evidence から、型付きで追跡可能な learning candidate を決定的に生成できます。
+
+ただし candidate は自動的に権限を持ちません。promotion、profile trust、provider 選択、validator、write scope、budget、workflow installation などの authority はそれぞれ独立した契約として扱われます。
+
+このプロジェクトは **trusted-local alpha** です。認証済みの人間本人性、provider 側の請求証明、汎用 OS sandbox、production 向けの独立 security boundary を提供するものではありません。
+
+```text
+User <-> Claude Code / Codex + portable Skill
+                    |
+                 MCP serve
+                    |
+       propose -> Supervisor -> task proposal
+                    |
+             Start HumanGate
+                    |
+                 Planner
+                    |
+          Execution HumanGate
+                    |
+       Implementer -> validators -> fresh Reviewer
+                    |
+         Acceptance HumanGate
+                    |
+                 succeeded
+```
+
+通常の single-terminal mode では、worker は会話中の agent session とは別の managed process で動きます。MCP client が interactive form elicitation をサポートしていれば、初期 setup と trust 後の通常操作は同じクライアント terminal 内で完結できます。
+
+No / cancel / timeout / disconnect / scope drift は自動承認されません。
+
+## v0.14.1 Project Learning
+
+v0.14 では、次の状態を明確に分離します。
+
+```text
+controller-owned historical evidence
+  -> non-authoritative candidate
+  -> operator による明示的 promotion
+  -> accepted project context
+  -> profile digest change / re-trust
+  -> intake/task ごとの bounded ContextInfluence
+```
+
+Project Learning が扱う主な evidence:
+
+- task / intake state
+- write-set
+- validation
+- independent review
+- recovery
+- provider provenance
+- usage
+- budget
+- runtime event
+
+Proposal schema v2 は、`EvidenceRef`、support count、canonical key、polarity、evidence digest、supersession、contradiction などを保持します。
+
+candidate は `.orchestrator/knowledge/candidates/` に置かれ、profile fingerprint には入りません。candidate が増えても、それだけでは trust や provider routing は変わりません。
+
+promotion された knowledge / policy / skill Markdown は project authority です。そのため profile digest が変わり、明示的な re-trust が必要になります。
+
+### accepted universe と selected context
+
+accepted context 全体と、1つの intake/task に実際に渡す context は別です。
+
+- accepted universe: 最大 4 MiB / 2048 Markdown items
+- 1 intake/task の deterministic selection budget: 24 KiB
+- complete prompt ceiling: 64 KiB
+
+新しい IntakeState v5 / TaskState v8 は `ContextInfluence` を保持します。これにより、どの accepted context が選ばれ、その entry がどの historical evidence に支えられていたかを後から追跡できます。
+
+accepted knowledge が後から削除されても、完了済み TaskState に記録された historical ContextInfluence は残ります。
+
+### Project Learning の inspection
+
+```bash
+orchestrator --project "$PROJECT" learning report
+orchestrator --project "$PROJECT" learning context --query "update parser behavior"
+```
+
+candidate 生成:
+
+```bash
+orchestrator --project "$PROJECT" learning distill
+```
+
+candidate inspection / governance:
+
+```bash
+orchestrator --project "$PROJECT" proposal P-...
+
+orchestrator --project "$PROJECT" promote P-... \
+  --scope <exact-scope> --by "$USER"
+
+orchestrator --project "$PROJECT" proposal-reject P-... \
+  --scope <exact-scope> --by "$USER" --reason "..."
+
+orchestrator --project "$PROJECT" proposal-revise P-... \
+  --scope <exact-scope> --by "$USER" --statement "..."
+```
+
+MCP からは read-only の以下が利用できます。
+
+- `inspect_project.project_learning`
+- `list_learning_candidates`
+- `get_learning_candidate`
+- `preview_learning_context`
+- `get_task`
+- `get_artifact(kind=context_influence)`
+
+promotion / reject / revise / distill / trust は operator action のままです。
+
+詳細: [Project Learning](docs/PROJECT_LEARNING.md)
+
+## v0.13 Provider Adapter / Plugin SDK
+
+外部 provider adapter は `ai_orchestrator.providers` Python entry-point group で discovery できます。
+
+ただし **package install は authority ではありません**。
+
+外部 plugin が load されるには、少なくとも以下が必要です。
+
+1. distribution が install 済み
+2. project profile に exact pin がある
+3. distribution/version/entry-point が exact match
+4. その profile digest が operator により明示的に trust 済み
+5. Provider SDK / Adapter API conformance に合格
+
+install 済みでも unpinned なら inert、pin 済みでも untrusted なら inert です。
+
+また、
+
+```text
+loaded != selected != dispatched
+```
+
+です。
+
+in-process plugin は controller と同じ Python process / OS user で動く trusted controller code であり、worker sandbox の中に閉じ込められるわけではありません。
+
+詳細: [Provider Adapter / Plugin SDK](docs/PROVIDER_SDK.md)
+
+## Persistence / migration
+
+v0.14.1 時点の主要 persisted contract:
+
+- Runtime SQLite: user_version 2
+- HumanGate SQLite: user_version 1
+- Jobs SQLite: user_version 1
+- TaskState: readable v1-v8 / new writes v8
+- IntakeState: readable v1-v5 / new writes v5
+- Artifact metadata: readable v1-v2 / new writes v2
+- ProjectLearningCandidate: readable v1-v2 / new writes v2
+- ContextInfluence: v1
+
+古い supported state は read 時に書き換えません。unknown / future schema は fail closed です。
+
+詳細:
+
+- [Persistence contracts](docs/PERSISTENCE.md)
+- [Migration](docs/MIGRATION.md)
+
+## Recovery
+
+durable `running` task は、process/host loss 後に自動 replay しません。
+
+retry-safe と判定できるのは、guarded / isolated execution が provider dispatch 前で、root snapshot が変わっていないことを controller が証明できる場合だけです。
+
+ambiguous effect がある場合は fail closed し、root worktree を自動 rollback しません。
+
+詳細: [Recovery & Durability](docs/RECOVERY.md)
+
+## Capability / workflow / runtime selection
+
+Provider Resolution と Model Variant Resolution は分離されています。
+
+```text
+task / workflow node
+  -> semantic capabilities
+  -> Provider Resolution
+  -> Model Variant Resolution
+  -> adapter execution
+```
+
+model / effort の precedence:
+
+```text
+task/node explicit override
+  > trusted profile model/effort
+  > adapter default
+```
+
+自動「best model」ranking はありません。
+
+Workflow Schema v1 では、trusted workflow と task-scoped adaptive workflow を扱えます。adaptive workflow は intake/task 内に固定される ephemeral authority で、勝手に provider や validator や policy を install できません。
+
+詳細:
+
+- [Capabilities](docs/CAPABILITIES.md)
+- [Workflows](docs/WORKFLOWS.md)
+- [Adaptive orchestration](docs/ADAPTIVE_ORCHESTRATION.md)
+- [Parallel execution](docs/PARALLEL_EXECUTION.md)
+
+## Usage / budget
+
+usage は推定値ではなく evidence として扱います。
+
+missing telemetry は `unknown` / `unsupported` のまま保持され、prompt/response length から token を推定したり、欠損値を 0 に置き換えたりしません。
+
+trusted policy は provider call 数、controller/provider elapsed、token dimension、provider/model call count、attributable cost などを制限できます。
+
+strict budget が必要とする telemetry を provider/model が証明できない場合は dispatch 前に fail closed します。budget に合わせて provider/model/effort/workflow を勝手に変える fallback はありません。
+
+詳細: [Usage observability and budgets](docs/USAGE_BUDGETS.md)
+
+## HumanGate と approval の区別
+
+single-terminal confirmation は通常の tool permission prompt ではなく MCP `elicitation/create` を使います。
+
+HumanGate:
+
+- Start
+- Execution
+- Acceptance
+- bounded provider-adapter change
+- binding cleanup
+- task/attempt-scoped AGY broad permission
+
+host の form response は client-mediated であり、暗号学的に「本人がクリックした」と証明するものではありません。
+
+必要なら approval automation / hook を無効にした interactive client を使用してください。
+
+詳細: [Single-terminal design/setup](docs/SINGLE_TERMINAL.md)
+
+## インストール / 更新
+
+Python 3.11+、Linux/macOS を対象にしています。
+
+既存環境を更新する前に active controller / worker を止め、少なくとも project の `.orchestrator/runtime/` をバックアップしてください。
+
+```bash
+cd "$HOME/ai-orchestrator"
+
+git pull --ff-only
+
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e '.[dev,interop]'
+
+.venv/bin/python -m pytest -q
+.venv/bin/orchestrator --version  # 0.14.1
+```
+
+新規 checkout の場合:
+
+```bash
+python3.13 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev,interop]'
+```
+
+Claude Code / Codex / Antigravity CLI は別途 install / authenticate してください。
+
+built-in adapters:
+
+- Claude Code
+- Codex CLI
+- Antigravity CLI (`agy`)
+
+## project 用 host setup
+
+以下は例です。ローカル username や project path は各自の環境に置き換えてください。
+
+```bash
+ORCH="$HOME/ai-orchestrator/.venv/bin/orchestrator"
+PROJECT="/path/to/your/project"
+```
+
+### Claude Code
+
+```bash
+cd "$PROJECT"
+
+claude mcp remove ai-orchestrator --scope local
+claude mcp add --transport stdio --scope local ai-orchestrator -- \
+  "$ORCH" --project "$PROJECT" serve
+
+"$ORCH" skill \
+  --output "$HOME/.claude/skills/ai-orchestrator/SKILL.md" \
+  --replace
+```
+
+MCP registration / Skill を変更した後は Claude Code を再起動または reload してください。
+
+### Codex
+
+```bash
+cd "$PROJECT"
+
+codex mcp remove ai-orchestrator
+codex mcp add ai-orchestrator -- \
+  "$ORCH" --project "$PROJECT" serve
+
+"$ORCH" skill \
+  --output "$HOME/.agents/skills/ai-orchestrator/SKILL.md" \
+  --replace
+```
+
+### Antigravity / AGY
+
+project Skill:
+
+```bash
+cd "$PROJECT"
+
+"$ORCH" skill \
+  --output .agents/skills/ai-orchestrator/SKILL.md \
+  --replace
+```
+
+global Skill の例:
+
+```text
+~/.gemini/config/skills/ai-orchestrator/SKILL.md
+```
+
+MCP config には固定 project で次を起動するよう設定します。
+
+```text
+$ORCH --project $PROJECT serve
+```
+
+現状、Antigravity host -> ai-orchestrator MCP tools は live-verified です。一方、tested client の HumanGate form elicitation は `action=cancel` を返す既知の interoperability limitation があります。
+
+## 通常の使い方
+
+ユーザーは workflow / DAG / worker 起動 / provider を毎回意識する必要はありません。
+
+例:
+
+```text
+ai-orchestratorを使って、calculator.pyにsquare(value)を追加し、
+pytestテストも追加してください。実装はClaudeに担当させてください。
+```
+
+host agent は通常:
+
+1. `inspect_project`
+2. Supervisor に task proposal を依頼
+3. Start HumanGate
+4. Planner
+5. Execution HumanGate
+6. Implementer
+7. registered validators
+8. fresh independent Reviewer
+9. Acceptance HumanGate
+
+の順で処理します。
+
+主要 request tools:
+
+| Tool | Yes が許可するもの |
+| --- | --- |
+| `request_start` | proposed task の登録と planning の queue |
+| `request_execution` | exact implementation attempt + validators の実行 |
+| `request_acceptance` | exact reviewed result の受入れ |
+
+HumanGate の Yes は commit / push / deployment / arbitrary external action を許可しません。
+
+## 診断
+
+主な inspection:
+
+```bash
+"$ORCH" --project "$PROJECT" doctor
+"$ORCH" --project "$PROJECT" capabilities
+"$ORCH" --project "$PROJECT" workflows
+"$ORCH" --project "$PROJECT" persistence
+"$ORCH" --project "$PROJECT" provider-plugins
+"$ORCH" --project "$PROJECT" learning report
+```
+
+MCP `inspect_project` でも主要な profile / capability / workflow / plugin / persistence / budget / learning 情報を確認できます。
+
+## Security / limitations
+
+AI Orchestrator は trusted-local alpha です。
+
+主な境界:
+
+- agent intent は human authorization ではない
+- candidate / model confidence は authority ではない
+- validator output は、validator が実際に検証した範囲の evidence
+- provider family label は provider/model の暗号学的証明ではない
+- HumanGate response は client-mediated
+- in-process external provider plugin は trusted controller code
+- OS-level hostile same-user process から controller state を保護する sandbox ではない
+- production deployment / trading / publication / regulated-data control plane を主目的としていない
+
+詳細: [Security boundaries](docs/SECURITY.md)
+
+## live E2E
+
+owner-reported live E2E は [docs/E2E.md](docs/E2E.md) に記録しています。
+
+v0.14/v0.14.1 では、Project Learning について次の lifecycle を確認しています。
+
+```text
+historical evidence
+  -> deterministic candidates
+  -> idempotent distillation
+  -> exact promotion
+  -> automatic untrusted
+  -> explicit trust
+  -> IntakeState v5 / TaskState v8 ContextInfluence
+  -> normal execution / validation / review / acceptance
+  -> post-Acceptance new candidates / supersession
+  -> promotion cleanup
+  -> original digest restored
+  -> explicit re-trust
+```
+
+確認された中心的 invariant:
+
+> learning accumulates; authority does not
+
+> historical influence provenance survives even after current accepted context changes
+
+## Roadmap
+
+v0.14 / v0.14.1 まで完了しています。
+
+次の主な milestone:
+
+- v0.15 Operational Hardening
+- v0.16 Release Candidate Hardening
+- v1.0 Stable Kernel Contracts
+
+詳細: [ROADMAP.md](ROADMAP.md)
+
+## 関連ドキュメント
+
+- [Project Learning](docs/PROJECT_LEARNING.md)
+- [Provider SDK](docs/PROVIDER_SDK.md)
+- [Persistence](docs/PERSISTENCE.md)
+- [Migration](docs/MIGRATION.md)
+- [Recovery](docs/RECOVERY.md)
+- [Security](docs/SECURITY.md)
+- [MCP](docs/MCP.md)
+- [Single-terminal](docs/SINGLE_TERMINAL.md)
+- [E2E evidence](docs/E2E.md)
+- [Changelog](CHANGELOG.md)

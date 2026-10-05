@@ -48,8 +48,8 @@ Use a disposable local Git project first. Define the following in each operator
 terminal (replace the paths with your installation):
 
 ```bash
-ORCH=/Users/ohayotaro/ai-orchestrator/.venv/bin/orchestrator
-PROJECT=/Users/ohayotaro/ai-orchestrator-e2e
+ORCH="$HOME/ai-orchestrator/.venv/bin/orchestrator"
+PROJECT="/path/to/your/project"
 
 "$ORCH" --project "$PROJECT" doctor --validators-only
 # Only after inspecting the project profile and registered commands:
