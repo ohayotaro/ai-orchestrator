@@ -307,6 +307,9 @@ def test_distillation_covers_skill_usage_and_budget_candidate_kinds(engine):
                 },
             },
         )
+    for state in states:
+        instance.store.save(state, "learning.fixture_usage")
+
     for state in states[:2]:
         instance.store.artifact(
             state,
