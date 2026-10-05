@@ -437,8 +437,18 @@ v0.14 / v0.14.1 まで完了しています。
 次の主な milestone:
 
 - v0.15 Operational Hardening
-- v0.16 Release Candidate Hardening
+- v0.16 Exploration / Deliberation Sessions
+- v0.17 Release Candidate Hardening
 - v1.0 Stable Kernel Contracts
+
+v0.16 では、仕様が曖昧な段階で repository を調べ、仮説・選択肢・未確定事項を
+何度も更新できる non-authoritative な探索 session を追加する予定です。
+探索結果だけでは実行 authority は増えず、具体的な TaskSpec への明示的 transition
+と通常の Start HumanGate を経て初めて実行可能になります。
+
+中心原則:
+
+> 探索は理解を変えてよいが、権限を変えるには明示的な遷移が必要。
 
 詳細: [ROADMAP.md](ROADMAP.md)
 

@@ -508,6 +508,12 @@ boundary, v0.13 Provider SDK boundary, and v0.14 governed Project Learning loop
 are implemented without automatic provider fallback, ambiguous replay, lossy
 implicit state conversion or hidden learning authority.
 
+The remaining path adds v0.15 Operational Hardening, then v0.16
+Exploration/Deliberation Sessions for multi-turn ambiguous work without execution
+authority, followed by v0.17 Release Candidate Hardening. Exploration is planned
+as a separate pre-authority contract rather than a relaxation of TaskSpec or
+HumanGate.
+
 See **[ROADMAP.md](ROADMAP.md)** for the remaining path toward stable v1.0
 contracts. AGY native-permission, HumanGate host compatibility and remote
 provider exactly-once behavior remain explicit adapter/host boundaries rather
