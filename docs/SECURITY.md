@@ -660,9 +660,18 @@ orchestrator archive.
 
 Restore is operator-only and scope-bound. It requires a quiescent project and
 holds both worker and project locks. Runtime-only restore cannot overwrite
-config/policy/skill/accepted-context authority. If restored runtime evidence was
-bound to a different current profile, the result reports re-trust as required;
-it does not edit the current profile or authorize it.
+config/policy/skill/accepted-context authority. Its result reports re-trust as
+required whenever the restored single `trusted_profile` binding does not equal
+the current profile; it does not edit current authority to make that binding
+match.
+
+Unreadable current controller/authority state fails closed by default. Replacing
+it from a verified backup requires the separate
+`--ack-unreadable-current-state` acknowledgement. This is deliberately distinct
+from `--ack-authority-restore`: one acknowledges that current state cannot be
+fully interpreted, while the other acknowledges that a full archive may restore
+authority. A runtime-only restore may not use the unreadable-state acknowledgement
+to bypass unreadable current project authority.
 
 Full restore is an explicit authority operation. Unlike merely copying an old
 `config.yaml` back into a current project, it can restore both the archived
@@ -676,7 +685,9 @@ Physical cleanup also follows inspect-then-apply authority. A retention plan is
 read-only and carries an exact digest scope. Cleanup recomputes the same plan
 under locks and aborts if the scope has changed. It cannot delete canonical
 TaskState/IntakeState/runtime-event/HumanGate history, TaskState-referenced
-artifacts or evidence rooted by accepted/retained Project Learning.
+artifacts or typed evidence rooted by accepted knowledge/policies/skills or
+retained Project Learning candidates. Legacy untyped learning evidence causes
+orphan-artifact GC to stop rather than guess provenance.
 
 Successful restore/cleanup writes bounded maintenance provenance under runtime.
 That JSONL is audit evidence for trusted-local operation, not a tamper-evident
