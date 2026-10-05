@@ -894,7 +894,7 @@ def _protected_evidence_ids(project: Project) -> set[str]:
     if accepted.exists():
         for path in accepted.glob("*.md"):
             try:
-                metadata = learning.accepted_learning_metadata(path.read_text(encoding="utf-8"))
+                metadata = learning._learning_metadata(path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, OrchestratorError):
                 continue
             if metadata:
