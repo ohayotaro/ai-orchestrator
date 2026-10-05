@@ -1089,27 +1089,37 @@ def _protected_evidence_ids(project: Project) -> set[str]:
     protected: set[str] = set()
     accepted = confined(project.root, ".orchestrator/knowledge/accepted")
     candidates = confined(project.root, ".orchestrator/knowledge/candidates")
-    from . import learning, knowledge
+    from . import knowledge, learning
 
     if accepted.exists():
         for path in accepted.glob("*.md"):
             try:
-                metadata = learning._learning_metadata(path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, OrchestratorError):
-                continue
+                metadata = learning._learning_metadata(
+                    path.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeDecodeError, OrchestratorError) as exc:
+                raise OrchestratorError(
+                    f"retention cannot verify accepted learning metadata: {path.name}"
+                ) from exc
             if metadata:
                 for raw in metadata.get("evidence_refs") or []:
-                    if isinstance(raw, dict) and raw.get("id"):
-                        protected.add(str(raw["id"]))
+                    try:
+                        reference = EvidenceRef.model_validate(raw)
+                    except Exception as exc:
+                        raise OrchestratorError(
+                            f"retention cannot verify accepted learning evidence: {path.name}"
+                        ) from exc
+                    protected.add(reference.id)
     if candidates.exists():
         for path in candidates.glob("*.json"):
             try:
                 proposal = knowledge.load_proposal(project.root, path.stem)
-            except (OSError, OrchestratorError, ValueError):
-                continue
+            except (OSError, OrchestratorError, ValueError) as exc:
+                raise OrchestratorError(
+                    f"retention cannot verify Project Learning candidate: {path.name}"
+                ) from exc
             protected.update(ref.id for ref in proposal.evidence_refs)
     return protected
-
 
 def _artifact_id_from_path(path: Path) -> str | None:
     stem = path.stem
@@ -1119,11 +1129,51 @@ def _artifact_id_from_path(path: Path) -> str | None:
     return None
 
 
+def _worktree_marker(path: Path) -> str:
+    entries = 0
+    total_bytes = 0
+    latest_mtime_ns = path.stat().st_mtime_ns
+    for base, directories, filenames in os.walk(path, followlinks=False):
+        parent = Path(base)
+        for name in [*directories, *filenames]:
+            child = parent / name
+            entries += 1
+            if entries > MAX_BACKUP_FILES:
+                raise OrchestratorError(
+                    "retention worktree inventory exceeds safety bound"
+                )
+            stat = child.lstat()
+            latest_mtime_ns = max(latest_mtime_ns, stat.st_mtime_ns)
+            if child.is_file() and not child.is_symlink():
+                total_bytes += stat.st_size
+    return digest(
+        {
+            "entries": entries,
+            "bytes": total_bytes,
+            "latest_mtime_ns": latest_mtime_ns,
+        }
+    )
+
+
 def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     project = Project(root.resolve())
     project.load()
     cutoff_dt = parse_cutoff(cutoff)
     cutoff_ts = cutoff_dt.timestamp()
+
+    diagnostics = diagnose_runtime(project.root)
+    structural_keys = (
+        "runtime:state",
+        "runtime:jobs",
+        "runtime:gates",
+        "runtime:maintenance",
+    )
+    if not all(diagnostics[key].get("integrity_ok", False) for key in structural_keys):
+        raise OrchestratorError(
+            "retention planning requires structurally readable runtime state; "
+            "run doctor and repair/restore the reported inconsistency first"
+        )
+
     state_path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
     states, state_errors = _read_task_states(state_path)
     if state_errors:
@@ -1135,6 +1185,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     protected_ids = _protected_evidence_ids(project)
 
     worktrees: list[str] = []
+    worktree_markers: dict[str, str] = {}
     worktree_root = confined(project.root, ".orchestrator/runtime/worktrees")
     if worktree_root.exists():
         for task_dir in sorted(worktree_root.iterdir()):
@@ -1143,45 +1194,76 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
             if status.get(task_dir.name) == "running":
                 continue
             if task_dir.stat().st_mtime <= cutoff_ts:
-                worktrees.append(task_dir.relative_to(project.root).as_posix())
+                relative = task_dir.relative_to(project.root).as_posix()
+                worktrees.append(relative)
+                worktree_markers[relative] = _worktree_marker(task_dir)
 
     jobs: list[str] = []
+    job_digests: dict[str, str] = {}
     jobs_path = confined(project.root, ".orchestrator/runtime/jobs.sqlite3")
     if jobs_path.exists():
         connection = _readonly_connection(jobs_path)
         try:
             rows = connection.execute(
                 """
-                SELECT j.id,j.status,COALESCE(MAX(e.created_at),0)
+                SELECT j.id,j.status,j.data,COALESCE(MAX(e.created_at),0)
                 FROM jobs j LEFT JOIN job_events e ON e.job_id=j.id
-                GROUP BY j.id,j.status ORDER BY j.id
+                GROUP BY j.id,j.status,j.data ORDER BY j.id
                 """
             ).fetchall()
-            for job_id, job_status, terminal_at in rows:
+            for job_id, job_status, data, terminal_at in rows:
+                try:
+                    job = Job.model_validate_json(data)
+                except ValueError as exc:
+                    raise OrchestratorError(
+                        f"retention cannot validate job state: {job_id}"
+                    ) from exc
+                if job.id != job_id or job.status != job_status:
+                    raise OrchestratorError(
+                        f"retention job columns do not match encoded state: {job_id}"
+                    )
                 if job_status in _TERMINAL_JOBS and float(terminal_at) <= cutoff_ts:
                     jobs.append(job_id)
+                    job_digests[job_id] = hashlib.sha256(
+                        data.encode("utf-8")
+                    ).hexdigest()
         finally:
             connection.close()
 
     orphan_artifacts: list[str] = []
+    orphan_hashes: dict[str, str] = {}
     runtime = project.runtime
+    artifact_candidates = 0
     if runtime.exists():
         for path in sorted(runtime.rglob("*.json")):
             relative = path.relative_to(project.root).as_posix()
             if _runtime_excluded(relative) or relative in referenced_paths:
                 continue
             artifact_id = _artifact_id_from_path(path)
-            if artifact_id and artifact_id in protected_ids:
+            # Legacy/unrecognized JSON does not have stable Artifact v2 identity
+            # and is therefore retained conservatively.
+            if artifact_id is None:
+                continue
+            artifact_candidates += 1
+            if artifact_candidates > MAX_BACKUP_FILES:
+                raise OrchestratorError(
+                    "retention artifact inventory exceeds safety bound"
+                )
+            if artifact_id in protected_ids:
                 continue
             if path.stat().st_mtime <= cutoff_ts:
                 orphan_artifacts.append(relative)
+                orphan_hashes[relative] = _sha256_file(path)
 
     plan_core = {
         "schema_version": RETENTION_SCHEMA_VERSION,
         "cutoff": cutoff_dt.isoformat(),
         "worktrees": worktrees,
+        "worktree_markers": worktree_markers,
         "terminal_jobs": jobs,
+        "terminal_job_sha256": job_digests,
         "orphan_artifacts": orphan_artifacts,
+        "orphan_artifact_sha256": orphan_hashes,
         "protected_evidence_ids": len(protected_ids),
         "policy": {
             "task_rows": "retain",
@@ -1191,9 +1273,13 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
             "referenced_artifacts": "retain",
             "accepted/promoted Project Learning evidence": "retain",
             "candidate evidence": "retain",
+            "legacy/unidentified runtime JSON": "retain",
             "disposable_worktrees": "delete only when no running task owns them",
             "job_records": "delete terminal rows/events older than cutoff",
-            "orphan_artifacts": "delete only when unreferenced and older than cutoff",
+            "orphan_artifacts": (
+                "delete only stable Artifact-v2-shaped files when unreferenced "
+                "and older than cutoff"
+            ),
         },
     }
     return {
@@ -1201,7 +1287,6 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         "scope": digest(plan_core),
         "authority": "read-only plan; no files or rows were changed",
     }
-
 
 def apply_retention(
     root: Path,
