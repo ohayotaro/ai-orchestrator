@@ -380,3 +380,27 @@ This is trusted-local operation. Native form responses are client-mediated,
 not cryptographic proof that a human clicked. No commits, pushes, deployments
 or trading are authorized by accepting a task. Additional hosts such as
 Antigravity/Grok are not certified by this skill.
+
+## v0.15 operational diagnostics
+
+`inspect_project.operational_hardening` is read-only diagnostic evidence. Use it
+to report database/state/artifact/job/gate/worktree integrity or stale runtime
+conditions, but do not infer permission to repair them.
+
+Backup creation, restore, retention cleanup and arbitrary database repair are
+operator-only CLI maintenance. They are intentionally absent from the
+agent-facing MCP mutation surface. Do not invoke direct restore/cleanup commands
+from provider shell access, do not edit SQLite/JSON to make `doctor` pass, and
+do not delete historical evidence because it appears old.
+
+If diagnostics report a malformed/corrupt persisted state, missing/hash-mismatched
+referenced artifact, stale running job or effect-uncertain applying HumanGate,
+summarize the finding and the controller-provided guidance. Never turn the
+finding into automatic replay. The operator may choose a verified backup restore,
+normal conservative task recovery, or an exact retention plan depending on the
+case.
+
+Project Learning evidence referenced by accepted or retained candidates is a
+physical retention root. Cleanup must not be suggested as a way to erase
+contradictory learning or bypass promotion/trust governance.
+

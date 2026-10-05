@@ -258,3 +258,27 @@ New intakes/tasks retain their selected `context_influence` provenance.
 Task influence is additionally available as the hash-verified
 `context_influence` artifact. Treat that manifest as evidence of what the
 controller selected, not proof that the selected Markdown is correct.
+
+## v0.15 operational inspection
+
+`inspect_project` now includes `operational_hardening`. Its diagnostic payload
+is read-only and covers runtime database/state/artifact/job/gate/worktree
+integrity plus the maintenance audit log.
+
+The same payload explicitly states that automatic repair is disabled and that
+backup/restore/retention cleanup are operator-only CLI actions.
+
+v0.15 does **not** add agent-facing MCP mutation tools for:
+
+- backup creation;
+- restore;
+- physical retention cleanup;
+- arbitrary database repair;
+- arbitrary artifact deletion;
+- trust restoration.
+
+This separation is intentional. HumanGate tools authorize bounded task/profile
+operations already defined by the execution control plane; operational recovery
+of controller state is a different authority domain and remains local operator
+maintenance.
+

@@ -95,6 +95,24 @@ PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
             "artifact bytes and hashes are not rewritten"
         ),
     },
+    "backup_manifest": {
+        "name": "BackupManifest",
+        "readable_versions": (1,),
+        "write_version": 1,
+        "strategy": "archive manifest is hash/size verified before restore; unknown versions fail closed",
+    },
+    "maintenance_event": {
+        "name": "MaintenanceEvent",
+        "readable_versions": (1,),
+        "write_version": 1,
+        "strategy": "restore/cleanup provenance is append-only JSON-lines audit evidence",
+    },
+    "retention_plan": {
+        "name": "RetentionPlan",
+        "readable_versions": (1,),
+        "write_version": 1,
+        "strategy": "read-only plan digest is the exact cleanup scope; plans are never applied implicitly",
+    },
 }
 
 EVIDENCE_RULES = {
@@ -215,8 +233,8 @@ def persistence_compatibility_report() -> dict[str, Any]:
             "automatic_rewrite": False,
             "forward_compatibility": "never guess semantics for unknown versions",
             "downgrade": (
-                "restore a complete runtime backup with the matching older executable; "
-                "lossy in-place downgrade is unsupported"
+                "use a verified matching full backup (or a complete pre-v0.15 control/runtime "
+                "backup) with the matching older executable; lossy in-place downgrade is unsupported"
             ),
         },
         "databases": {

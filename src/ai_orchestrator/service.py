@@ -12,6 +12,7 @@ from . import authority
 from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
+from .operational import diagnose_runtime
 from .persistence import persistence_compatibility_report
 from .project import Project, digest
 from . import knowledge, learning
@@ -243,6 +244,15 @@ class ApplicationService:
                         "usage_observability": engine.usage_observability_report(),
                         "budget_policy": engine.budget_policy_report(),
                         "project_learning": engine.project_learning_report(),
+                        "operational_hardening": {
+                            "diagnostics": diagnose_runtime(self.root),
+                            "backup": "operator-only CLI; runtime-evidence and full controller/authority modes are explicit",
+                            "restore": "operator-only CLI; exact verified backup scope, quiescent runtime and explicit authority acknowledgement for full restore",
+                            "retention_cleanup": "operator-only CLI; read-only plan first, exact scope required to delete only bounded physical state",
+                            "agent_can_restore": False,
+                            "agent_can_cleanup": False,
+                            "automatic_repair": False,
+                        },
                         "recovery_durability": {
                             "policy": "conservative_explicit_recovery",
                             "safe_retry_window": "isolated/guarded execution before durable provider dispatch with unchanged root snapshot",
@@ -275,7 +285,7 @@ class ApplicationService:
                         },
                         "validators": engine.doctor(validators_only=True),
                         "execution": "managed single-terminal is the default serve mode; legacy manual worker mode remains available",
-                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "learning distill", "proposal reject/revise", "recover", "provider plugin pin/config changes", "arbitrary config/policy changes"],
+                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "learning distill", "proposal reject/revise", "recover", "backup/restore/retention cleanup", "provider plugin pin/config changes", "arbitrary config/policy changes"],
                         "human_gate_authority": ["start", "execution", "acceptance", "binding cleanup", "bounded provider adapter change", "task-scoped AGY broad permission"],
                         "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":

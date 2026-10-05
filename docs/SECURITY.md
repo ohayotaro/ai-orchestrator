@@ -636,3 +636,66 @@ TaskState v8 retained the historical ContextInfluence entry for the promoted
 Markdown even after that Markdown was removed from current accepted context.
 This historical provenance is evidence about the completed task, not current
 authority and not permission to resurrect deleted accepted context.
+
+## v0.15 Operational maintenance authority boundary
+
+Operational diagnosis is deliberately weaker than operational repair.
+`doctor` opens runtime databases read-only/query-only for integrity and persisted
+contract inspection. It may report stale/expired/uncertain state, but it does
+not expire gates, interrupt jobs, rewrite rows, delete workspaces or reconstruct
+missing artifacts.
+
+Backup archives are integrity containers, not signed authenticity objects. The
+manifest binds exact paths, sizes and SHA-256 values and produces the scope used
+by restore. This protects against accidental drift between inspection and
+restore; it does not protect against a hostile same-OS-user who can replace both
+the archive and its manifest. That actor is already outside the trusted-local
+threat model.
+
+A full backup contains project authority and may contain operationally sensitive
+configuration/evidence. It must be protected like the project control directory.
+The kernel does not promise that validator environment values, accepted context
+or artifact evidence are secret-free merely because they are inside an
+orchestrator archive.
+
+Restore is operator-only and scope-bound. It requires a quiescent project and
+holds both worker and project locks. Runtime-only restore cannot overwrite
+config/policy/skill/accepted-context authority. Its result reports re-trust as
+required whenever the restored single `trusted_profile` binding does not equal
+the current profile; it does not edit current authority to make that binding
+match.
+
+Unreadable current controller/authority state fails closed by default. Replacing
+it from a verified backup requires the separate
+`--ack-unreadable-current-state` acknowledgement. This is deliberately distinct
+from `--ack-authority-restore`: one acknowledges that current state cannot be
+fully interpreted, while the other acknowledges that a full archive may restore
+authority. A runtime-only restore may not use the unreadable-state acknowledgement
+to bypass unreadable current project authority.
+
+Full restore is an explicit authority operation. Unlike merely copying an old
+`config.yaml` back into a current project, it can restore both the archived
+project authority and the archived single `metadata.trusted_profile` binding.
+That is why v0.15 additionally requires `--ack-authority-restore`, exact archive
+scope and an operator actor string. Restoring trust in this path is not an
+implicit digest cache lookup; it is part of the operator-approved restoration of
+the complete archived controller state.
+
+Physical cleanup also follows inspect-then-apply authority. A retention plan is
+read-only and carries an exact digest scope. Cleanup recomputes the same plan
+under locks and aborts if the scope has changed. It cannot delete canonical
+TaskState/IntakeState/runtime-event/HumanGate history, TaskState-referenced
+artifacts or typed evidence rooted by accepted knowledge/policies/skills or
+retained Project Learning candidates. Legacy untyped learning evidence causes
+orphan-artifact GC to stop rather than guess provenance.
+
+Successful restore/cleanup writes bounded maintenance provenance under runtime.
+That JSONL is audit evidence for trusted-local operation, not a tamper-evident
+remote log or authenticated identity record. A hostile same-user process can
+modify it.
+
+No v0.15 MCP mutation surface grants backup, restore, cleanup or database-repair
+authority. `inspect_project.operational_hardening` is read-only. Existing
+HumanGate execution authority and operational maintenance authority remain
+separate.
+

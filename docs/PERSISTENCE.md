@@ -43,6 +43,9 @@ while refusing to guess when a future or malformed version is encountered.
 | Project Learning candidate | 1-2 | 2 | v1 manual proposals remain readable; v2 adds typed evidence/support/provenance |
 | Context influence | 1 | 1 | frozen selected-context provenance; unknown versions fail closed |
 | Recovery evidence | legacy unversioned v0, 1 | 1 | v0.11 recovery JSON is exposed as v1 in memory only |
+| Backup manifest | 1 | 1 | v0.15 archive inventory/scope; hashes and sizes are verified before restore |
+| Maintenance event | 1 | 1 | operator restore/cleanup JSONL provenance; not execution authority |
+| Retention plan | 1 | 1 | read-only physical-cleanup scope; exact digest required to apply |
 
 Workflow runtime state remains embedded in TaskState and continues to bind
 Workflow Schema v1 digests/provenance. A migration must not recalculate a
@@ -89,25 +92,39 @@ remains untrusted evidence and never becomes authorization.
 
 ## Upgrade procedure
 
-Before upgrading, stop active controllers/workers and back up the complete
-`.orchestrator/runtime/` directory. Upgrade the checkout/package, run the
-offline suite, then inspect existing tasks/intakes/gates before resuming work.
+Before the first upgrade from a pre-v0.15 installation, stop active
+controllers/workers and copy the complete `.orchestrator/` control/runtime
+state. Once v0.15 is installed, prefer a verified full backup:
 
-v0.14 does not automatically rewrite TaskState v1-v7, IntakeState v1-v4,
-HumanGate v1, runtime events or legacy Artifact v1 metadata. New v0.14 work
-writes TaskState v8 / IntakeState v5 with deterministic Project Learning
-`context_influence`; older state is never rewritten to manufacture that
-provenance. Existing v0.11 recovery artifacts are hash-verified first and then
-presented through an in-memory schema-v1 compatibility view.
+```bash
+orchestrator --project "$PROJECT" backup create --mode full --output "$BACKUP"
+orchestrator backup inspect "$BACKUP"
+```
 
-If v0.12 reports an unsupported version, do not edit the version number by hand.
-Use the software version that created the state, or add an explicit reviewed
-migration in a newer release.
+Upgrade the checkout/package, run the offline suite, then run `doctor` and
+inspect existing tasks/intakes/gates before resuming work.
+
+v0.15 does not change runtime/HumanGate/jobs SQLite user versions and does not
+bump TaskState or IntakeState. TaskState v1-v8 and IntakeState v1-v5 keep their
+existing read semantics; no row is rewritten merely because v0.15 operational
+diagnostics inspected it. Existing v0.11 recovery artifacts remain hash-verified
+and presented through the same in-memory schema-v1 compatibility view.
+
+Backup manifest v1, maintenance event v1 and retention plan v1 are separate
+operational contracts. They do not alter TaskState approval scope, profile
+fingerprints or normal execution authority. A runtime-only restore never replaces
+config/policy/skill/accepted-context authority; a full restore may restore those
+files and its archived `trusted_profile` binding only after the explicit full
+authority-restore acknowledgement.
+
+If any report shows an unsupported version, do not edit the version number by
+hand. Use the software version that created the state, restore a verified
+matching backup, or add an explicit reviewed migration in a newer release.
 
 ## Downgrade boundary
 
 An in-place downgrade is unsupported whenever the target executable does not
-recognize the database/contract versions present. Restoring only SQLite without
-its artifact files (or only artifacts without SQLite) is not a valid rollback;
-the runtime directory is one evidence set. Restore the complete pre-upgrade
-backup together with the matching executable/configuration.
+recognize the database/contract versions present. Restoring only SQLite without its artifact files (or only artifacts without
+SQLite) is not a valid rollback; runtime state is one evidence set. Use the
+v0.15 verified backup/restore contract or restore the complete pre-upgrade
+control/runtime backup together with the matching executable/configuration.

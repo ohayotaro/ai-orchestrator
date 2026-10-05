@@ -27,7 +27,7 @@ from .runtime_options import ModelVariantResolution, RuntimeOptionsDescriptor, R
 
 
 def parser() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.14 alpha)")
+    cli = argparse.ArgumentParser(prog="orchestrator", description="Project-driven, provider-neutral local orchestration (v0.15 alpha)")
     cli.add_argument("--version", action="version", version=__version__)
     cli.add_argument("--project", type=Path, default=Path.cwd(), help="Git worktree root; put this option before the command")
     commands = cli.add_subparsers(dest="command", required=True)
@@ -64,6 +64,33 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
+    backup = commands.add_parser("backup", help="Create or inspect a verified operational backup")
+    backup_actions = backup.add_subparsers(dest="backup_action", required=True)
+    backup_create = backup_actions.add_parser("create", help="Create a runtime-evidence or full controller backup")
+    backup_create.add_argument("--mode", choices=["runtime", "full"], required=True)
+    backup_create.add_argument("--output", type=Path, required=True)
+    backup_create.add_argument("--replace", action="store_true")
+    backup_inspect = backup_actions.add_parser("inspect", help="Verify a backup and return its exact restore scope")
+    backup_inspect.add_argument("archive", type=Path)
+    restore = commands.add_parser("restore", help="Explicitly restore an exact verified backup scope")
+    restore.add_argument("archive", type=Path)
+    restore.add_argument("--scope", required=True)
+    restore.add_argument("--by", required=True)
+    restore.add_argument("--replace", action="store_true", required=True)
+    restore.add_argument("--ack-authority-restore", action="store_true")
+    restore.add_argument(
+        "--ack-unreadable-current-state",
+        action="store_true",
+        help="Allow verified restore over current controller/authority state that cannot be fully interpreted",
+    )
+    retention = commands.add_parser("retention", help="Preview physical retention cleanup without changing state")
+    retention_cutoff = retention.add_mutually_exclusive_group(required=True)
+    retention_cutoff.add_argument("--before", help="ISO-8601 cutoff timestamp with timezone")
+    retention_cutoff.add_argument("--days", type=int, help="Preview items older than this many days")
+    cleanup = commands.add_parser("cleanup", help="Apply an exact retention plan; operator-only")
+    cleanup.add_argument("--before", required=True, help="Exact ISO-8601 cutoff returned by retention")
+    cleanup.add_argument("--scope", required=True, help="Exact scope returned by retention")
+    cleanup.add_argument("--by", required=True)
     commands.add_parser("capabilities", help="Inspect the semantic capability registry and deterministic provider resolution")
     commands.add_parser("provider-plugins", help="Inspect provider plugin entry-point metadata, trusted pins and load/conformance status")
     commands.add_parser("persistence", help="Inspect persisted-contract and migration compatibility rules")
@@ -218,6 +245,50 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     if args.command == "proposal-revise":
         proposal = knowledge.revise(root, args.proposal_id, args.scope, args.by, args.statement)
         return {**proposal.model_dump(), "scope": digest(proposal.model_dump())}, 0
+    if args.command == "backup":
+        from . import operational
+        if args.backup_action == "create":
+            return operational.create_backup(
+                root, args.output, mode=args.mode, replace=args.replace
+            ), 0
+        if args.backup_action == "inspect":
+            return operational.inspect_backup(args.archive), 0
+        raise OrchestratorError("unknown backup action")
+    if args.command == "restore":
+        from . import operational
+        return operational.restore_backup(
+            root,
+            args.archive,
+            scope=args.scope,
+            actor=args.by,
+            replace=args.replace,
+            acknowledge_authority_restore=args.ack_authority_restore,
+            acknowledge_unreadable_current_state=args.ack_unreadable_current_state,
+        ), 0
+    if args.command == "retention":
+        from . import operational
+        cutoff = args.before or operational.cutoff_from_days(args.days)
+        return operational.retention_plan(root, cutoff=cutoff), 0
+    if args.command == "cleanup":
+        from . import operational
+        return operational.apply_retention(
+            root, cutoff=args.before, scope=args.scope, actor=args.by
+        ), 0
+    if args.command == "doctor" and not args.validators_only:
+        # A malformed runtime DB must still be diagnosable. Run the structural
+        # read-only checks before constructing Engine/Store; if state.sqlite3 is
+        # unreadable, provider probing is intentionally skipped.
+        from .operational import diagnose_runtime
+        structural = diagnose_runtime(root)
+        state_report = structural["runtime:state"]
+        if state_report.get("present") and not state_report.get("integrity_ok"):
+            structural["controller"] = {
+                "ok": False,
+                "skipped": True,
+                "error": "provider/validator probing skipped because runtime state integrity failed",
+                "guidance": "restore a verified backup or inspect the reported state/artifact inconsistency; doctor never repairs it automatically",
+            }
+            return structural, 1
     if args.command == "validator" and args.validator_action == "add":
         env = {}
         for item in args.env:
@@ -235,7 +306,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             return engine.trust(args.by), 0
         if args.command == "doctor":
             report = engine.doctor(validators_only=args.validators_only)
-            return report, 0 if all(item["ok"] for item in report.values()) else 1
+            return report, 0 if all(item.get("ok", False) for item in report.values()) else 1
         if args.command == "capabilities":
             return engine.capability_report(), 0
         if args.command == "provider-plugins":
@@ -344,6 +415,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if os.environ.get("CLAUDECODE") and (args.command in ("ask", "run") or (args.command == "start" and not args.no_run)):
             raise OrchestratorError("this command would start a nested model session; use MCP single-terminal requests or a separate operator terminal. No task was created or changed")
+        if os.environ.get("CLAUDECODE") and args.command in ("restore", "cleanup"):
+            raise OrchestratorError(
+                "restore/cleanup mutation is operator-only; run it from a separate normal terminal"
+            )
         if args.command == "serve":
             from .mcp_server import serve
             serve(args.project.resolve(), single_terminal=args.single_terminal, gate_timeout=args.gate_timeout)

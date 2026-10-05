@@ -753,6 +753,11 @@ class Engine:
     def doctor(self, *, validators_only: bool = False) -> dict[str, Any]:
         reports: dict[str, Any] = {}
         if not validators_only:
+            # v0.15 operational diagnostics are read-only and intentionally run
+            # beside provider/validator probes rather than mutating inconsistent
+            # runtime state in an attempt to repair it.
+            from .operational import diagnose_runtime
+            reports.update(diagnose_runtime(self.project.root))
             for adapter_id, diagnostic in sorted(self.provider_plugin_diagnostics.items()):
                 reports[f"provider-plugin:{adapter_id}"] = {
                     "ok": bool(diagnostic.get("ok")),

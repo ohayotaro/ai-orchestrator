@@ -503,3 +503,65 @@ orchestrator --project "$PROJECT" persistence
 
 Then re-export the packaged Skill so MCP clients understand the new read-only
 Project Learning inspection surfaces and the operator-only promotion boundary.
+
+## v0.14.1 to v0.15.0
+
+Stop active controllers/workers before upgrading. Because pre-v0.15 installations
+do not yet have the versioned backup command, take a complete copy of
+`.orchestrator/` (not only runtime) before replacing the package. This preserves
+both controller evidence and project authority.
+
+v0.15 does not change the SQLite user versions:
+
+- runtime `state.sqlite3`: 2;
+- HumanGate `gates.sqlite3`: 1;
+- jobs `jobs.sqlite3`: 1.
+
+It also does not bump TaskState v8, IntakeState v5, Artifact v2, Project Learning
+candidate v2 or ContextInfluence v1. Existing bytes remain readable without an
+upgrade rewrite.
+
+An unchanged project does not require re-trust solely because v0.15 is installed.
+The new maintenance audit log lives under `.orchestrator/runtime/` and is not
+part of the project profile fingerprint. Backup/retention manifests are
+operator-side operational contracts, not profile authority.
+
+After installing v0.15, verify the installation and accumulated state:
+
+```bash
+orchestrator --project "$PROJECT" doctor
+orchestrator --project "$PROJECT" persistence
+orchestrator --project "$PROJECT" learning report
+```
+
+For subsequent backups prefer the versioned operator flow:
+
+```bash
+orchestrator --project "$PROJECT" backup create \
+  --mode full --output "$HOME/backups/project-full.zip"
+orchestrator backup inspect "$HOME/backups/project-full.zip"
+```
+
+Runtime-only backup/restore preserves durable runtime evidence but never replaces
+current config/policies/skills/accepted knowledge. `retrust_required` reflects
+the actual restored single `trusted_profile` binding and is true whenever that
+binding does not equal the current project digest.
+
+Full restore is intentionally stronger: it can restore project authority and the
+single archived `trusted_profile` binding. It therefore requires an exact
+verified backup scope, a quiescent project, `--replace`,
+`--ack-authority-restore` and an operator actor string. Replacing unreadable
+current runtime or malformed current project authority additionally requires
+`--ack-unreadable-current-state`. It is not an automatic migration step.
+
+Physical retention is also opt-in. `retention` first returns an exact read-only
+plan/scope; `cleanup` applies only the same recomputed plan. Canonical
+task/intake/runtime-event/HumanGate history, TaskState-referenced artifacts and
+typed Project Learning evidence roots are not garbage-collected by v0.15
+cleanup. Legacy/untyped learning evidence disables orphan-artifact collection
+rather than inferring an unsafe identity mapping.
+
+Re-export the packaged Agent Skill after upgrade so connected hosts learn that
+operational diagnostics are inspectable but backup/restore/cleanup remain
+operator-only.
+
