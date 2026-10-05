@@ -858,40 +858,56 @@ def inspect_backup(path: Path) -> dict[str, Any]:
         "verified": True,
     }
 
-def _runtime_activity(project: Project) -> dict[str, list[str]]:
+def _runtime_activity(
+    project: Project,
+    *,
+    readable: dict[str, bool] | None = None,
+) -> dict[str, list[str]]:
     activity = {"tasks": [], "jobs": [], "gates": []}
-    state_path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
-    states, errors = _read_task_states(state_path)
-    if errors:
-        raise OrchestratorError("cannot perform maintenance while task state is inconsistent")
-    activity["tasks"] = sorted(state.spec.id for state in states if state.status == "running")
+    readable = readable or {"state": True, "jobs": True, "gates": True}
+
+    if readable.get("state", True):
+        state_path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
+        states, errors = _read_task_states(state_path)
+        if errors:
+            raise OrchestratorError(
+                "cannot determine task quiescence from inconsistent runtime state"
+            )
+        activity["tasks"] = sorted(
+            state.spec.id for state in states if state.status == "running"
+        )
 
     jobs_path = confined(project.root, ".orchestrator/runtime/jobs.sqlite3")
-    if jobs_path.exists():
+    if readable.get("jobs", True) and jobs_path.exists():
         connection = _readonly_connection(jobs_path)
         try:
-            for job_id, status in connection.execute(
-                "SELECT id,status FROM jobs WHERE status IN ('queued','running') ORDER BY id"
+            for job_id, _status in connection.execute(
+                "SELECT id,status FROM jobs "
+                "WHERE status IN ('queued','running') ORDER BY id"
             ).fetchall():
                 activity["jobs"].append(job_id)
         finally:
             connection.close()
 
     gates_path = confined(project.root, ".orchestrator/runtime/gates.sqlite3")
-    if gates_path.exists():
+    if readable.get("gates", True) and gates_path.exists():
         connection = _readonly_connection(gates_path)
         try:
-            for gate_id, status in connection.execute(
-                "SELECT id,status FROM gates WHERE status IN ('pending','applying') ORDER BY id"
+            for gate_id, _status in connection.execute(
+                "SELECT id,status FROM gates "
+                "WHERE status IN ('pending','applying') ORDER BY id"
             ).fetchall():
                 activity["gates"].append(gate_id)
         finally:
             connection.close()
     return activity
 
-
-def _assert_quiescent(project: Project) -> None:
-    activity = _runtime_activity(project)
+def _assert_quiescent(
+    project: Project,
+    *,
+    readable: dict[str, bool] | None = None,
+) -> None:
+    activity = _runtime_activity(project, readable=readable)
     if any(activity.values()):
         raise OrchestratorError(
             "maintenance requires a quiescent project; running tasks, queued/running "
@@ -957,10 +973,51 @@ def _stage_archive(path: Path, destination: Path, manifest: dict[str, Any]) -> N
                 )
 
 
+def _iter_rollback_files(project: Project, mode: str) -> list[Path]:
+    if mode not in ("runtime", "full"):
+        raise OrchestratorError("restore mode must be 'runtime' or 'full'")
+    base = project.runtime if mode == "runtime" else project.control
+    if not base.exists():
+        return []
+    values: list[Path] = []
+    for path in sorted(base.rglob("*")):
+        relative = path.relative_to(project.root).as_posix()
+        confined(project.root, relative)
+        if relative.startswith(".orchestrator/runtime/worktrees/"):
+            continue
+        if relative in (
+            ".orchestrator/runtime/workspace.lock",
+            ".orchestrator/runtime/worker.lock",
+        ):
+            continue
+        if path.is_symlink():
+            raise OrchestratorError(
+                f"restore rollback staging refuses symlinked control/runtime path: {relative}"
+            )
+        if path.is_file():
+            values.append(path)
+            if len(values) > MAX_BACKUP_FILES:
+                raise OrchestratorError(
+                    "restore rollback file count exceeds safety bound"
+                )
+    return values
+
+
 def _stage_current(project: Project, mode: str, destination: Path) -> None:
-    for source in _iter_managed_files(project, mode):
+    # Rollback staging is a raw byte-for-byte snapshot made while both
+    # maintenance locks are held. Unlike a portable backup it includes SQLite
+    # sidecars so even a currently malformed database can be restored exactly
+    # if the requested restore fails.
+    total = 0
+    for source in _iter_rollback_files(project, mode):
         relative = source.relative_to(project.root).as_posix()
-        _copy_snapshot_file(source, destination / relative)
+        size = source.stat().st_size
+        total += size
+        if total > MAX_BACKUP_BYTES:
+            raise OrchestratorError("restore rollback snapshot exceeds 2 GiB safety bound")
+        destination_path = destination / relative
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination_path, follow_symlinks=False)
 
 
 def _structural_runtime_ok(project: Project) -> tuple[bool, dict[str, Any]]:
@@ -980,6 +1037,7 @@ def restore_backup(
     actor: str,
     replace: bool,
     acknowledge_authority_restore: bool = False,
+    acknowledge_unreadable_current_state: bool = False,
 ) -> dict[str, Any]:
     if not replace:
         raise OrchestratorError("restore requires explicit --replace acknowledgement")
@@ -1002,7 +1060,26 @@ def restore_backup(
         # Revalidate current project authority after acquiring the same lock used
         # by normal controller execution.
         project.load()
-        _assert_quiescent(project)
+        current_reports = diagnose_runtime(project.root)
+        readable = {
+            "state": bool(current_reports["runtime:state"].get("integrity_ok")),
+            "jobs": bool(current_reports["runtime:jobs"].get("integrity_ok")),
+            "gates": bool(current_reports["runtime:gates"].get("integrity_ok")),
+        }
+        unreadable = sorted(name for name, ok in readable.items() if not ok)
+        maintenance_readable = bool(
+            current_reports["runtime:maintenance"].get("integrity_ok")
+        )
+        if not maintenance_readable:
+            unreadable.append("maintenance")
+        if unreadable and not acknowledge_unreadable_current_state:
+            raise OrchestratorError(
+                "current runtime state is inconsistent; inspect doctor output and "
+                "pass --ack-unreadable-current-state only when intentionally "
+                "restoring a verified backup over that state: "
+                + ", ".join(unreadable)
+            )
+        _assert_quiescent(project, readable=readable)
         _assert_restore_worktrees_clear(project)
         with tempfile.TemporaryDirectory(prefix="ai-orchestrator-restore-") as temporary:
             root_tmp = Path(temporary)
@@ -1063,6 +1140,8 @@ def restore_backup(
                 "source_profile_digest": manifest["source_profile_digest"],
                 "source_trusted_profile": manifest["source_trusted_profile"],
                 "authority_restore": mode == "full",
+                "unreadable_current_state_acknowledged": bool(unreadable),
+                "unreadable_current_components": unreadable,
                 "rollback_used": rolled_back,
             },
         )
