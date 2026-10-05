@@ -262,7 +262,8 @@ v0.15 cleanup retains:
 - IntakeState rows;
 - runtime task/event history;
 - HumanGate ledger/history;
-- every artifact referenced by TaskState or IntakeState, including immutable\n  Supervisor artifacts for proposed/clarification/terminal intakes;
+- every artifact referenced by TaskState or IntakeState, including immutable
+  Supervisor artifacts for proposed/clarification/terminal intakes;
 - typed evidence referenced by accepted/promoted Project Learning under
   knowledge, policies or skills;
 - typed evidence referenced by retained Project Learning candidates;
