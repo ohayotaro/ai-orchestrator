@@ -578,8 +578,10 @@ v0.15 operational diagnosis/backup/restore/retention boundary are implemented
 without automatic provider fallback, ambiguous replay, lossy implicit state
 conversion, hidden learning authority or automatic repair.
 
-v0.16 Exploration/Deliberation Sessions are now implemented and covered by
-offline/wire regression tests. Live host/provider closure remains separate.
+v0.16 Exploration/Deliberation Sessions are implemented and live-closed at
+v0.16.0. The owner-reported live run verified multi-turn direction changes,
+stale-revision rejection, explicit transition, Start/Execution/Acceptance gates,
+abandonment, usage carry-forward and exploration-aware operational inspection.
 The next implementation milestone is v0.17 Release Candidate Hardening.
 Exploration remains a separate pre-authority contract, not relaxed TaskSpec or
 HumanGate semantics.
@@ -598,7 +600,9 @@ Optional official MCP SDK interoperability runs in CI via `.[interop]`.
 Live v0.15.1 operational E2E also verifies read-only diagnosis, full/runtime
 backup, exact-scope restore, runtime-only authority separation, plan-first
 cleanup, IntakeState/TaskState artifact retention roots and original-project
-non-interference.
+non-interference. Live v0.16.0 Exploration E2E additionally verifies that
+multi-turn exploration changes understanding without increasing execution
+authority until explicit transition plus the existing HumanGates.
 
 Live owner-reported v0.9 evidence includes Claude-only Fresh-Write completion and
 AGY host MCP-tool interoperability. HumanGate transport evidence is

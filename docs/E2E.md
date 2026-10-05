@@ -1336,3 +1336,90 @@ flow. Also revise/abandon a separate unconsumed proposal and verify its old Star
 fails. Check cumulative usage, retained turn/transition evidence, unchanged
 profile/trust and exploration-aware retention. Never simulate host approval or
 invoke operator-only maintenance from the agent to make a live test pass.
+
+
+## Owner-reported v0.16.0 Exploration / Deliberation live closure E2E — PASS (2026-10-06 JST)
+
+The owner completed the live v0.16.0 closure run on the accumulated E2E project
+with main/origin/main at `e68a3c1a187a0c69a8c6552dc896f7016e423fb6`,
+runtime SQLite user_version 3, gates/jobs user_version 1, historical TaskState
+v1-v8 and IntakeState v1-v5 still readable, profile
+`fb35016a912363a81c2d2eef02cde83353befb9978b74bf2fb18e513f2eeaa46`
+still trusted, and source/Claude/Agents Skill copies matching.
+
+The main exploration session `X-717be48f02ab` began from an intentionally
+underspecified request. Revision 1 created no task, intake or HumanGate, used a
+read-only disposable workspace, changed no project-root file and persisted one
+hash-verified `exploration_turn` artifact with `authority: none`. Revision 2
+changed direction to a two-value comparison helper. The same session advanced to
+revision 2; prior options remained historical/discarded, while
+`latest-understanding-v1` selected only the latest understanding and retained
+older turns by immutable reference. Usage accumulated across both turns.
+
+Stale refinement and proposal attempts against revision 1 failed before queueing
+with `exploration revision changed; inspect the current session`; no automatic
+rebase, intake creation or extra job occurred.
+
+The owner explicitly selected `same_sign(a, b) -> bool` with zero treated as
+non-negative. The exact decision, source session, revision 2, source snapshot and
+selected understanding were frozen into an exploration-transition artifact and
+carried into IntakeState v6. At that point no TaskState existed and the normal
+Start HumanGate remained required.
+
+The main task then completed the unchanged guarded lifecycle:
+
+```text
+Exploration -> explicit transition -> Start -> planning -> Execution
+            -> isolated implementation -> pytest -> fresh review -> Acceptance
+            -> succeeded
+```
+
+The resulting TaskState v9 retained exploration provenance. Codex implemented
+only `calculator.py` and `tests/test_calculator.py` inside the approved write
+set; pytest reported 52 passed; an independent Claude review approved; Acceptance
+completed; and usage accounting carried the exploration, Supervisor, Planner,
+Implementer and Reviewer calls forward rather than restarting at task creation.
+
+Start rejection was verified on a separate exploration proposal. The first two
+probe forms in the broader exercise were accidentally answered Yes by the
+operator, so those particular probes are not rejection evidence. A third session
+produced a real declined Start HumanGate: the task remained unregistered, no
+automatic replay occurred, and exploration/proposal history remained inspectable.
+
+Abandonment was also exercised separately. An unconsumed exploration/proposal
+became abandoned/withdrawn, retained its historical evidence and could no longer
+be refined, proposed or started. Attempting to abandon a session already
+transitioned to a registered task was rejected; abandonment cannot undo task
+authority that has already crossed Start.
+
+Operational checks passed:
+
+- `doctor` reported three exploration sessions and no missing/corrupt
+  exploration artifacts; total referenced artifacts increased from 350 to 385;
+- the read-only retention plan reported no orphan artifacts and protected
+  active/transitioned/abandoned exploration evidence;
+- runtime/full backup design includes runtime state and exploration artifacts;
+- read-only verification did not rewrite database content;
+- exploration exposed no arbitrary path/shell/validator/trust/provider-permission
+  mutation authority and did not auto-promote accepted Project Learning;
+- accepted knowledge, config, profile digest/trust, provider and workflow
+  authority remained unchanged;
+- Project Learning candidates increased only after the accepted task through the
+  existing governed post-acceptance path; exploratory prose alone created none;
+- no automatic replay occurred.
+
+The final project comparison found intended content changes only in
+`calculator.py` and `tests/test_calculator.py`, both inside the accepted
+task's write set. Historical pre-E2E task/intake/gate/job rows were not
+modified/deleted. New runtime/task/evidence rows and inactive learning candidates
+were expected outputs of the live run.
+
+One residual non-blocking fixture remains:
+`v016-e2e-docstring-probe` is `awaiting_approval` because a probe Start form
+was accidentally accepted. No Execution HumanGate was requested and no
+implementation effect occurred. It may be explicitly cancelled by the operator
+as housekeeping; it is not part of the successful task or the rejection proof.
+
+**Result: PASS.** v0.16.0 satisfies the planned live Exploration / Deliberation
+closure boundary and the v0.16 milestone is closed. The next implementation
+milestone is v0.17 Release Candidate Hardening.

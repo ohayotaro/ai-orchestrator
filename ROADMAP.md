@@ -862,7 +862,7 @@ v0.15.1.
 See `docs/OPERATIONS.md` for the operator contract and command flow and
 `docs/E2E.md` for the live closure evidence.
 
-### v0.16 — Exploration / Deliberation Sessions — implemented (live closure pending)
+### v0.16 — Exploration / Deliberation Sessions — implemented and live-closed
 
 Primary goal: support ambiguous, exploratory and specification-forming work
 without weakening the execution authority model that protects concrete tasks.
@@ -956,10 +956,17 @@ v3, IntakeState v6 and TaskState v9 carry the new provenance; historical shapes
 remain readable and hash-compatible. Operational retention includes exploration
 history and evidence. Offline regressions include real subprocess MCP/managed
 worker transport through all three normal HumanGates with deterministic shims.
-No live external-provider/human-click completion is claimed by those tests.
+Owner-reported live closure subsequently exercised a real multi-turn session,
+direction change, stale-revision rejection, explicit transition, Start/Execution/
+Acceptance HumanGates, isolated implementation, deterministic pytest, fresh
+independent review, abandonment, read-only doctor/retention integration and final
+project non-interference. A separate proposal also verified a declined Start:
+no task was registered and no automatic replay occurred. Exploratory prose did
+not become accepted Project Learning or change profile/provider/workflow trust.
+v0.16.0 therefore closes the Exploration / Deliberation milestone.
 
 See `docs/EXPLORATION.md` for exact contracts and `docs/E2E.md` for the live
-closure target. The next implementation milestone is v0.17.
+closure evidence. The next implementation milestone is v0.17.
 
 ### v0.17 — Release Candidate Hardening
 

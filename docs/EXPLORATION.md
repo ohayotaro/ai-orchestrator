@@ -180,5 +180,13 @@ acknowledgement rules. No new MCP maintenance permission is introduced.
 Offline tests cover multi-turn direction changes, frozen context/usage,
 interrupted dispatch, stale Start, invalid authority fields, budgets, migration,
 backup/retention and a real subprocess MCP-to-managed-worker-to-three-HumanGate
-flow with deterministic provider shims. This is not a live external-provider or
-human-click attestation. A live host run remains a separate release-closure check.
+flow with deterministic provider shims.
+
+The owner-reported v0.16.0 live closure additionally verified a real multi-turn
+exploration with a direction change, stale-revision rejection before queueing,
+an exact provenance-bound task transition, normal Start/Execution/Acceptance
+HumanGates, isolated implementation, deterministic pytest, fresh independent
+review, usage carry-forward, a separate declined Start, abandonment and
+exploration-aware doctor/retention behavior. No automatic replay or exploration-
+driven authority promotion occurred. See [E2E](E2E.md) for the full evidence and
+the non-blocking residual probe task recorded by the fixture.

@@ -25,7 +25,15 @@
   retention roots, and preserve them through runtime/full backup and restore.
 - Add offline lifecycle, negative-authority, budget, interruption, migration and
   retention regressions plus a subprocess MCP/managed-worker/three-gate E2E.
-  Live external host/provider closure is a separate verification step.
+- Owner-reported live closure passed multi-turn direction change, stale-revision
+  fail-closed behavior, explicit exploration-to-task transition, normal Start /
+  Execution / Acceptance HumanGates, isolated implementation, pytest validation,
+  independent review, usage/budget carry-forward, abandonment, doctor/retention
+  integration and final project non-interference.
+- A separate live proposal verified Start decline leaves no registered task and
+  triggers no automatic replay. Exploration prose did not auto-promote accepted
+  Project Learning or modify profile/provider/workflow trust.
+- Close the v0.16 Exploration / Deliberation milestone at v0.16.0.
 
 ## 0.15.1 — Intake artifact retention follow-up
 

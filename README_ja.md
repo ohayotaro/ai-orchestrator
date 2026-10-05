@@ -521,13 +521,15 @@ v0.15.1 の live Operational Hardening E2E まで完了し、v0.15.x はクロ�
 
 次の主な milestone:
 
-- v0.16 Exploration / Deliberation Sessions（実装済み、live closure は別途）
+- v0.16 Exploration / Deliberation Sessions（v0.16.0 で live closure 済み）
 - v0.17 Release Candidate Hardening
 - v1.0 Stable Kernel Contracts
 
 v0.16 では、仕様が曖昧な段階で repository を調べ、仮説・選択肢・未確定事項を
 何度も更新できる non-authoritative な探索 session を実装しました。
-offline / subprocess wire の検証と、実ユーザー環境での live closure は区別しています。
+offline / subprocess wire に加えて、実ユーザー環境の live E2E でも multi-turn
+探索、方向転換、stale revision 拒否、明示 transition、3 HumanGate、abandonment、
+usage 引き継ぎ、運用 evidence 保持を確認し、v0.16.0 でクローズしました。
 探索結果だけでは実行 authority は増えず、具体的な TaskSpec への明示的 transition
 と通常の Start HumanGate を経て初めて実行可能になります。
 
