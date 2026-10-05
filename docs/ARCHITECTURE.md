@@ -508,3 +508,53 @@ No Project Learning path may grant provider selection, permissions, validators,
 external effects, allowed write paths, model/effort, budget policy, workflow
 installation or project trust. Those remain their existing independent
 controller contracts.
+
+## v0.15 Operational maintenance plane
+
+v0.15 adds an operator maintenance plane beside the normal task execution
+control plane:
+
+```text
+runtime/control state
+  -> read-only operational diagnosis
+  -> backup or retention plan
+  -> exact scope
+  -> operator-only restore / cleanup
+  -> maintenance provenance
+```
+
+The normal Engine still owns TaskSpec/HumanGate/provider/workflow execution.
+Operational maintenance does not become a new workflow node or provider
+capability.
+
+`operational.py` reads runtime SQLite through read-only URI/query-only
+connections for diagnosis. It validates database versions/integrity, persisted
+TaskState/IntakeState envelopes, immutable artifact hashes/evidence schemas,
+job/gate state and disposable worktree ownership without normalizing data in
+place.
+
+Backup freezes controller files under the worker and project locks. SQLite
+databases are copied with SQLite's backup API so a logical database snapshot is
+captured rather than treating WAL/SHM sidecars as independent authority.
+Runtime-only backup covers durable controller evidence; full backup covers the
+managed `.orchestrator/` authority/evidence tree. Disposable worktrees and
+process locks are intentionally excluded.
+
+Restore is a replace operation over a previously verified manifest scope, not an
+incremental merge or migration. Current managed state is staged for rollback,
+the archived state is installed, runtime structure is re-diagnosed and a full
+restore must reproduce the archived profile digest. Runtime-only restore never
+replaces project authority. The operation is unavailable through agent-facing
+MCP mutation tools.
+
+Retention is separate from v0.14 semantic learning consolidation. The retention
+planner computes only physically disposable candidates and treats canonical
+task/intake/event/gate state plus TaskState and Project Learning evidence
+references as roots. Cleanup requires the exact recomputed plan digest. This
+keeps old evidence physically removable only when it is no longer part of a
+controller-owned provenance chain.
+
+Restore and cleanup append schema-v1 maintenance events under runtime. Those
+events explain operator maintenance; they do not authorize later execution,
+change profile fingerprints or substitute for HumanGate.
+
