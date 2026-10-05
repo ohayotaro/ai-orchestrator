@@ -68,7 +68,8 @@ Runtime mode contains durable controller evidence only. Full mode also contains
 project authority such as config, policies, skills, accepted knowledge and
 trusted workflow configuration. Restore requires the exact inspected scope,
 `--replace`, a quiescent project and, for full authority restore,
-`--ack-authority-restore`.
+`--ack-authority-restore`. Replacing unreadable current controller/authority
+state additionally requires `--ack-unreadable-current-state`.
 
 Physical cleanup is also plan-first:
 
@@ -79,9 +80,10 @@ orchestrator --project "$PROJECT" cleanup \
 ```
 
 Cleanup retains canonical task/intake/event/HumanGate history, every
-TaskState-referenced artifact, and evidence referenced by accepted or candidate
-Project Learning. It initially removes only stale disposable worktrees,
-old terminal jobs/job-events and old orphan runtime JSON. Successful restore and
+TaskState-referenced artifact, and typed evidence referenced by accepted or
+candidate Project Learning. It initially removes only stale disposable
+worktrees, old terminal jobs/job-events and old unreferenced Artifact-v2-shaped
+runtime JSON; legacy/untyped evidence is retained conservatively. Successful restore and
 cleanup operations are recorded in
 `.orchestrator/runtime/maintenance.jsonl`.
 
