@@ -11,6 +11,13 @@
 - Add regressions proving an intake-referenced Supervisor artifact is excluded
   from `orphan_artifacts`, survives exact-scope cleanup and remains readable
   against the retained IntakeState after cleanup.
+- Owner-reported live closure on the accumulated runtime passed read-only doctor,
+  verified full/runtime backups, exact-scope full restore, unreadable-state
+  restore, runtime-only authority separation, retention scope drift, cleanup and
+  final original-project non-interference. The v0.15.0 false-orphan defect was
+  no longer reproducible; 46 IntakeState artifact paths had zero overlap with
+  `orphan_artifacts`, and cleanup preserved all Supervisor evidence.
+- Close the v0.15 Operational Hardening milestone at v0.15.1.
 
 ## 0.15.0 — Operational Hardening
 
