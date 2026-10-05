@@ -85,9 +85,10 @@ Runtime mode includes durable controller evidence under
 artifact JSON. It does **not** include current project authority such as
 `config.yaml`, policies, skills or accepted knowledge.
 
-A runtime-only restore therefore never overwrites current project authority. If
-the restored runtime was bound to a different profile digest, the result reports
-`retrust_required=true`; it does not grant trust to the current profile.
+A runtime-only restore therefore never overwrites current project authority.
+After restore, `retrust_required` reflects the actual restored
+`trusted_profile` binding: it is true whenever that binding does not equal the
+current project digest, including backups that were intentionally untrusted.
 
 ### Full controller/authority backup
 
@@ -175,17 +176,34 @@ A full restore additionally requires:
 because a full archive may reinstate configuration/context and the
 trusted-profile binding recorded in that backup.
 
+If the **current** runtime or current project authority is unreadable, restore
+fails by default. To intentionally replace that unreadable state with a verified
+backup, add:
+
+```text
+--ack-unreadable-current-state
+```
+
+That acknowledgement is not a repair heuristic. The archive must still verify,
+the exact scope must match, and full restore still requires
+`--ack-authority-restore`. This path also allows a full verified backup to
+recover a malformed current `config.yaml`. A runtime-only restore never uses it
+to bypass unreadable current project authority.
+
 Restore rules:
 
 1. the archive is fully verified before mutation;
 2. the supplied scope must equal the current verified manifest digest;
-3. the project must be quiescent: no running task, queued/running job or
-   pending/applying HumanGate;
-4. worker and project locks are held throughout the replacement;
-5. current managed state is staged for rollback;
-6. restored runtime databases and persisted state are structurally checked;
-7. a full restore must reproduce the archived profile digest;
-8. on success, a `restore` event is appended to
+3. the project must be quiescent: no known running task, queued/running job or
+   pending/applying HumanGate; unreadable current state requires the separate
+   acknowledgement above;
+4. disposable worktrees must be recovered/cleaned before restore;
+5. worker and project locks are held throughout the replacement;
+6. current managed state, including SQLite sidecars needed for exact rollback,
+   is staged before replacement;
+7. restored runtime databases and persisted state are structurally checked;
+8. a full restore must reproduce the archived profile digest;
+9. on success, a `restore` event is appended to
    `.orchestrator/runtime/maintenance.jsonl`.
 
 If restore fails after replacement begins, the staged pre-restore managed state
@@ -245,8 +263,11 @@ v0.15 cleanup retains:
 - runtime task/event history;
 - HumanGate ledger/history;
 - every artifact referenced by TaskState;
-- evidence referenced by active accepted/promoted Project Learning context;
-- evidence referenced by retained Project Learning candidates.
+- typed evidence referenced by accepted/promoted Project Learning under
+  knowledge, policies or skills;
+- typed evidence referenced by retained Project Learning candidates;
+- all potentially orphaned artifacts when legacy v1/untyped Project Learning
+  evidence exists and identity cannot be resolved safely.
 
 This means the historical support behind accepted context is not garbage
 collected merely because it is old.
@@ -257,8 +278,12 @@ only:
 - disposable worktree roots that are not owned by a running task and are older
   than the cutoff;
 - terminal job rows and their job-event rows older than the cutoff;
-- old runtime JSON files that are not referenced by canonical task state or
-  retained Project Learning evidence.
+- old runtime JSON files with stable Artifact-v2-shaped identity that are not
+  referenced by canonical task state or retained Project Learning evidence.
+
+Legacy/unidentified runtime JSON is retained. If legacy untyped Project Learning
+evidence is present, orphan-artifact deletion is disabled rather than guessing
+which historical file supported that learning.
 
 Cleanup appends a `cleanup` maintenance event with the exact scope and removal
 counts. It does not compact or rewrite canonical task/event history.
