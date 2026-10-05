@@ -828,10 +828,10 @@ Implemented:
 - add read-only physical retention planning plus exact-scope cleanup. Initial
   deletion is deliberately narrow: stale disposable worktrees, old terminal
   job/job-event rows and old orphan runtime JSON only;
-- retain canonical task/intake/runtime-event/HumanGate history, every
-  TaskState-referenced artifact and evidence referenced by accepted or retained
-  Project Learning candidates, so semantic learning provenance is not silently
-  garbage-collected;
+- retain canonical task/intake/runtime-event/HumanGate history, every artifact
+  referenced by TaskState or IntakeState (including immutable Supervisor
+  evidence) and evidence referenced by accepted or retained Project Learning
+  candidates, so semantic learning provenance is not silently garbage-collected;
 - append bounded provenance records for successful restore/cleanup operations to
   `.orchestrator/runtime/maintenance.jsonl`;
 - expose operational diagnostics in read-only `inspect_project` while keeping
@@ -850,7 +850,17 @@ authority or performs automatic repair/replay. Offline CI covers physical
 read-only diagnosis, malformed persisted-state detection, full/runtime restore
 authority boundaries, scope drift and Project Learning-aware retention.
 
-See `docs/OPERATIONS.md` for the operator contract and command flow.
+Owner-reported live closure then exercised the accumulated project runtime.
+v0.15.0 exposed a real retention-root defect for Supervisor artifacts referenced
+only by IntakeState; v0.15.1 fixed it. The final live run passed read-only doctor,
+full/runtime backup verification, exact-scope full restore, unreadable-state
+restore, runtime-only authority separation, retention scope drift, exact-scope
+cleanup, IntakeState artifact preservation, MCP maintenance-authority separation
+and final original-project non-interference. v0.15 is therefore fully closed at
+v0.15.1.
+
+See `docs/OPERATIONS.md` for the operator contract and command flow and
+`docs/E2E.md` for the live closure evidence.
 
 ### v0.16 — Exploration / Deliberation Sessions
 
