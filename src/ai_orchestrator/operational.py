@@ -900,6 +900,22 @@ def _assert_quiescent(project: Project) -> None:
         )
 
 
+def _assert_restore_worktrees_clear(project: Project) -> None:
+    root = confined(project.root, ".orchestrator/runtime/worktrees")
+    if root.is_symlink():
+        raise OrchestratorError(
+            "restore refuses a symlinked disposable-worktree root"
+        )
+    if not root.exists():
+        return
+    entries = sorted(path.name for path in root.iterdir())
+    if entries:
+        raise OrchestratorError(
+            "restore requires disposable worktrees to be recovered/cleaned first: "
+            + ", ".join(entries[:20])
+        )
+
+
 def _remove_runtime_sidecars(project: Project) -> None:
     for filename, _label, _readable in _DB_SPECS.values():
         for suffix in _SQLITE_SIDECARS:
@@ -970,6 +986,7 @@ def restore_backup(
     inspected = inspect_backup(archive_path)
     if inspected["scope"] != scope:
         raise OrchestratorError("backup scope changed; inspect the archive again before restore")
+    actor = _validate_maintenance_identity("restore", actor, scope)
     mode = inspected["mode"]
     if mode == "full" and not acknowledge_authority_restore:
         raise OrchestratorError(
@@ -982,38 +999,56 @@ def restore_backup(
 
     rolled_back = False
     with worker_lock(project), project.lock():
+        # Revalidate current project authority after acquiring the same lock used
+        # by normal controller execution.
+        project.load()
         _assert_quiescent(project)
+        _assert_restore_worktrees_clear(project)
         with tempfile.TemporaryDirectory(prefix="ai-orchestrator-restore-") as temporary:
             root_tmp = Path(temporary)
+            frozen_archive = root_tmp / "verified-backup.zip"
+            _atomic_copy_file(Path(inspected["path"]), frozen_archive)
+            frozen = inspect_backup(frozen_archive)
+            if frozen["scope"] != scope:
+                raise OrchestratorError(
+                    "backup changed after inspection; inspect the archive again before restore"
+                )
+            mode = frozen["mode"]
+            manifest = frozen["manifest"]
             archive_stage = root_tmp / "archive"
             rollback_stage = root_tmp / "rollback"
-            _stage_archive(Path(inspected["path"]), archive_stage, inspected["manifest"])
+            _stage_archive(frozen_archive, archive_stage, manifest)
             _stage_current(project, mode, rollback_stage)
             try:
                 _remove_managed_files(project, mode)
-                _restore_stage(archive_stage, project, inspected["manifest"])
-                structural, reports = _structural_runtime_ok(project)
+                _restore_stage(archive_stage, project, manifest)
+                structural, _reports = _structural_runtime_ok(project)
                 if not structural:
-                    raise OrchestratorError("restored runtime failed structural integrity checks")
-                restored_profile_digest = None
+                    raise OrchestratorError(
+                        "restored runtime failed structural integrity checks"
+                    )
                 if mode == "full":
                     _profile, restored_profile_digest, _context = project.load()
-                    if restored_profile_digest != inspected["manifest"]["source_profile_digest"]:
+                    if restored_profile_digest != manifest["source_profile_digest"]:
                         raise OrchestratorError(
                             "full restore profile digest does not match the verified backup"
                         )
             except Exception:
                 rolled_back = True
                 _remove_managed_files(project, mode)
-                _restore_stage(rollback_stage, project, {
-                    "files": [
-                        {
-                            "path": path.relative_to(rollback_stage).as_posix(),
-                        }
-                        for path in sorted(rollback_stage.rglob("*"))
-                        if path.is_file()
-                    ]
-                })
+                _restore_stage(
+                    rollback_stage,
+                    project,
+                    {
+                        "files": [
+                            {
+                                "path": path.relative_to(rollback_stage).as_posix(),
+                            }
+                            for path in sorted(rollback_stage.rglob("*"))
+                            if path.is_file()
+                        ]
+                    },
+                )
                 raise
 
         event = _append_maintenance(
@@ -1024,27 +1059,31 @@ def restore_backup(
             details={
                 "mode": mode,
                 "archive": Path(inspected["path"]).name,
-                "source_version": inspected["manifest"]["source_version"],
-                "source_profile_digest": inspected["manifest"]["source_profile_digest"],
+                "source_version": manifest["source_version"],
+                "source_profile_digest": manifest["source_profile_digest"],
+                "source_trusted_profile": manifest["source_trusted_profile"],
                 "authority_restore": mode == "full",
                 "rollback_used": rolled_back,
             },
         )
-    current_digest = project.load()[1]
+        current_digest = project.load()[1]
+        restored_trusted_profile = _trusted_profile(
+            confined(project.root, ".orchestrator/runtime/state.sqlite3")
+        )
+
+    current_trusted = restored_trusted_profile == current_digest
     return {
         "restored": True,
         "mode": mode,
         "scope": scope,
         "current_profile_digest": current_digest,
-        "source_profile_digest": inspected["manifest"]["source_profile_digest"],
-        "profile_matches_backup": current_digest == inspected["manifest"]["source_profile_digest"],
-        "retrust_required": (
-            mode == "runtime"
-            and current_digest != inspected["manifest"]["source_profile_digest"]
-        ),
+        "source_profile_digest": manifest["source_profile_digest"],
+        "profile_matches_backup": current_digest == manifest["source_profile_digest"],
+        "restored_trusted_profile": restored_trusted_profile,
+        "current_profile_trusted": current_trusted,
+        "retrust_required": not current_trusted,
         "maintenance_event": event,
     }
-
 
 def _protected_evidence_ids(project: Project) -> set[str]:
     protected: set[str] = set()
@@ -1171,6 +1210,7 @@ def apply_retention(
     scope: str,
     actor: str,
 ) -> dict[str, Any]:
+    actor = _validate_maintenance_identity("cleanup", actor, scope)
     project = Project(root.resolve())
     project.load()
     from .worker import worker_lock
