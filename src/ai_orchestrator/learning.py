@@ -135,7 +135,14 @@ def select_context(
         item["score"] = kind_base + overlap * 100
         eligible.append(item)
 
-    eligible.sort(key=lambda item: (-item["score"], item["path"]))
+    kind_order = {"policy": 0, "skill": 1, "knowledge": 2}
+    eligible.sort(
+        key=lambda item: (
+            kind_order[item["kind"]],
+            -item["score"],
+            item["path"],
+        )
+    )
     selected: dict[str, str] = {}
     entries: list[ContextInfluenceEntry] = []
     used = 0

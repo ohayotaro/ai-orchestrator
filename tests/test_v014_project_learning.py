@@ -363,3 +363,20 @@ def test_learning_candidate_evidence_is_bounded_but_full_support_changes_identit
     assert newer.id != old_id
     assert old_id in newer.supersedes
     assert newer.support.independent_task_count == 13
+
+
+def test_context_selection_prioritizes_project_policy_before_relevance(workspace):
+    policies = workspace / ".orchestrator/policies"
+    knowledge_dir = workspace / ".orchestrator/knowledge/accepted"
+    policies.mkdir(parents=True, exist_ok=True)
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    (policies / "guardrail.md").write_text("# policy\n\nmandatory project guardrail\n")
+    (knowledge_dir / "alpha.md").write_text(
+        "# alpha\n\n" + ("alpha " * 5000)
+    )
+
+    project = Project(workspace)
+    _, _, universe = project.load()
+    selected, influence = learning.select_context(universe, "alpha", budget_bytes=4096)
+    assert ".orchestrator/policies/guardrail.md" in selected
+    assert influence.entries[0].kind == "policy"
