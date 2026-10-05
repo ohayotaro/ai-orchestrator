@@ -81,7 +81,7 @@ def parser() -> argparse.ArgumentParser:
     restore.add_argument(
         "--ack-unreadable-current-state",
         action="store_true",
-        help="Allow verified restore over current runtime state that doctor cannot fully interpret",
+        help="Allow verified restore over current controller/authority state that cannot be fully interpreted",
     )
     retention = commands.add_parser("retention", help="Preview physical retention cleanup without changing state")
     retention_cutoff = retention.add_mutually_exclusive_group(required=True)
