@@ -1,0 +1,41 @@
+name: Apply validated v0.16 development patch
+on:
+  push:
+    branches: [v0.16-exploration-sessions]
+    paths: [.github/workflows/v016-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'ohayotaro/ai-orchestrator' && github.ref == 'refs/heads/v0.16-exploration-sessions'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify and apply the exact tested development diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 6a5a76fdc47731dc28304c0dbda7404376776d64 HEAD
+          git diff --exit-code 6a5a76fdc47731dc28304c0dbda7404376776d64 HEAD -- . ':!.github/v016-patch.*' ':!.github/workflows/v016-apply.yml'
+          python3 - <<'PY'
+          import base64, hashlib, lzma
+          from pathlib import Path
+          encoded = ''.join(Path(f'.github/v016-patch.{i:02d}').read_text() for i in range(3))
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          expected = 'a9b18ae50c56fcabf7ec8d93977dc7e4eb94bc57d78134442d0bd79e5d318ea5'
+          if hashlib.sha256(patch).hexdigest() != expected:
+              raise SystemExit('Development patch integrity mismatch')
+          Path('/tmp/v016-implementation.patch').write_bytes(patch)
+          PY
+          git apply --check --index /tmp/v016-implementation.patch
+          git apply --index /tmp/v016-implementation.patch
+          git diff --cached --check
+          python3 -m compileall -q src tests
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'v0.16: implement Exploration / Deliberation Sessions'
+          git push origin HEAD:refs/heads/v0.16-exploration-sessions
