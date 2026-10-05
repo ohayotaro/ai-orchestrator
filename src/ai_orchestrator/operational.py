@@ -17,6 +17,8 @@ import tempfile
 import time
 import uuid
 import zipfile
+
+import yaml
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
@@ -438,18 +440,52 @@ def _maintenance_log_report(project: Project) -> dict[str, Any]:
     errors: list[str] = []
     events = 0
     try:
-        for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if not line.strip():
-                continue
-            events += 1
-            try:
-                item = json.loads(line)
-                if item.get("schema_version") != MAINTENANCE_EVENT_SCHEMA_VERSION:
-                    raise ValueError("unsupported maintenance event schema")
-                if not item.get("id") or not item.get("action") or not item.get("actor"):
-                    raise ValueError("maintenance event is missing required identity")
-            except (json.JSONDecodeError, ValueError) as exc:
-                errors.append(f"line {index}: {exc}")
+        with path.open("r", encoding="utf-8") as stream:
+            for index, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                events += 1
+                if events > MAX_DIAGNOSTIC_ROWS:
+                    errors.append(
+                        f"maintenance event count exceeds diagnostic bound ({MAX_DIAGNOSTIC_ROWS})"
+                    )
+                    break
+                if len(line.encode("utf-8")) > 64 * 1024:
+                    errors.append(f"line {index}: maintenance event exceeds 64 KiB")
+                    continue
+                try:
+                    item = json.loads(line)
+                    if not isinstance(item, dict):
+                        raise ValueError("maintenance event must be an object")
+                    if item.get("schema_version") != MAINTENANCE_EVENT_SCHEMA_VERSION:
+                        raise ValueError("unsupported maintenance event schema")
+                    if item.get("action") not in ("restore", "cleanup"):
+                        raise ValueError("unsupported maintenance action")
+                    _maintenance_actor(str(item.get("actor", "")))
+                    if not _is_sha256(item.get("scope")):
+                        raise ValueError("maintenance scope is invalid")
+                    event_id = item.get("id")
+                    if (
+                        not isinstance(event_id, str)
+                        or not event_id.startswith("M-")
+                        or len(event_id) != 34
+                    ):
+                        raise ValueError("maintenance event ID is invalid")
+                    created = datetime.fromisoformat(
+                        str(item.get("created_at", "")).replace("Z", "+00:00")
+                    )
+                    if created.tzinfo is None:
+                        raise ValueError(
+                            "maintenance event timestamp must include timezone"
+                        )
+                    if not isinstance(item.get("details"), dict):
+                        raise ValueError("maintenance event details must be an object")
+                except (
+                    json.JSONDecodeError,
+                    ValueError,
+                    OrchestratorError,
+                ) as exc:
+                    errors.append(f"line {index}: {exc}")
     except (OSError, UnicodeDecodeError) as exc:
         errors.append(str(exc))
     return {
@@ -460,7 +496,6 @@ def _maintenance_log_report(project: Project) -> dict[str, Any]:
         "errors": errors[:50],
         "path": str(path),
     }
-
 
 def diagnose_runtime(root: Path) -> dict[str, Any]:
     project = Project(root.resolve())
@@ -1052,14 +1087,39 @@ def restore_backup(
             "pass --ack-authority-restore explicitly"
         )
     project = Project(root.resolve())
-    project.load()
+    had_control_state = project.control.exists()
     from .worker import worker_lock
 
     rolled_back = False
     with worker_lock(project), project.lock():
         # Revalidate current project authority after acquiring the same lock used
-        # by normal controller execution.
-        project.load()
+        # by normal controller execution. Full restore can be the recovery path
+        # for malformed current authority, but only with the explicit unreadable
+        # state acknowledgement. A fresh project root has no authority to
+        # overwrite and therefore needs only the full-restore acknowledgement.
+        current_authority_readable = True
+        try:
+            project.load()
+        except (
+            OSError,
+            UnicodeError,
+            ValueError,
+            OrchestratorError,
+            yaml.YAMLError,
+        ) as exc:
+            current_authority_readable = False
+            if mode != "full":
+                raise OrchestratorError(
+                    "runtime restore requires readable current project authority; "
+                    "use a full verified backup to recover project authority"
+                ) from exc
+            if had_control_state and not acknowledge_unreadable_current_state:
+                raise OrchestratorError(
+                    "current project authority is unreadable; pass "
+                    "--ack-unreadable-current-state only when intentionally "
+                    "restoring a verified full backup over that state"
+                ) from exc
+
         current_reports = diagnose_runtime(project.root)
         readable = {
             "state": bool(current_reports["runtime:state"].get("integrity_ok")),
@@ -1067,6 +1127,8 @@ def restore_backup(
             "gates": bool(current_reports["runtime:gates"].get("integrity_ok")),
         }
         unreadable = sorted(name for name, ok in readable.items() if not ok)
+        if not current_authority_readable and had_control_state:
+            unreadable.append("project_authority")
         maintenance_readable = bool(
             current_reports["runtime:maintenance"].get("integrity_ok")
         )
