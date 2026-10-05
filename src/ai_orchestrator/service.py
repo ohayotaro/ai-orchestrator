@@ -13,7 +13,7 @@ from .engine import Engine
 from .jobs import Job, JobQueue
 from .models import Contract, OrchestratorError, identifier
 from .persistence import persistence_compatibility_report
-from .project import Project
+from .project import Project, digest
 from . import knowledge, learning
 from .runtime_options import RuntimeOverride
 from .supervisor import Supervisor
@@ -145,6 +145,35 @@ TOOLS: dict[str, tuple[type[Contract], str, bool]] = {
     "run_task": (RunInput, "Queue an existing task to the next human gate. Cannot create tasks or grant execution approval. Requires explicit gates for write tasks. Reuse request_id for identical retries.", False),
     "cancel_job": (JobInput, "Request cancellation of a job; does not roll back completed effects. A completed operation cannot be undone by cancellation.", False),
 }
+
+
+def _learning_evidence_coverage(item) -> dict[str, Any] | None:
+    support = item.support
+    if support is None:
+        return None
+    refs = item.evidence_refs
+    validation_refs = sum(
+        1 for ref in refs if ref.source == "artifact" and ref.kind == "validation"
+    )
+    review_refs = sum(
+        1 for ref in refs if ref.source == "artifact" and ref.kind == "review"
+    )
+    return {
+        "retained_evidence_refs": len(refs),
+        "total_evidence_refs": support.evidence_count,
+        "evidence_refs_truncated": support.evidence_count > len(refs),
+        "retained_task_ids": len(support.independent_task_ids),
+        "total_task_ids": support.independent_task_count,
+        "task_ids_truncated": support.independent_task_count > len(support.independent_task_ids),
+        "retained_validation_artifact_refs": validation_refs,
+        "corroborating_validations": support.corroborating_validations,
+        "retained_review_artifact_refs": review_refs,
+        "corroborating_reviews": support.corroborating_reviews,
+        "note": (
+            "support counts describe the full distillation recurrence; evidence_refs/task IDs are "
+            "bounded retained samples and legacy Artifact v1 corroboration has no stable typed artifact ID"
+        ),
+    }
 
 
 class ApplicationService:
@@ -280,6 +309,7 @@ class ApplicationService:
                             "statement_type": item.statement_type,
                             "statement": item.statement,
                             "support": item.support.model_dump() if item.support else None,
+                            "evidence_coverage": _learning_evidence_coverage(item),
                             "canonical_key": item.canonical_key,
                             "supersedes": item.supersedes,
                             "contradictions": item.contradictions,
@@ -294,6 +324,7 @@ class ApplicationService:
                 return {
                     **item.model_dump(),
                     "scope": digest(item.model_dump()),
+                    "evidence_coverage": _learning_evidence_coverage(item),
                     "authority": "read-only candidate; explicit operator promotion is required",
                 }
             if name == "preview_learning_context":

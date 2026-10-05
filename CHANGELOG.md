@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.1 — Project Learning inspection follow-up
+
+- Fix the read-only MCP `list_learning_candidates` and
+  `get_learning_candidate` surfaces when candidates exist. v0.14.0 referenced
+  the candidate scope digest without importing the digest helper, so the bug was
+  hidden while the candidate set was empty and surfaced as an internal tool
+  error after the first live distillation.
+- Add non-empty-candidate MCP regression coverage for both list and get paths.
+- Expose derived `evidence_coverage` diagnostics in candidate inspection so
+  operators can distinguish full support recurrence counts from the bounded
+  retained typed-evidence/task-ID samples. The diagnostics also show retained
+  validation/review artifact-reference counts and explicitly note that legacy
+  Artifact v1 corroboration has no stable typed artifact ID.
+- Keep candidate bytes, IDs, scopes, profile fingerprints and authority
+  semantics unchanged; this is an inspection-only compatibility fix.
+
 ## 0.14.0 — Knowledge Distillation / Project Learning
 
 - Add versioned Project Learning contracts with typed controller-resolvable
