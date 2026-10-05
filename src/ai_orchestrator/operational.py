@@ -553,6 +553,44 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
             temporary.unlink()
 
 
+def _atomic_copy_stream(
+    path: Path,
+    source: Any,
+    *,
+    expected_bytes: int | None = None,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp-" + uuid.uuid4().hex)
+    copied = 0
+    try:
+        with temporary.open("xb") as destination:
+            while True:
+                chunk = source.read(IO_CHUNK_BYTES)
+                if not chunk:
+                    break
+                copied += len(chunk)
+                if copied > MAX_BACKUP_BYTES:
+                    raise OrchestratorError("backup member exceeds safety bound")
+                destination.write(chunk)
+            destination.flush()
+            os.fsync(destination.fileno())
+        if expected_bytes is not None and copied != expected_bytes:
+            raise OrchestratorError("backup member size changed while staging")
+        os.replace(temporary, path)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            temporary.unlink()
+
+
+def _atomic_copy_file(source: Path, destination: Path) -> None:
+    with source.open("rb") as stream:
+        _atomic_copy_stream(
+            destination,
+            stream,
+            expected_bytes=source.stat().st_size,
+        )
+
+
 def _snapshot_sqlite(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     src = _readonly_connection(source)
@@ -597,7 +635,6 @@ def create_backup(
     replace: bool = False,
 ) -> dict[str, Any]:
     project = Project(root.resolve())
-    _profile, profile_digest, _context = project.load()
     output = output.expanduser().resolve()
     control = project.control.resolve()
     if output == control or control in output.parents:
@@ -609,6 +646,7 @@ def create_backup(
     with worker_lock(project), project.lock(), tempfile.TemporaryDirectory(
         prefix="ai-orchestrator-backup-"
     ) as temporary:
+        _profile, profile_digest, _context = project.load()
         stage = Path(temporary)
         source_files = _iter_managed_files(project, mode)
         staged: list[tuple[str, Path]] = []
@@ -627,7 +665,7 @@ def create_backup(
             {
                 "path": relative,
                 "bytes": path.stat().st_size,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "sha256": _sha256_file(path),
             }
             for relative, path in staged
         ]
@@ -814,7 +852,7 @@ def _restore_stage(stage: Path, project: Project, manifest: dict[str, Any]) -> N
         relative = item["path"]
         source = stage / relative
         destination = confined(project.root, relative)
-        _atomic_write_bytes(destination, source.read_bytes())
+        _atomic_copy_file(source, destination)
 
 
 def _stage_archive(path: Path, destination: Path, manifest: dict[str, Any]) -> None:
@@ -822,8 +860,12 @@ def _stage_archive(path: Path, destination: Path, manifest: dict[str, Any]) -> N
         for item in manifest["files"]:
             relative = item["path"]
             target = destination / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _atomic_write_bytes(target, archive.read(relative))
+            with archive.open(relative, "r") as source:
+                _atomic_copy_stream(
+                    target,
+                    source,
+                    expected_bytes=item["bytes"],
+                )
 
 
 def _stage_current(project: Project, mode: str, destination: Path) -> None:
