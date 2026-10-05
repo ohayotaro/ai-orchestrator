@@ -543,20 +543,23 @@ orchestrator backup inspect "$HOME/backups/project-full.zip"
 ```
 
 Runtime-only backup/restore preserves durable runtime evidence but never replaces
-current config/policies/skills/accepted knowledge. If the restored runtime was
-bound to a different current profile, v0.15 reports `retrust_required` instead
-of granting trust.
+current config/policies/skills/accepted knowledge. `retrust_required` reflects
+the actual restored single `trusted_profile` binding and is true whenever that
+binding does not equal the current project digest.
 
 Full restore is intentionally stronger: it can restore project authority and the
 single archived `trusted_profile` binding. It therefore requires an exact
 verified backup scope, a quiescent project, `--replace`,
-`--ack-authority-restore` and an operator actor string. It is not an automatic
-migration step.
+`--ack-authority-restore` and an operator actor string. Replacing unreadable
+current runtime or malformed current project authority additionally requires
+`--ack-unreadable-current-state`. It is not an automatic migration step.
 
 Physical retention is also opt-in. `retention` first returns an exact read-only
 plan/scope; `cleanup` applies only the same recomputed plan. Canonical
 task/intake/runtime-event/HumanGate history, TaskState-referenced artifacts and
-Project Learning evidence roots are not garbage-collected by v0.15 cleanup.
+typed Project Learning evidence roots are not garbage-collected by v0.15
+cleanup. Legacy/untyped learning evidence disables orphan-artifact collection
+rather than inferring an unsafe identity mapping.
 
 Re-export the packaged Agent Skill after upgrade so connected hosts learn that
 operational diagnostics are inspectable but backup/restore/cleanup remain
