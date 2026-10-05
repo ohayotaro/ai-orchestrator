@@ -22,6 +22,7 @@ from .models import (
     LearningSupport,
     OrchestratorError,
     Proposal,
+    identifier,
 )
 from .persistence import decode_versioned_model_json
 from .project import Project, atomic_write, confined, digest, encode
@@ -54,14 +55,41 @@ def _tokens(value: str) -> set[str]:
 
 def _learning_metadata(text: str) -> dict[str, Any] | None:
     first = text.splitlines()[0] if text else ""
-    if not first.startswith(LEARNING_METADATA_PREFIX) or not first.endswith(LEARNING_METADATA_SUFFIX):
+    if not first.startswith(LEARNING_METADATA_PREFIX):
         return None
+    if not first.endswith(LEARNING_METADATA_SUFFIX):
+        raise OrchestratorError("accepted learning metadata is malformed")
     raw = first[len(LEARNING_METADATA_PREFIX):-len(LEARNING_METADATA_SUFFIX)]
     try:
         value = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return value if isinstance(value, dict) else None
+    except json.JSONDecodeError as exc:
+        raise OrchestratorError("accepted learning metadata is malformed") from exc
+    if not isinstance(value, dict):
+        raise OrchestratorError("accepted learning metadata must be a JSON object")
+    proposal_id = value.get("proposal_id")
+    canonical = value.get("canonical_key")
+    polarity = value.get("polarity")
+    supersedes = value.get("supersedes")
+    evidence_refs = value.get("evidence_refs")
+    if (
+        not isinstance(proposal_id, str)
+        or not isinstance(canonical, str)
+        or not canonical
+        or len(canonical) > 1000
+        or polarity not in ("positive", "negative", "neutral")
+        or not isinstance(supersedes, list)
+        or not isinstance(evidence_refs, list)
+    ):
+        raise OrchestratorError("accepted learning metadata has invalid required fields")
+    try:
+        identifier(proposal_id)
+        for item in supersedes:
+            if not isinstance(item, str):
+                raise ValueError
+            identifier(item)
+    except ValueError as exc:
+        raise OrchestratorError("accepted learning metadata has invalid proposal identifiers") from exc
+    return value
 
 
 def select_context(
@@ -91,13 +119,12 @@ def select_context(
             if isinstance(canonical, str) and isinstance(polarity, str):
                 canonical_polarities[canonical].add(polarity)
         evidence_refs: list[EvidenceRef] = []
-        if metadata and isinstance(metadata.get("evidence_refs"), list):
+        if metadata:
             for value in metadata["evidence_refs"]:
                 try:
                     evidence_refs.append(EvidenceRef.model_validate(value))
-                except Exception:
-                    evidence_refs = []
-                    break
+                except Exception as exc:
+                    raise OrchestratorError("accepted learning metadata contains an invalid evidence reference") from exc
         items.append({
             "path": path,
             "text": text,

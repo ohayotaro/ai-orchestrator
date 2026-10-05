@@ -430,3 +430,18 @@ def test_legacy_v1_rejected_candidate_remains_readable(workspace):
     assert proposal.schema_version == 1
     assert proposal.status == "rejected"
     assert proposal.rejected_by is None
+
+
+def test_malformed_accepted_learning_metadata_fails_closed(workspace):
+    accepted = workspace / ".orchestrator/knowledge/accepted"
+    accepted.mkdir(parents=True, exist_ok=True)
+    (accepted / "broken.md").write_text(
+        learning.LEARNING_METADATA_PREFIX
+        + "not-json"
+        + learning.LEARNING_METADATA_SUFFIX
+        + "\n# broken\n"
+    )
+    project = Project(workspace)
+    _, _, universe = project.load()
+    with pytest.raises(OrchestratorError, match="accepted learning metadata is malformed"):
+        learning.select_context(universe, "broken")
