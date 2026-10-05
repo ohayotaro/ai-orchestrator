@@ -64,54 +64,6 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
-    doctor.add_argument(
-        "--operational-only",
-        action="store_true",
-        help="Run only read-only runtime integrity/staleness diagnostics",
-    )
-    backup = commands.add_parser(
-        "backup",
-        help="Create, verify or explicitly restore bounded controller backups",
-    )
-    backup_actions = backup.add_subparsers(dest="backup_action", required=True)
-    backup_create = backup_actions.add_parser(
-        "create", help="Create a quiescent runtime or full controller backup"
-    )
-    backup_create.add_argument("--output", type=Path, required=True)
-    backup_create.add_argument("--mode", choices=["runtime", "full"], default="full")
-    backup_create.add_argument("--replace", action="store_true")
-    backup_inspect = backup_actions.add_parser(
-        "inspect", help="Verify a backup manifest, paths, sizes and SHA-256 hashes"
-    )
-    backup_inspect.add_argument("archive", type=Path)
-    backup_restore = backup_actions.add_parser(
-        "restore", help="Operator-only scope-bound restore; old authorization is revoked"
-    )
-    backup_restore.add_argument("archive", type=Path)
-    backup_restore.add_argument("--scope", required=True)
-    backup_restore.add_argument("--by", required=True)
-    backup_restore.add_argument("--replace", action="store_true")
-    backup_restore.add_argument(
-        "--ack-authority-restore",
-        action="store_true",
-        help="Acknowledge that a full restore replaces config/context authority files",
-    )
-    retention = commands.add_parser(
-        "retention",
-        help="Preview or explicitly apply bounded physical cleanup",
-    )
-    retention_actions = retention.add_subparsers(dest="retention_action", required=True)
-    retention_plan = retention_actions.add_parser(
-        "plan", help="Build a read-only retention plan and exact confirmation scope"
-    )
-    retention_plan.add_argument("--days", type=int, default=30)
-    retention_plan.add_argument("--cutoff")
-    retention_apply = retention_actions.add_parser(
-        "apply", help="Apply an unchanged retention plan from an operator terminal"
-    )
-    retention_apply.add_argument("--cutoff", required=True)
-    retention_apply.add_argument("--scope", required=True)
-    retention_apply.add_argument("--by", required=True)
     backup = commands.add_parser("backup", help="Create or inspect a verified operational backup")
     backup_actions = backup.add_subparsers(dest="backup_action", required=True)
     backup_create = backup_actions.add_parser("create", help="Create a runtime-evidence or full controller backup")
@@ -236,67 +188,6 @@ def parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     root = args.project.resolve()
-    if args.command == "doctor":
-        from .operational import diagnose_runtime
-        operational_report = diagnose_runtime(root)
-        if args.operational_only:
-            return operational_report, 0 if all(
-                item.get("ok", False) for item in operational_report.values()
-            ) else 1
-        try:
-            engine = Engine(root)
-        except (OrchestratorError, ValueError, OSError, sqlite3.Error) as exc:
-            report = {
-                "controller": {
-                    "ok": False,
-                    "error": str(exc),
-                    "guidance": (
-                        "runtime diagnostics remain read-only; do not edit persisted state "
-                        "manually. Restore a verified backup or follow the reported recovery guidance."
-                    ),
-                },
-                **operational_report,
-            }
-            return report, 1
-        try:
-            report = engine.doctor(validators_only=args.validators_only)
-        finally:
-            engine.close()
-        if not args.validators_only:
-            report.update(operational_report)
-        return report, 0 if all(item.get("ok", False) for item in report.values()) else 1
-    if args.command == "backup":
-        from .operational import create_backup, inspect_backup, restore_backup
-        if args.backup_action == "create":
-            return create_backup(
-                root, args.output, mode=args.mode, replace=args.replace
-            ), 0
-        if args.backup_action == "inspect":
-            return inspect_backup(args.archive), 0
-        if args.backup_action == "restore":
-            return restore_backup(
-                root,
-                args.archive,
-                scope=args.scope,
-                actor=args.by,
-                replace=args.replace,
-                acknowledge_authority_restore=args.ack_authority_restore,
-            ), 0
-        raise OrchestratorError("unknown backup action")
-    if args.command == "retention":
-        from .operational import (
-            apply_retention,
-            cutoff_from_days,
-            retention_plan,
-        )
-        if args.retention_action == "plan":
-            cutoff = args.cutoff or cutoff_from_days(args.days)
-            return retention_plan(root, cutoff=cutoff), 0
-        if args.retention_action == "apply":
-            return apply_retention(
-                root, cutoff=args.cutoff, scope=args.scope, actor=args.by
-            ), 0
-        raise OrchestratorError("unknown retention action")
     if args.command == "worker":
         from .worker import run_worker
         result = run_worker(root, once=args.once, poll_interval=args.poll_interval, idle_seconds=args.idle_seconds)
@@ -413,6 +304,9 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     try:
         if args.command == "trust":
             return engine.trust(args.by), 0
+        if args.command == "doctor":
+            report = engine.doctor(validators_only=args.validators_only)
+            return report, 0 if all(item.get("ok", False) for item in report.values()) else 1
         if args.command == "capabilities":
             return engine.capability_report(), 0
         if args.command == "provider-plugins":
@@ -521,12 +415,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if os.environ.get("CLAUDECODE") and (args.command in ("ask", "run") or (args.command == "start" and not args.no_run)):
             raise OrchestratorError("this command would start a nested model session; use MCP single-terminal requests or a separate operator terminal. No task was created or changed")
-        if os.environ.get("CLAUDECODE") and (
-            (args.command == "backup" and args.backup_action == "restore")
-            or (args.command == "retention" and args.retention_action == "apply")
-        ):
+        if os.environ.get("CLAUDECODE") and args.command in ("restore", "cleanup"):
             raise OrchestratorError(
-                "restore/retention mutation is operator-only; run it from a separate normal terminal"
+                "restore/cleanup mutation is operator-only; run it from a separate normal terminal"
             )
         if args.command == "serve":
             from .mcp_server import serve
