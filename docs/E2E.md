@@ -1232,3 +1232,86 @@ The two final product properties demonstrated by the live run are:
 and:
 
 > historical influence provenance survives even after current accepted authority changes
+
+
+## Owner-reported v0.15.1 Operational Hardening live closure E2E — PASS (2026-10-06 JST)
+
+The v0.15 Operational Hardening milestone was closed only after a live E2E
+follow-up on the accumulated project runtime. The first v0.15.0 run found a real
+retention defect: `retention_plan()` treated six immutable Supervisor artifacts
+referenced only by `IntakeState.artifact` as orphan artifacts. Three of those
+intakes were still proposed, so cleanup could have deleted evidence required for
+later intake inspection/start. v0.15.1 corrected the retention root set and
+extended read-only doctor coverage to IntakeState-referenced artifacts.
+
+The final v0.15.1 run used main
+`94f960a5db9126dc578a78e841ccadc64c6a9a3f`, profile digest
+`fb35016a912363a81c2d2eef02cde83353befb9978b74bf2fb18e513f2eeaa46`,
+and an accumulated runtime containing 46 tasks, 55 intakes, 1644 runtime events,
+115 HumanGates, 125 jobs, 24 Project Learning candidates and one accepted-context
+item.
+
+All release-closure checks passed:
+
+- `doctor` was read-only and reported all runtime SQLite/task/intake/job/gate/
+  workspace/maintenance/provider/validator checks OK;
+- doctor verified 350 referenced artifacts: 344 referenced by TaskState plus six
+  referenced only by IntakeState. A scratch copy with one missing and one
+  modified intake artifact was correctly reported as missing/corrupt with exit
+  status 1 and no automatic repair;
+- v0.15.1 full and runtime-only backups independently passed SHA-256 verification.
+  The full archive contained 547 files and the runtime archive 472 files;
+  WAL/SHM sidecars, locks and disposable worktrees were excluded;
+- full restore on a scratch copy rejected wrong scope, a runtime scope supplied
+  for a full archive, missing `--ack-authority-restore` and a tampered archive.
+  The exact verified restore succeeded, restored the archived profile digest and
+  recorded maintenance provenance without producing new execution events/jobs;
+- restore over unreadable current runtime failed without the dedicated
+  acknowledgement and succeeded only when both unreadable-state and full-
+  authority acknowledgements were supplied;
+- runtime-only restore preserved current project authority. A deliberately
+  changed policy remained unchanged and the profile mismatch was surfaced as
+  `retrust_required=true`; an unchanged copy restored with
+  `retrust_required=false`; malformed current `config.yaml` remained
+  fail-closed and could not be bypassed by the unreadable-runtime acknowledgement;
+- the v0.15.0 false-orphan regression was eliminated: the read-only retention
+  plan reported no overlap with any of the 46 IntakeState artifact paths and no
+  orphan Supervisor artifacts;
+- exact-scope cleanup on scratch state rejected a wrong cutoff and scope drift,
+  then removed only one stale worktree, one deliberately created orphan artifact
+  and 125 terminal jobs (plus 375 job-event rows). Task/Intake/runtime-event/
+  HumanGate canonical history, all 46 Supervisor artifacts, all 24 candidates
+  and legacy JSON remained;
+- after cleanup, all three proposed intakes remained inspectable and their intake
+  scopes could be recomputed, which re-verified their Supervisor artifact
+  integrity. `start --no-run` could not be used as an additional proof because
+  those historical intakes were already stale from worktree drift; the untouched
+  comparison copy failed for the same reason, so this was not a cleanup effect;
+- no MCP backup/restore/cleanup/database-repair mutation tool exists. Restore and
+  cleanup remained blocked inside Claude Code and were run only by the operator
+  in a normal terminal against scratch copies;
+- no automatic repair or replay occurred;
+- the original project finished with identical database table contents,
+  non-sidecar files, Git HEAD/status, worktree state, profile trust and Project
+  Learning candidate count. Only empty SQLite WAL/SHM sidecars held/opened by the
+  running MCP server differed in presence/mtime.
+
+The final operational invariants are therefore live-verified:
+
+> diagnosis is read-only
+
+> backup does not grant authority
+
+> restore is explicit and scope-bound
+
+> runtime-only restore does not replace project authority
+
+> retention preserves canonical TaskState and IntakeState evidence roots
+
+> cleanup is explicit and scope-bound
+
+> maintenance does not become agent authority
+
+> interrupted/ambiguous effects are never automatically repaired or replayed
+
+**Result: PASS.** v0.15.1 closes the v0.15 Operational Hardening milestone.
