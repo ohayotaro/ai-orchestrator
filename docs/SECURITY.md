@@ -64,7 +64,26 @@ An interrupted Supervisor produces no runnable task. If interrupted after start 
 
 ## Project memory and verification status
 
-Knowledge candidates are untrusted and inactive until an operator approves their exact digest. Approved Markdown influences model behavior; evidence is not fetched or automatically proven, and promotion never installs commands or grants permissions. Wrong generalizations and prompt injection remain risks.
+Project Learning candidates are untrusted and inactive. v0.14 schema-v2
+candidates carry typed references to controller-owned task/intake/artifact/event
+evidence plus inspectable support/provenance; promotion re-resolves those
+references and verifies artifact/state/event hashes before writing accepted
+Markdown. Legacy schema-v1 manual proposals retain their historical
+human-inspected string evidence and do not gain retroactive proof.
+
+Candidate generation, support counts and model confidence are not authority.
+Promotion requires an exact candidate digest and operator action; accepted
+Markdown then changes the profile fingerprint and requires explicit re-trust
+before execution. Promotion never registers validators/commands, grants
+permissions/effects/write scope, selects providers/models, changes budget policy
+or installs a workflow template.
+
+Accepted context is also not injected wholesale. New v0.14 intakes/tasks bind a
+bounded deterministic influence manifest. Accepted learning marked superseded or
+contradictory is retained for audit but excluded from automatic prompt context.
+This reduces stale/contradictory reuse; it does not make accepted Markdown
+truthful or safe. Wrong generalizations and prompt injection remain risks, and
+operators must inspect candidates before promotion.
 
 The owner reported a successful live v0.1 calculator E2E. v0.2's new Supervisor/result schemas are tested offline, including real local CLI shim processes, Git and pytest. Those tests are not live-provider certification, a penetration test or an independent audit. See E2E.md for the evidence boundary and next smoke test.
 
@@ -568,3 +587,29 @@ value. If an operator trusts profile B and later restores profile A byte-for-byt
 A remains untrusted even when its digest is identical to a formerly trusted
 value. This is intentional fail-closed behavior: returning to old authority
 requires a new explicit trust action rather than reviving stale authorization.
+
+
+## v0.14 Project Learning authority boundary
+
+Distillation may run after successful acceptance and may write candidate JSON,
+but candidate storage is outside the effective profile fingerprint and cannot
+authorize a later operation. A distillation exception is ignored after recorded
+task acceptance rather than changing the accepted task result.
+
+Typed evidence proves controller persistence identity/integrity, not semantic
+truth. A valid review artifact can still contain a mistaken model observation;
+a valid validation artifact proves only what its registered validator actually
+checked. Support counts are inspectable recurrence evidence, not probability or
+confidence.
+
+The accepted-context selector is deterministic and bounded, not an information-
+flow sandbox. Selected Markdown is still supplied to model providers and should
+not contain secrets. Excluding a conflicting/superseded learning item prevents
+automatic reuse; it does not delete historical evidence. Physical retention and
+secure backup/restore remain v0.15 work.
+
+Project Learning never upgrades recommendation into execution authority:
+`workflow` candidates do not install templates, policy/skill candidates do not
+change kernel policy, and no candidate can mutate provider/plugin pins,
+permissions, validators, external-effect flags, allowed paths, runtime options,
+budgets or `metadata.trusted_profile`.

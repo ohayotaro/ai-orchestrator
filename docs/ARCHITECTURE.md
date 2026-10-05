@@ -454,3 +454,57 @@ trusted computing base. HumanGate, write/effect scope, validation, budget and
 recovery remain kernel contracts for cooperating code, but they do not sandbox
 a malicious plugin implementation. Generic workflow/validator/policy/knowledge
 plugins are intentionally outside v0.13.
+
+
+## v0.14 Project Learning and bounded context influence
+
+v0.14 adds a governed learning layer beside, not inside, execution authority:
+
+```text
+runtime task/intake/artifact/event evidence
+  -> deterministic distillation
+  -> Proposal v2 candidate (inactive)
+  -> operator reject / revise / promote exact digest
+  -> accepted Markdown (profile authority; re-trust required)
+  -> deterministic ContextInfluence selection
+  -> intake/task prompt context
+```
+
+`learning.py` consumes controller-owned durable envelopes/metadata and
+hash-verified artifacts. Proposal v2 records typed `EvidenceRef` objects,
+independent-task/support counters, a canonical key, evidence digest, polarity,
+supersession and contradiction links. Model prose may appear inside review
+evidence, but it is never itself an authorization token and cannot directly
+mutate profile authority.
+
+Candidate files live under `.orchestrator/knowledge/candidates/`. They are
+control-plane records but intentionally excluded from the profile fingerprint.
+Post-acceptance distillation may add candidates; a failure is advisory and cannot
+reverse `task.accepted`.
+
+Promotion is the authority transition. Schema-v2 promotion re-resolves every
+typed evidence reference and verifies hashes before writing Markdown under
+accepted knowledge/policy/skill context. That active Markdown changes the
+profile fingerprint, so subsequent execution requires the normal explicit trust
+ceremony. A `workflow` candidate is only a recommendation stored as knowledge;
+the separate workflow-save contract remains the only path that installs a
+reusable workflow template.
+
+`Project.load()` now represents the accepted-context universe (bounded to
+4 MiB / 2048 Markdown items), while `select_context()` chooses at most 24 KiB
+for one intake/task. Policies rank ahead of skills and knowledge, lexical
+relevance is deterministic, duplicate content is collapsed, and accepted
+learning explicitly marked superseded or contradictory is retained for
+provenance but excluded from silent injection.
+
+New IntakeState v5 and TaskState v8 freeze a `ContextInfluence` manifest:
+query digest, selected paths/content hashes/byte sizes/kinds/scores and, when
+available, the evidence references carried by promoted learning. Provider
+prompts receive the selected content plus this manifest. If an accepted item
+changes after task binding, normal profile binding already invalidates execution;
+the influence reader also hash-checks selected entries.
+
+No Project Learning path may grant provider selection, permissions, validators,
+external effects, allowed write paths, model/effort, budget policy, workflow
+installation or project trust. Those remain their existing independent
+controller contracts.

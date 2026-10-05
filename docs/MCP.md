@@ -232,3 +232,29 @@ Protocol/client references consulted for this implementation:
 - https://code.claude.com/docs/en/skills
 - https://developers.openai.com/codex/mcp
 - https://developers.openai.com/codex/skills
+
+
+## v0.14 Project Learning inspection
+
+`inspect_project` now includes a `project_learning` summary: evidence counts,
+candidate counts/status/kinds, accepted-context universe size, selection budget
+and governance flags.
+
+The MCP surface adds three read-only tools:
+
+- `list_learning_candidates`: list candidate status/support/relationships and
+  exact inspection scope;
+- `get_learning_candidate`: read typed evidence/support/provenance for one
+  candidate;
+- `preview_learning_context`: deterministically preview which already-accepted
+  context paths would be selected for a query.
+
+These tools do not generate candidates, promote/reject/revise them, edit accepted
+Markdown or grant trust. `learning distill`, `promote`,
+`proposal-reject`, `proposal-revise` and `trust` remain local
+operator actions.
+
+New intakes/tasks retain their selected `context_influence` provenance.
+Task influence is additionally available as the hash-verified
+`context_influence` artifact. Treat that manifest as evidence of what the
+controller selected, not proof that the selected Markdown is correct.
