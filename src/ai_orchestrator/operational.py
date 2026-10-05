@@ -1004,6 +1004,44 @@ def _assert_restore_worktrees_clear(project: Project) -> None:
         )
 
 
+def _revoke_restored_authority(project: Project) -> dict[str, int]:
+    """Restore evidence/state without silently resurrecting old authorization."""
+    path = confined(project.root, ".orchestrator/runtime/state.sqlite3")
+    if not path.exists():
+        return {"approvals_revoked": 0, "provider_permissions_revoked": 0, "trust_bindings_revoked": 0}
+    connection = sqlite3.connect(path, timeout=5)
+    approvals = permissions = trust = 0
+    try:
+        version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        validate_database_version("runtime", version, RUNTIME_DB_READABLE_VERSIONS)
+        with connection:
+            cursor = connection.execute("DELETE FROM approvals")
+            approvals = max(0, cursor.rowcount)
+            cursor = connection.execute(
+                "DELETE FROM metadata WHERE key='trusted_profile'"
+            )
+            trust = max(0, cursor.rowcount)
+            rows = connection.execute("SELECT id,data FROM tasks ORDER BY id").fetchall()
+            for task_id, data in rows:
+                state = decode_versioned_model_json(
+                    data, rule_key="task_state", model=TaskState
+                )
+                if state.provider_permission_grants:
+                    permissions += len(state.provider_permission_grants)
+                    state.provider_permission_grants = {}
+                    connection.execute(
+                        "UPDATE tasks SET data=? WHERE id=?",
+                        (state.model_dump_json(), task_id),
+                    )
+    finally:
+        connection.close()
+    return {
+        "approvals_revoked": approvals,
+        "provider_permissions_revoked": permissions,
+        "trust_bindings_revoked": trust,
+    }
+
+
 def _remove_runtime_sidecars(project: Project) -> None:
     for filename, _label, _readable in _DB_SPECS.values():
         for suffix in _SQLITE_SIDECARS:
@@ -1227,6 +1265,7 @@ def restore_backup(
                 )
                 raise
 
+        revoked = _revoke_restored_authority(project)
         event = _append_maintenance(
             project,
             action="restore",
