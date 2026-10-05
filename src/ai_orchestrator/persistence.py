@@ -233,8 +233,8 @@ def persistence_compatibility_report() -> dict[str, Any]:
             "automatic_rewrite": False,
             "forward_compatibility": "never guess semantics for unknown versions",
             "downgrade": (
-                "restore a complete runtime backup with the matching older executable; "
-                "lossy in-place downgrade is unsupported"
+                "use a verified matching full backup (or a complete pre-v0.15 control/runtime "
+                "backup) with the matching older executable; lossy in-place downgrade is unsupported"
             ),
         },
         "databases": {
