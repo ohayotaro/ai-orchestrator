@@ -80,10 +80,11 @@ class Engine:
         return learning.report(self.project, self.store, self.context)
 
     def distill_learning(self) -> dict[str, Any]:
-        current = self.project.load()[1]
-        if current != self.profile_digest or not self.store.trusted(current):
-            raise OrchestratorError("inspect and trust the current profile before generating learning candidates")
-        return learning.distill(self.project.root, self.store)
+        with self.project.lock():
+            current = self.project.load()[1]
+            if current != self.profile_digest or not self.store.trusted(current):
+                raise OrchestratorError("inspect and trust the current profile before generating learning candidates")
+            return learning.distill(self.project.root, self.store)
 
     def usage_evidence(self, state: TaskState) -> dict[str, Any]:
         value = self.store.latest(state, "usage")
