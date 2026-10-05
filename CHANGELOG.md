@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.1 — Intake artifact retention follow-up
+
+- Fix physical retention so immutable Supervisor artifacts referenced directly
+  by retained `IntakeState.artifact` are canonical roots, not orphan candidates.
+  This prevents cleanup from deleting evidence required to inspect or start
+  still-proposed intakes.
+- Extend read-only operational diagnostics to include IntakeState-referenced
+  artifact hashes/evidence alongside TaskState artifacts.
+- Add regressions proving an intake-referenced Supervisor artifact is excluded
+  from `orphan_artifacts`, survives exact-scope cleanup and remains readable
+  against the retained IntakeState after cleanup.
+
 ## 0.15.0 — Operational Hardening
 
 - Expand `doctor` with read-only integrity diagnostics for runtime SQLite
