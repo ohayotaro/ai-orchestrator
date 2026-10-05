@@ -175,6 +175,46 @@ def test_full_backup_restore_is_scope_bound_and_restores_authority(workspace, tm
         check.close()
 
 
+def test_full_restore_can_recover_unreadable_project_authority(workspace, tmp_path):
+    engine = Engine(workspace)
+    try:
+        engine.trust("backup-test")
+        source_digest = engine.profile_digest
+    finally:
+        engine.close()
+
+    archive = tmp_path / "authority-recovery.zip"
+    created = create_backup(workspace, archive, mode="full")
+
+    config_path = workspace / ".orchestrator/config.yaml"
+    config_path.write_text("name: [unterminated\n", encoding="utf-8")
+
+    with pytest.raises(OrchestratorError, match="project authority is unreadable"):
+        restore_backup(
+            workspace,
+            archive,
+            scope=created["scope"],
+            actor="operator",
+            replace=True,
+            acknowledge_authority_restore=True,
+        )
+
+    restored = restore_backup(
+        workspace,
+        archive,
+        scope=created["scope"],
+        actor="operator",
+        replace=True,
+        acknowledge_authority_restore=True,
+        acknowledge_unreadable_current_state=True,
+    )
+
+    assert restored["restored"] is True
+    assert restored["current_profile_digest"] == source_digest
+    assert restored["current_profile_trusted"] is True
+    assert Project(workspace).load()[1] == source_digest
+
+
 def test_restore_over_unreadable_current_state_requires_extra_ack(workspace, tmp_path):
     engine = Engine(workspace)
     try:
