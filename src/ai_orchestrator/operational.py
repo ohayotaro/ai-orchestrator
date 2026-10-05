@@ -1539,7 +1539,8 @@ def apply_retention(
 ) -> dict[str, Any]:
     actor = _validate_maintenance_identity("cleanup", actor, scope)
     project = Project(root.resolve())
-    project.load()
+    if mode == "runtime":
+        project.load()
     from .worker import worker_lock
 
     with worker_lock(project), project.lock():
