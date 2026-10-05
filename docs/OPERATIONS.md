@@ -262,7 +262,7 @@ v0.15 cleanup retains:
 - IntakeState rows;
 - runtime task/event history;
 - HumanGate ledger/history;
-- every artifact referenced by TaskState;
+- every artifact referenced by TaskState or IntakeState, including immutable\n  Supervisor artifacts for proposed/clarification/terminal intakes;
 - typed evidence referenced by accepted/promoted Project Learning under
   knowledge, policies or skills;
 - typed evidence referenced by retained Project Learning candidates;
@@ -279,7 +279,7 @@ only:
   than the cutoff;
 - terminal job rows and their job-event rows older than the cutoff;
 - old runtime JSON files with stable Artifact-v2-shaped identity that are not
-  referenced by canonical task state or retained Project Learning evidence.
+  referenced by canonical task/intake state or retained Project Learning evidence.
 
 Legacy/unidentified runtime JSON is retained. If legacy untyped Project Learning
 evidence is present, orphan-artifact deletion is disabled rather than guessing
