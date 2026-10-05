@@ -79,7 +79,8 @@ orchestrator --project "$PROJECT" cleanup \
 ```
 
 cleanup は TaskState / IntakeState / runtime event / HumanGate history、
-TaskState が参照する artifact、accepted/candidate Project Learning が参照する
+TaskState または IntakeState が参照する artifact（Supervisor evidence を含む）、
+accepted/candidate Project Learning が参照する
 型付き evidence を保持します。初期 v0.15 で削除対象になるのは、古い stale
 disposable worktree、terminal job/job-event、参照されていない古い
 Artifact-v2-shaped runtime JSON に限定されます。legacy/untyped evidence は
