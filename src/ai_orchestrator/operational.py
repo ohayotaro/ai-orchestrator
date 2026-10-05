@@ -1085,6 +1085,7 @@ def restore_backup(
         "maintenance_event": event,
     }
 
+
 def _protected_evidence_ids(project: Project) -> set[str]:
     protected: set[str] = set()
     accepted = confined(project.root, ".orchestrator/knowledge/accepted")
@@ -1120,6 +1121,7 @@ def _protected_evidence_ids(project: Project) -> set[str]:
                 ) from exc
             protected.update(ref.id for ref in proposal.evidence_refs)
     return protected
+
 
 def _artifact_id_from_path(path: Path) -> str | None:
     stem = path.stem
@@ -1288,6 +1290,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         "authority": "read-only plan; no files or rows were changed",
     }
 
+
 def apply_retention(
     root: Path,
     *,
@@ -1301,8 +1304,8 @@ def apply_retention(
     from .worker import worker_lock
 
     with worker_lock(project), project.lock():
-        _assert_quiescent(project)
         plan = retention_plan(project.root, cutoff=cutoff)
+        _assert_quiescent(project)
         if plan["scope"] != scope:
             raise OrchestratorError(
                 "retention plan changed; inspect the new plan before deleting anything"
@@ -1325,16 +1328,20 @@ def apply_retention(
             connection = sqlite3.connect(jobs_path, timeout=5)
             try:
                 with connection:
-                    placeholders = ",".join("?" for _ in plan["terminal_jobs"])
-                    connection.execute(
-                        f"DELETE FROM job_events WHERE job_id IN ({placeholders})",
-                        plan["terminal_jobs"],
-                    )
-                    cursor = connection.execute(
-                        f"DELETE FROM jobs WHERE id IN ({placeholders}) AND status IN ('succeeded','failed','cancelled','interrupted')",
-                        plan["terminal_jobs"],
-                    )
-                    deleted_jobs = cursor.rowcount
+                    job_ids = plan["terminal_jobs"]
+                    for offset in range(0, len(job_ids), 500):
+                        batch = job_ids[offset:offset + 500]
+                        placeholders = ",".join("?" for _ in batch)
+                        connection.execute(
+                            f"DELETE FROM job_events WHERE job_id IN ({placeholders})",
+                            batch,
+                        )
+                        cursor = connection.execute(
+                            f"DELETE FROM jobs WHERE id IN ({placeholders}) "
+                            "AND status IN ('succeeded','failed','cancelled','interrupted')",
+                            batch,
+                        )
+                        deleted_jobs += cursor.rowcount
             finally:
                 connection.close()
         event = _append_maintenance(
