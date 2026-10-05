@@ -78,6 +78,11 @@ def parser() -> argparse.ArgumentParser:
     restore.add_argument("--by", required=True)
     restore.add_argument("--replace", action="store_true", required=True)
     restore.add_argument("--ack-authority-restore", action="store_true")
+    restore.add_argument(
+        "--ack-unreadable-current-state",
+        action="store_true",
+        help="Allow verified restore over current runtime state that doctor cannot fully interpret",
+    )
     retention = commands.add_parser("retention", help="Preview physical retention cleanup without changing state")
     retention_cutoff = retention.add_mutually_exclusive_group(required=True)
     retention_cutoff.add_argument("--before", help="ISO-8601 cutoff timestamp with timezone")
@@ -258,6 +263,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             actor=args.by,
             replace=args.replace,
             acknowledge_authority_restore=args.ack_authority_restore,
+            acknowledge_unreadable_current_state=args.ack_unreadable_current_state,
         ), 0
     if args.command == "retention":
         from . import operational
