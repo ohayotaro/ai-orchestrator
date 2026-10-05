@@ -17,14 +17,20 @@
   sidecars remain excluded from backup authority.
 - Add explicit operator-only restore. Restore requires a verified exact scope,
   a quiescent project and `--replace`; full authority restore additionally
-  requires `--ack-authority-restore`. Current managed state is staged for
-  rollback, restored runtime is structurally re-checked, and full restore must
-  reproduce the archived profile digest.
+  requires `--ack-authority-restore`. Unreadable current runtime/authority
+  fails closed unless the operator explicitly supplies
+  `--ack-unreadable-current-state` to replace it from a verified backup.
+  Current managed state is staged for rollback, restored runtime is
+  structurally re-checked, and full restore must reproduce the archived profile
+  digest.
 - Add read-only physical retention planning and exact-scope cleanup. The initial
   cleanup surface is deliberately narrow: stale disposable worktrees, terminal
-  job/job-event rows and old orphan runtime JSON only. Task/intake rows, runtime
-  event history, HumanGate history, TaskState-referenced artifacts and evidence
-  referenced by accepted/candidate Project Learning are retained.
+  job/job-event rows and old orphan Artifact-v2-shaped runtime JSON only.
+  Task/intake rows, runtime event history, HumanGate history,
+  TaskState-referenced artifacts and typed evidence referenced by accepted
+  knowledge/policy/skill or retained Project Learning candidates are retained.
+  Legacy untyped learning evidence disables orphan-artifact GC rather than
+  guessing provenance.
 - Record successful restore/cleanup maintenance actions with bounded actor,
   scope, timestamp and action details under
   `.orchestrator/runtime/maintenance.jsonl`.
