@@ -739,42 +739,116 @@ def inspect_backup(path: Path) -> dict[str, Any]:
                 raise OrchestratorError("backup manifest is missing")
             if len(names) > MAX_BACKUP_FILES + 1:
                 raise OrchestratorError("backup file count exceeds safety bound")
-            manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
-            if manifest.get("schema_version") != BACKUP_SCHEMA_VERSION or manifest.get("kind") != "ai-orchestrator-backup":
+
+            manifest_info = archive.getinfo("manifest.json")
+            if manifest_info.file_size > MAX_BACKUP_MANIFEST_BYTES:
+                raise OrchestratorError("backup manifest exceeds safety bound")
+            manifest = json.loads(archive.read(manifest_info).decode("utf-8"))
+            if not isinstance(manifest, dict):
+                raise OrchestratorError("backup manifest must be a JSON object")
+            if (
+                manifest.get("schema_version") != BACKUP_SCHEMA_VERSION
+                or manifest.get("kind") != "ai-orchestrator-backup"
+            ):
                 raise OrchestratorError("unsupported backup manifest")
             mode = manifest.get("mode")
             if mode not in ("runtime", "full"):
                 raise OrchestratorError("backup manifest has invalid mode")
+            if not isinstance(manifest.get("source_version"), str) or not (
+                1 <= len(manifest["source_version"]) <= 100
+            ):
+                raise OrchestratorError("backup source version is invalid")
+            if not _is_sha256(manifest.get("source_profile_digest")):
+                raise OrchestratorError("backup source profile digest is invalid")
+            trusted_profile = manifest.get("source_trusted_profile")
+            if trusted_profile is not None and not _is_sha256(trusted_profile):
+                raise OrchestratorError("backup trusted-profile digest is invalid")
+            try:
+                created_at = datetime.fromisoformat(
+                    str(manifest.get("created_at", "")).replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise OrchestratorError("backup creation timestamp is invalid") from exc
+            if created_at.tzinfo is None:
+                raise OrchestratorError("backup creation timestamp must include timezone")
+
+            file_count = manifest.get("file_count")
+            total_bytes = manifest.get("total_bytes")
             files = manifest.get("files")
-            if not isinstance(files, list) or len(files) != manifest.get("file_count"):
+            if type(file_count) is not int or not 0 <= file_count <= MAX_BACKUP_FILES:
+                raise OrchestratorError("backup manifest file count is invalid")
+            if type(total_bytes) is not int or not 0 <= total_bytes <= MAX_BACKUP_BYTES:
+                raise OrchestratorError("backup manifest total byte count is invalid")
+            if not isinstance(files, list) or len(files) != file_count:
                 raise OrchestratorError("backup manifest file count is inconsistent")
+
             expected_names = {"manifest.json"}
             total = 0
             for item in files:
                 if not isinstance(item, dict):
                     raise OrchestratorError("backup manifest file entry is invalid")
                 relative = _safe_member_name(str(item.get("path", "")))
+                if relative in expected_names:
+                    raise OrchestratorError("backup manifest contains duplicate file entries")
                 if not relative.startswith(".orchestrator/"):
                     raise OrchestratorError("backup may contain only .orchestrator paths")
-                if mode == "runtime" and not relative.startswith(".orchestrator/runtime/"):
-                    raise OrchestratorError("runtime backup contains project-authority paths")
+                if mode == "runtime" and not relative.startswith(
+                    ".orchestrator/runtime/"
+                ):
+                    raise OrchestratorError(
+                        "runtime backup contains project-authority paths"
+                    )
                 if _runtime_excluded(relative):
-                    raise OrchestratorError("backup contains disposable/ephemeral runtime state")
-                expected_names.add(relative)
-                info = archive.getinfo(relative)
-                if info.file_size != item.get("bytes"):
-                    raise OrchestratorError(f"backup size mismatch: {relative}")
-                raw = archive.read(relative)
-                total += len(raw)
+                    raise OrchestratorError(
+                        "backup contains disposable/ephemeral runtime state"
+                    )
+                declared_bytes = item.get("bytes")
+                declared_sha = item.get("sha256")
+                if (
+                    type(declared_bytes) is not int
+                    or declared_bytes < 0
+                    or declared_bytes > MAX_BACKUP_BYTES
+                    or not _is_sha256(declared_sha)
+                ):
+                    raise OrchestratorError(
+                        f"backup manifest metadata is invalid: {relative}"
+                    )
+                total += declared_bytes
                 if total > MAX_BACKUP_BYTES:
                     raise OrchestratorError("backup exceeds 2 GiB safety bound")
-                if hashlib.sha256(raw).hexdigest() != item.get("sha256"):
+
+                expected_names.add(relative)
+                info = archive.getinfo(relative)
+                if info.is_dir() or info.file_size != declared_bytes:
+                    raise OrchestratorError(f"backup size mismatch: {relative}")
+                hasher = hashlib.sha256()
+                actual_bytes = 0
+                with archive.open(info, "r") as stream:
+                    while True:
+                        chunk = stream.read(IO_CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        actual_bytes += len(chunk)
+                        if actual_bytes > declared_bytes:
+                            raise OrchestratorError(
+                                f"backup member exceeded declared size: {relative}"
+                            )
+                        hasher.update(chunk)
+                if actual_bytes != declared_bytes:
+                    raise OrchestratorError(f"backup size mismatch: {relative}")
+                if hasher.hexdigest() != declared_sha:
                     raise OrchestratorError(f"backup hash mismatch: {relative}")
+
             if set(names) != expected_names:
                 raise OrchestratorError("backup archive contains unmanifested files")
-            if total != manifest.get("total_bytes"):
+            if total != total_bytes:
                 raise OrchestratorError("backup total byte count is inconsistent")
-    except (zipfile.BadZipFile, KeyError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (
+        zipfile.BadZipFile,
+        KeyError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ) as exc:
         raise OrchestratorError("backup archive is malformed") from exc
     return {
         "path": str(path),
@@ -783,7 +857,6 @@ def inspect_backup(path: Path) -> dict[str, Any]:
         "manifest": manifest,
         "verified": True,
     }
-
 
 def _runtime_activity(project: Project) -> dict[str, list[str]]:
     activity = {"tasks": [], "jobs": [], "gates": []}
