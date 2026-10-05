@@ -380,3 +380,22 @@ def test_context_selection_prioritizes_project_policy_before_relevance(workspace
     selected, influence = learning.select_context(universe, "alpha", budget_bytes=4096)
     assert ".orchestrator/policies/guardrail.md" in selected
     assert influence.entries[0].kind == "policy"
+
+
+def test_project_learning_candidate_unknown_version_fails_closed(workspace):
+    candidates = workspace / ".orchestrator/knowledge/candidates"
+    candidates.mkdir(parents=True, exist_ok=True)
+    path = candidates / "P-future.json"
+    path.write_text('{"schema_version":99}\n')
+    with pytest.raises(OrchestratorError, match="unsupported persisted ProjectLearningCandidate schema_version=99"):
+        knowledge.load_proposal(workspace, "P-future")
+    assert path.read_text() == '{"schema_version":99}\n'
+
+
+def test_context_influence_artifact_unknown_version_fails_closed(engine):
+    instance, _, _ = engine
+    artifact = instance.store.write_artifact(
+        "context-fixture", 0, "context_influence", {"schema_version": 2}
+    )
+    with pytest.raises(OrchestratorError, match="unsupported persisted ContextInfluence schema_version=2"):
+        instance.store.read_artifact(artifact)

@@ -40,6 +40,8 @@ while refusing to guess when a future or malformed version is encountered.
 | Usage evidence | 1 | 1 | missing telemetry remains unknown/unsupported |
 | Budget evidence | 1 | 1 | no policy or limit is inferred during migration |
 | Provider provenance | 1 | 1 | append-only, content-free dispatch evidence |
+| Project Learning candidate | 1-2 | 2 | v1 manual proposals remain readable; v2 adds typed evidence/support/provenance |
+| Context influence | 1 | 1 | frozen selected-context provenance; unknown versions fail closed |
 | Recovery evidence | legacy unversioned v0, 1 | 1 | v0.11 recovery JSON is exposed as v1 in memory only |
 
 Workflow runtime state remains embedded in TaskState and continues to bind

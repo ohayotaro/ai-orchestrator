@@ -285,5 +285,8 @@ def test_persistence_report_is_explicit_and_complete():
     }
     assert report["contracts"]["task_state"]["readable_versions"] == list(range(1, 9))
     assert report["contracts"]["artifact"]["write_version"] == 2
+    assert report["contracts"]["project_learning_candidate"]["readable_versions"] == [1, 2]
+    assert report["contracts"]["project_learning_candidate"]["write_version"] == 2
+    assert report["contracts"]["context_influence"]["write_version"] == 1
     assert report["contracts"]["recovery_evidence"]["readable_versions"] == [0, 1]
     assert set(PERSISTED_CONTRACT_RULES) <= set(report["contracts"])

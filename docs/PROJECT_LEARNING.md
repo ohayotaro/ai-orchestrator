@@ -148,7 +148,8 @@ frozen selection; they do not independently expand the universe.
 Agents may use read-only:
 
 - `inspect_project.project_learning`;
-- `list_learning_candidates`;
+- `list_learning_candidates` (bounded to 200 summaries per response, with
+  `total` / `truncated` metadata);
 - `get_learning_candidate`;
 - `preview_learning_context`;
 - `get_task` / `get_artifact(kind=context_influence)`.
