@@ -1,4 +1,4 @@
-# v0.17 live qualification procedure — 0.17.0 full run complete; 0.17.1 targeted recheck pending
+# v0.17 live qualification procedure — completed at v0.17.1
 
 Implementation/CI success does not satisfy the live release gate. Execute only on
 an explicitly selected disposable fixture or on a specifically authorized small
@@ -80,12 +80,15 @@ prepare-time cancellation inconsistency was then found in
 cancellation request was already durable, although resolve/apply failed closed.
 0.17.1 rejects that request before creating the gate.
 
-After installing the final 0.17.1 build, create one fresh idle task, record
-cancellation, and request the provider-permission gate through the normal MCP
-surface. Expected result: immediate structured refusal containing
-`task has a cancellation request`, zero new HumanGate rows/forms, zero provider
-calls, zero validator calls and no file/authority mutation. Also re-check package
-/ loaded-build / host-Skill identity. If this targeted case passes and final-head
-CI remains green, the full 0.17.0 qualification may be combined with this
-0.17.1 follow-up to close the v0.17 milestone. Do not copy the 0.17.0 matrix
-entry to 0.17.1 without this evidence.
+The targeted recheck was completed on v0.17.1 main
+`13f0b43839c10e30e3ba68bcb5aec793f6779fde`. Fresh task
+`task-caeeda5eb97b` had a durable cancellation request before MCP
+`request_provider_permission` was called. The request was refused immediately
+with `task has a cancellation request`: zero new HumanGate rows/forms, zero
+provider-permission grants, zero provider/validator calls and zero project-file
+or authority mutation. Loaded/disk build and exported Skill identities matched.
+
+The full 0.17.0 qualification plus this exact 0.17.1 follow-up formally closes
+the v0.17 milestone. Claude Code 2.1.284 transport remains conditional because
+of the retained fail-safe Yes-intent/No-wire anomaly; untested combinations stay
+unverified.
