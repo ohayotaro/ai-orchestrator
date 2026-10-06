@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "kernel_version": "0.17.0",
+  "kernel_version": "0.17.1",
   "axes": [
     "host-transport",
     "provider-role-execution"
@@ -14,42 +14,123 @@
   "live_qualified": false,
   "entries": [
     {
-      "id": "claude-code-v017",
-      "status": "unverified",
-      "required_positive_baseline": true,
+      "id": "claude-code-v0170-live",
+      "status": "conditional",
+      "required_positive_baseline": false,
       "host": {
         "name": "Claude Code",
-        "version": null,
-        "negotiated_protocol": null,
-        "capabilities": null
+        "version": "2.1.284",
+        "negotiated_protocol": "2025-06-18",
+        "capabilities": {
+          "elicitation": {
+            "form": true,
+            "url": true
+          }
+        }
       },
       "kernel": {
-        "version": "0.17.0",
-        "build_digest": null
+        "version": "0.17.1",
+        "build_digest": "f8c04441…"
       },
-      "os": null,
-      "python": null,
+      "os": "macOS 26.6.2 (25G83)",
+      "python": "3.13.15",
       "providers": [
         {
-          "role": "reasoning/review",
+          "role": "reasoning/planning/review",
           "adapter": "claude",
-          "cli_version": null,
-          "model": null,
-          "effort": null
+          "cli_version": "2.1.284",
+          "model": "adapter_default",
+          "effort": "adapter_default"
         },
         {
           "role": "implementation",
           "adapter": "codex",
-          "cli_version": null,
-          "model": null,
-          "effort": null
+          "cli_version": "0.160.0",
+          "model": "adapter_default",
+          "effort": "adapter_default"
+        }
+      ],
+      "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
+      "evidence_date": "2026-10-06 JST",
+      "runs": [
+        {
+          "kind": "fresh_write",
+          "id": "v017-rc-runa-sign",
+          "result": "PASS",
+          "pytest": "55 passed"
+        },
+        {
+          "kind": "fresh_write",
+          "id": "v017-rc-runb-halve",
+          "result": "PASS",
+          "pytest": "59 passed"
+        },
+        {
+          "kind": "start_refusal",
+          "id": "G-947e0965…",
+          "result": "PASS"
+        },
+        {
+          "kind": "start_refusal",
+          "id": "G-c2e28345…",
+          "result": "PASS"
+        },
+        {
+          "kind": "cancel_finalize",
+          "id": "v017-rc-refusea-triple",
+          "result": "PASS"
+        },
+        {
+          "kind": "cancel_finalize",
+          "id": "v017-rc-cancelb-between",
+          "result": "PASS"
+        }
+      ],
+      "required_repetitions": 2,
+      "historical_reference": "docs/E2E.md; required 0.17.0 flows passed. One Yes-intent/No-wire event remained unexplained but failed safe; controlled positive retries succeeded."
+    },
+    {
+      "id": "claude-code-v0171",
+      "status": "unverified",
+      "required_positive_baseline": true,
+      "host": {
+        "name": "Claude Code",
+        "version": "2.1.284",
+        "negotiated_protocol": "2025-06-18",
+        "capabilities": {
+          "elicitation": {
+            "form": true,
+            "url": true
+          }
+        }
+      },
+      "kernel": {
+        "version": "0.17.1",
+        "build_digest": null
+      },
+      "os": "macOS 26.6.2 (25G83)",
+      "python": "3.13.15",
+      "providers": [
+        {
+          "role": "reasoning/planning/review",
+          "adapter": "claude",
+          "cli_version": "2.1.284",
+          "model": "adapter_default",
+          "effort": "adapter_default"
+        },
+        {
+          "role": "implementation",
+          "adapter": "codex",
+          "cli_version": "0.160.0",
+          "model": "adapter_default",
+          "effort": "adapter_default"
         }
       ],
       "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
       "evidence_date": null,
       "runs": [],
-      "required_repetitions": 2,
-      "historical_reference": "docs/E2E.md; prior-version evidence does not establish this build"
+      "required_repetitions": 1,
+      "historical_reference": "0.17.0 full live qualification passed; 0.17.1 requires only targeted cancelled-provider-permission prepare refusal before formal milestone closure."
     },
     {
       "id": "codex-v017",
@@ -62,7 +143,7 @@
         "capabilities": null
       },
       "kernel": {
-        "version": "0.17.0",
+        "version": "0.17.1",
         "build_digest": null
       },
       "os": null,
@@ -100,7 +181,7 @@
         "capabilities": null
       },
       "kernel": {
-        "version": "0.17.0",
+        "version": "0.17.1",
         "build_digest": null
       },
       "os": null,
