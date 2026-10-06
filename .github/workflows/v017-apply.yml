@@ -15,7 +15,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Apply exact hash-verified tested source and remove transfer files
+      - name: Apply exact hash-verified tested source
         shell: bash
         run: |
           set -euo pipefail
@@ -57,6 +57,10 @@ jobs:
           git diff --cached --check
           test "$(git write-tree)" = 13d1715356b4689ce12440a51dca7797ec2443d0
           python3 -m compileall -q src tests tools
+          # GITHUB_TOKEN cannot edit workflow definitions. Those two edits are
+          # applied separately through the already-authorized repository connector.
+          git restore --source=HEAD --staged --worktree .github/workflows/ci.yml .github/workflows/v017-apply.yml
+          git diff --cached --exit-code -- .github/workflows
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'v0.17: implement audited Release Candidate Hardening'
