@@ -524,6 +524,13 @@ unreadable-state restore、runtime-only authority separation、retention/cleanup
 agent authority boundary、original project 非変更を含む live E2E がすべて PASS しました。
 
 
+## ライセンスとリリース
+
+AI Orchestrator は **Apache License 2.0** で提供します。v1.0 以降は
+GitHub Releases を canonical release record とし、PyPI は package 配布経路とします。
+PyPI にはリリース検証を完了したものと同一の wheel / sdist を公開し、承認後に
+artifact を再ビルドしません。
+
 ## Roadmap
 
 v0.15.1 の live Operational Hardening E2E まで完了し、v0.15.x はクローズしています。

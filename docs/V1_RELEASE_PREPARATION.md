@@ -2,9 +2,19 @@
 
 Status: **preparatory implementation, not release qualification**.
 The working version is **0.17.2**. No final 1.0.0 artifact, supported v1 live
-baseline, distribution terms/channel decision, tag or publication is asserted.
+baseline, tag or publication is asserted. The owner has selected Apache-2.0 and the publication channels below.
 The design's stages B–D can be implemented together; stage E is the final live
 qualification and stage F is an independent owner release decision.
+
+## Owner distribution decision
+
+The owner decision recorded on **2026-10-06 JST** is:
+
+- **License:** Apache License 2.0.
+- **Canonical release record:** GitHub Releases.
+- **Package distribution:** PyPI, using the exact wheel/sdist bytes already qualified and attached/referenced by the canonical GitHub release.
+- **No rebuild after qualification:** PyPI must receive the same verified artifacts; a rebuild, metadata edit or repack requires applicable requalification.
+- **Publication remains gated:** selecting terms/channels is not permission to tag or publish. Stage F still requires an explicit owner approval bound to the final release manifest digest.
 
 ## One implementation batch; one final-artifact live campaign
 
@@ -112,8 +122,7 @@ invalidates that decision. Neither command publishes, probes a provider, opens
 a runtime DB, trusts a profile or changes authority. Synthetic tests of `READY`
 are not actual owner live qualification.
 
-Before preparing the final candidate, resolve the owner's distribution terms
-and channel, align English/Japanese release/version/installation metadata, review
+Before preparing the final candidate, verify the recorded Apache-2.0 / GitHub Releases + PyPI decision, align English/Japanese release/version/installation metadata, review
 upgrade/rollback guidance, and freeze all package bytes. Prepare 1.0.0 without
 publishing it, complete final CI and live qualification, approve externally,
 and publish the already-verified bytes. Do not rebuild after approval.
