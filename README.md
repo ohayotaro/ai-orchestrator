@@ -577,6 +577,13 @@ already dispatched work; it cancels an unanswered confirmation, while an already
 authorized queued operation remains independently durable. Interrupted effects are
 never automatically replayed.
 
+## License and releases
+
+AI Orchestrator is licensed under the **Apache License 2.0**. For v1.0 and later,
+GitHub Releases is the canonical release record. PyPI is the package distribution
+channel and must receive the same wheel/sdist bytes that completed release
+qualification; release artifacts are not rebuilt after approval.
+
 ## Roadmap
 
 v0.15 is complete for its trusted-local alpha scope, including the v0.15.1 live Operational Hardening closure. The v0.9
