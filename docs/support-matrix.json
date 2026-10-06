@@ -11,7 +11,7 @@
     "known-incompatible",
     "unverified"
   ],
-  "live_qualified": false,
+  "live_qualified": true,
   "entries": [
     {
       "id": "claude-code-v0170-live",
@@ -29,7 +29,7 @@
         }
       },
       "kernel": {
-        "version": "0.17.1",
+        "version": "0.17.0",
         "build_digest": null,
         "build_digest_reported_prefix": "f8c04441"
       },
@@ -92,7 +92,7 @@
     },
     {
       "id": "claude-code-v0171",
-      "status": "unverified",
+      "status": "conditional",
       "required_positive_baseline": true,
       "host": {
         "name": "Claude Code",
@@ -107,7 +107,8 @@
       },
       "kernel": {
         "version": "0.17.1",
-        "build_digest": null
+        "build_digest": null,
+        "build_digest_reported_prefix": "33e0f58d"
       },
       "os": "macOS 26.6.2 (25G83)",
       "python": "3.13.15",
@@ -128,10 +129,28 @@
         }
       ],
       "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
-      "evidence_date": null,
-      "runs": [],
+      "evidence_date": "2026-10-06 JST",
+      "runs": [
+        {
+          "kind": "cancelled_provider_permission_prepare",
+          "id": "task-caeeda5eb97b",
+          "intake_id": "I-caeeda5eb97b",
+          "start_gate_id": "G-061dd2cf3b5941c4b86af5962f20fd30",
+          "request_id": "v0171-closure-perm-after-cancel-1",
+          "cancel_event_seq": 1940,
+          "result": "PASS",
+          "refusal": "task has a cancellation request",
+          "gate_rows_before": 134,
+          "gate_rows_after": 134,
+          "provider_started_before": 131,
+          "provider_started_after": 131,
+          "validator_started_before": 34,
+          "validator_started_after": 34,
+          "file_change": "none"
+        }
+      ],
       "required_repetitions": 1,
-      "historical_reference": "0.17.0 full live qualification passed; 0.17.1 requires only targeted cancelled-provider-permission prepare refusal before formal milestone closure."
+      "historical_reference": "docs/E2E.md; full required 0.17.0 matrix passed, and this 0.17.1 targeted follow-up closed the live-discovered RC-01 prepare gap. Claude Code transport remains conditional due to one prior fail-safe Yes-intent/No-wire anomaly."
     },
     {
       "id": "codex-v017",

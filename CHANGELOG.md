@@ -17,6 +17,10 @@
 - Keep the Claude Code 2.1.284 Yes→No anomaly from the 0.17.0 live run as a
   conditional host-transport observation. It failed safe and the controlled
   positive baseline subsequently passed twice, so no authority bypass is claimed.
+- Owner-reported 0.17.1 targeted live recheck passed: a cancelled fresh task
+  refused `request_provider_permission` at prepare time with no HumanGate row or
+  form, no grant, no provider/validator call and no file/authority mutation.
+- Close the v0.17 Release Candidate Hardening milestone at v0.17.1.
 
 ## 0.17.0 — Release Candidate Hardening (implementation candidate)
 

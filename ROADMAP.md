@@ -1,12 +1,11 @@
 # AI Orchestrator Roadmap
 
 Current decision date: **2026-10-06 JST**.
-Implementation baseline: **0.17.1 alpha candidate**. The owner-reported 0.17.0
-live qualification passed every required flow, but exposed one remaining RC-01
-entry-point inconsistency: a cancelled task could still reach provider-permission
-form preparation before the apply path refused it. 0.17.1 fixes that fail-closed
-presentation boundary; a targeted live recheck remains before formal v0.17
-closure. The v1.0 release decision remains separate.
+Implementation baseline: **0.17.1**, with v0.17 Release Candidate Hardening
+formally live-closed. The owner-reported 0.17.0 qualification passed the full RC
+matrix; v0.17.1 then closed the remaining RC-01 provider-permission prepare gap
+with a targeted live recheck showing refusal before any HumanGate row/form or
+provider/validator/file effect. The v1.0 release decision remains separate.
 
 The approved v0.17 scope and exit criteria are normative in
 [RC Hardening](docs/RC_HARDENING.md). The source audit and reproduced baseline
@@ -68,7 +67,7 @@ The complete pre-audit roadmap is preserved byte-for-byte as
 plans and rationale, including superseded pending-status wording. The current
 roadmap and approved RC design, not that historical snapshot, govern future work.
 
-## v0.17 — Release Candidate Hardening — design finalized
+## v0.17 — Release Candidate Hardening — implemented and live-closed at v0.17.1
 
 Primary goal: correct the demonstrated lifecycle/evidence gaps, freeze candidate
 v1.0 public contracts, and qualify exact supported deployment combinations.
@@ -86,11 +85,11 @@ This is not a new provider, permission, workflow or exploration feature cycle.
 | RC-06 Contract/install freeze | Versioned public inventory, historical hash/wire fixtures, build/install and loaded-code/Skill identity checks | Compatibility matrix and clean wheel/sdist installation outside the editable checkout |
 | RC-07 Qualified release | Separate host transport from provider-role support; exact versions, scope and evidence | Supported baseline passes twice on fresh IDs; conditional and unverified combinations labelled honestly |
 
-Implementation mapping, regression/build evidence and the remaining qualification
+Implementation mapping, regression/build evidence and the completed qualification
 boundary are in [RC Verification](docs/RC_VERIFICATION.md). Operator commands are
 specified in [RC Operations](docs/RC_OPERATIONS.md). The versioned
-[support matrix](docs/support-matrix.json) deliberately keeps v0.17 live entries
-unverified until the required repeated owner runs are recorded.
+[support matrix](docs/support-matrix.json) records the exact qualified/conditional
+host-provider evidence; untested combinations remain unverified.
 
 ### Audited baseline findings that cannot be waived by documentation
 
@@ -146,9 +145,10 @@ remote exactly-once and authenticated human clicks are not release promises.
    unresolved blocking finding; limitations, upgrade/downgrade and support
    evidence are reviewed. No merge-on-queued-CI or automatic publication.
 
-Use 0.17.x for implementation and follow-up hardening. The v1.0 candidate/tag
-is a separate explicit decision after qualification. PASS, FAIL, NOT TESTED and
-NOT APPLICABLE are distinct; a required NOT TESTED case cannot close a gate.
+v0.17 is closed at 0.17.1. The v1.0 candidate/tag is a separate explicit
+release decision after this qualification. PASS, FAIL, NOT TESTED and
+NOT APPLICABLE remain distinct; closure does not promote unverified host/provider
+combinations to supported.
 
 The exact operation contracts, failure handling, implementation sequencing and
 scope exclusions are in [RC_HARDENING.md](docs/RC_HARDENING.md).

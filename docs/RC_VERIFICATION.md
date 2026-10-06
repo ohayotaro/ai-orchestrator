@@ -1,8 +1,7 @@
 # v0.17 implementation and verification record
 
-Status: **implementation candidate; final-head CI and required owner live
-qualification are tracked separately**. Package version 0.17.1 is not a v1.0
-release declaration. The historical baseline/design findings remain unchanged
+Status: **v0.17 Release Candidate Hardening implemented and live-closed at
+v0.17.1**. Package version 0.17.1 is not a v1.0 release declaration. The historical baseline/design findings remain unchanged
 in [V017_DESIGN_AUDIT.md](V017_DESIGN_AUDIT.md).
 
 ## Implementation mapping
@@ -15,7 +14,7 @@ in [V017_DESIGN_AUDIT.md](V017_DESIGN_AUDIT.md).
 | RC-04 | `receipts.py`, jobs DB2 migration and transactional retirement; receipt-aware restore | All four queue actions, changed args, restore lineage, receipt transaction SIGKILL |
 | RC-05 | `maintenance.py`, durable intent/recovery staging, blocked startup, exact reconciliation, stale DB handle refusal | Actual subprocess SIGKILL before/after data, partial writes/deletes, DB commit, audit and rollback |
 | RC-06 | Packaged `assets/contracts.json`, `contracts`/`identity`, historical hash fixtures, explicit host Skill comparison, clean distribution smoke | Dynamic surface equality, old serialized hashes, build mismatch, SDK wire suite, minimum/reference dependency CI |
-| RC-07 | Versioned host/provider matrix and repeatable owner live procedure | [Live procedure](RC_LIVE_E2E.md); mandatory live rows remain unverified |
+| RC-07 | Versioned host/provider matrix and repeatable owner live procedure | Owner full 0.17.0 RC matrix + targeted 0.17.1 recheck; Claude Code transport conditional; untested hosts remain unverified |
 
 All local negative/crash tests use disposable repositories and deterministic
 adapters. They do not operate on the owner's E2E runtime, dispatch an external
@@ -59,13 +58,18 @@ complete. The merged tree must match that tested tree. No merge on queued or
 failed final-head CI, automatic publication, release tag or owner-runtime upgrade
 is part of this implementation request.
 
-## Explicit remaining release gate
+## RC live gate result
 
-The owner must still qualify the required normal flow, genuine refusal and idle
-cancellation/finalization twice on fresh IDs at the same final build. Current
-host/provider rows are `unverified`, not promoted from historical PASS reports.
-Therefore Gate D (live qualification) and the final v1.0 release decision remain
-open until that evidence is supplied and reviewed.
+Gate D is complete for v0.17. The owner qualified the required Fresh-Write,
+genuine refusal and idle cancellation/finalization flows twice on v0.17.0, then
+ran the single targeted v0.17.1 follow-up required by the live-discovered RC-01
+prepare-time gap. The follow-up refused provider-permission preparation before
+any gate/form/effect. Claude Code 2.1.284 transport remains conditional because
+of one fail-safe Yes-intent/No-wire anomaly; this does not promote untested
+Codex/Antigravity hosts to supported.
+
+The remaining decision is the separate v1.0 release decision, not a v0.17
+qualification gate.
 
 
 ## 0.17.0 owner live qualification and 0.17.1 follow-up
@@ -80,8 +84,14 @@ therefore classified conditional rather than unsupported.
 The same run identified one controller inconsistency against the approved RC-01
 wording: provider-permission form preparation did not reject a task with an
 existing cancellation request, although the resolve/apply path did reject it and
-no authority increase occurred. 0.17.1 closes that entry point before the form
-is created. Formal v0.17 closure requires a targeted live recheck showing the
-cancelled task produces no provider-permission gate row/form on the 0.17.1 final
-build. No repeat of the full destructive scratch matrix is required unless that
-recheck exposes a new defect.
+no authority increase occurred. 0.17.1 closed that entry point before the form
+is created.
+
+The targeted owner recheck then passed on main
+`13f0b43839c10e30e3ba68bcb5aec793f6779fde`: fresh task
+`task-caeeda5eb97b` was cancelled, and request ID
+`v0171-closure-perm-after-cancel-1` was refused with
+`task has a cancellation request` before any gate/form was created. Gate rows,
+gate events, provider/validator counters, grants, approvals and project files
+were unchanged by the permission request. Combined with the full 0.17.0 matrix,
+this closes v0.17 at v0.17.1.
