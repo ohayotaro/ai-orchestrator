@@ -6,7 +6,36 @@ on:
 permissions:
   contents: read
 jobs:
+  build-distribution:
+    name: build-distribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build once from the exact source tree
+        run: |
+          python -m pip install -r requirements/rc-reference.txt
+          python -m pip install --no-build-isolation -e '.[dev,interop]' -c requirements/rc-reference.txt
+          python tools/check_contracts.py
+          python -c 'from setuptools.build_meta import build_sdist, build_wheel; build_sdist("dist"); build_wheel("dist")'
+          python tools/collect_release_evidence.py build --dist dist
+          git archive --format=tar.gz -o "$RUNNER_TEMP/source.tar.gz" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qualified-distributions
+          path: dist/
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-source
+          path: ${{ runner.temp }}/source.tar.gz
+          retention-days: 90
   test:
+    name: test (${{ matrix.lane }})
+    needs: build-distribution
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -15,42 +44,45 @@ jobs:
           - os: ubuntu-latest
             python: '3.11'
             dependencies: reference
+            lane: linux-3.11-reference
           - os: ubuntu-latest
             python: '3.12'
             dependencies: reference
+            lane: linux-3.12-reference
           - os: ubuntu-latest
             python: '3.13'
             dependencies: reference
+            lane: linux-3.13-reference
           - os: macos-latest
             python: '3.13'
             dependencies: reference
+            lane: macos-3.13-reference
           - os: ubuntu-latest
             python: '3.11'
             dependencies: minimum
+            lane: linux-3.11-minimum
           - os: ubuntu-latest
             python: '3.11'
             dependencies: core-minimum
+            lane: linux-3.11-core-minimum
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Archive exact tested source
-        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
-        run: git archive --format=tar.gz -o "$RUNNER_TEMP/source.tar.gz" HEAD
-      - uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
-        with:
-          name: tested-source
-          path: ${{ runner.temp }}/source.tar.gz
-          retention-days: 7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: qualified-distributions
+          path: qualified-dist
       - name: Install exact dependency lane
         run: |
           python -m pip install -r requirements/rc-${{ matrix.dependencies }}.txt
           if [ '${{ matrix.dependencies }}' = core-minimum ]; then EXTRAS=dev; else EXTRAS=dev,interop; fi
           python -m pip install --no-build-isolation -e ".[$EXTRAS]" -c requirements/rc-${{ matrix.dependencies }}.txt
           python -m pip freeze > resolved-dependencies.txt
+      - name: Public contract baseline and mutation-sensitive suite
+        run: python tools/check_contracts.py
       - name: Full independent-SDK suite
         if: matrix.dependencies != 'core-minimum'
         run: python -m pytest -q --junitxml=test-results.xml
@@ -59,17 +91,25 @@ jobs:
         run: python -m pytest -q --junitxml=test-results.xml --ignore=tests/test_v03_sdk_interop.py --deselect=tests/test_v04_wire.py::test_official_sdk_native_elicitation_decline
       - run: python tools/check_no_skips.py test-results.xml
       - run: python -m compileall -q src tests tools
-      - name: Clean wheel and source-distribution qualification
+      - name: Qualify the same wheel/sdist outside the checkout
         if: matrix.dependencies == 'reference'
-        run: python tools/check_distribution.py
+        run: python tools/check_distribution.py --wheel qualified-dist/*.whl --sdist qualified-dist/*.tar.gz --report distribution-report.json
       - name: Build minimum dependency distribution
         if: matrix.dependencies != 'reference'
         run: python -m pip wheel . --no-deps --no-build-isolation -w dist
+      - name: Collect measured evidence, without preclaiming CI completion
+        env:
+          AI_ORCHESTRATOR_CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ '${{ matrix.dependencies }}' = reference ]; then REPORT='--distribution-report distribution-report.json'; else REPORT=''; fi
+          python tools/collect_release_evidence.py lane --lane '${{ matrix.lane }}' --artifact qualified-dist/artifact-identity.json --junit test-results.xml --dependencies resolved-dependencies.txt --evidence-root release-evidence $REPORT
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: evidence-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.dependencies }}
+          name: evidence-${{ matrix.lane }}
           path: |
             test-results.xml
             resolved-dependencies.txt
-          retention-days: 14
+            distribution-report.json
+            release-evidence/
+          retention-days: 90

@@ -183,6 +183,21 @@ unknown-usage semantics, conservative recovery and non-authoritative exploration
 remain invariant. Design completion, implementation, live qualification and
 publication are four different facts.
 
+## v1 implementation batching and current preparation
+
+V1-01 through V1-05 preparatory changes are delivered as one 0.17.2 implementation
+batch, with focused automated regression/contract/installation checks between
+workstreams. A separate owner live E2E is not required after each workstream.
+Final live qualification is one campaign on the frozen final 1.0.0 artifact,
+with the required fresh positive/refusal/cancellation repetitions and all
+negative host/scratch cases. Preparation does not complete the live or release
+exit gates. Do not relabel the preparatory artifact after testing.
+
+See [public contracts](docs/PUBLIC_CONTRACTS.md),
+[release preparation](docs/V1_RELEASE_PREPARATION.md),
+[final live E2E](docs/V1_LIVE_E2E.md) and
+[Japanese preparation guide](docs/V1_PREPARATION_ja.md).
+
 ## Change control
 
 Version sequencing is not a promised calendar schedule. New evidence may require

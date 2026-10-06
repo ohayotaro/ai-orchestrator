@@ -91,3 +91,37 @@ def approve_and_run(engine, task_id="task-1"):
     assert state.status == "awaiting_approval", state.model_dump()
     engine.approve(task_id, engine.approval_scope(state), "test-operator")
     return engine.run(task_id)
+
+
+@pytest.fixture(autouse=True)
+def public_response_conformance(monkeypatch):
+    """Validate real service/CLI return values across existing regression cases.
+
+    Test doubles that replace these public methods remain test doubles, not live
+    compatibility evidence. This never validates or transforms runtime writes.
+    """
+    from functools import lru_cache, wraps
+    from public_response_checks import validators, declared
+    from ai_orchestrator.service import ApplicationService
+    from ai_orchestrator import cli
+    invoke=ApplicationService.invoke
+    dispatch=cli.dispatch
+
+    @wraps(invoke)
+    def checked_invoke(self,name,arguments):
+        result=invoke(self,name,arguments)
+        validators()[declared()['mcp_tools'][name]['response']].validate(result)
+        return result
+
+    @wraps(dispatch)
+    def checked_dispatch(args):
+        result,code=dispatch(args)
+        name=args.command
+        if name in ('backup','learning','maintenance','validator'):
+            name+=' '+getattr(args,args.command+'_action')
+        validators()[declared()['cli_commands'][name]['response']].validate(result)
+        assert code in (0,1)
+        return result,code
+
+    monkeypatch.setattr(ApplicationService,'invoke',checked_invoke)
+    monkeypatch.setattr(cli,'dispatch',checked_dispatch)
