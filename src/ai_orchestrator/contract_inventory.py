@@ -11,35 +11,78 @@ from .project import digest
 ASSET = Path(__file__).resolve().parent/'assets/contracts.json'
 
 
-def schema_semantics(value):
-    """Canonical JSON-Schema semantics across supported Pydantic releases.
+CANONICALIZER_VERSION = "json-schema-positions-v2"
 
-    Presentation fields are excluded. Pydantic 2.10 omitted
-    ``additionalProperties: true`` for unconstrained mappings while later
-    releases emit it explicitly; JSON Schema defines those forms identically.
-    JSON numeric values also treat integral floats and integers equivalently.
-    Defaults and actual validation constraints remain part of the contract.
-    """
+# Only these keywords contain schemas. Unknown vocabularies and instance values
+# are copied as JSON, never recursively interpreted as annotation positions.
+_SCHEMA_MAPS = frozenset({"properties", "patternProperties", "$defs", "definitions", "dependentSchemas"})
+_SCHEMA_SINGLE = frozenset({"additionalProperties", "unevaluatedProperties", "propertyNames", "contains",
+                            "additionalItems", "unevaluatedItems", "not", "if", "then", "else", "contentSchema"})
+_SCHEMA_ARRAYS = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
+_PRESENTATION = frozenset({"title", "description", "$comment"})
+
+
+def _json_value(value):
+    """Copy literal JSON, preserving named keys; normalize finite JSON numbers."""
+    import math
     if isinstance(value, dict):
-        result = {
-            k: schema_semantics(v)
-            for k, v in value.items()
-            if k not in ('title', 'description', '$comment')
-        }
-        if (
-            result.get('type') == 'object'
-            and 'additionalProperties' not in result
-            and 'properties' not in result
-            and '$ref' not in result
-            and not any(key in result for key in ('allOf', 'anyOf', 'oneOf'))
-        ):
-            result['additionalProperties'] = True
-        return result
+        if not all(isinstance(k, str) for k in value):
+            raise ValueError("contract JSON keys must be strings")
+        return {k: _json_value(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [schema_semantics(v) for v in value]
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return value
+        return [_json_value(v) for v in value]
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("non-finite contract number")
+        return int(value) if value.is_integer() else value
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    raise ValueError("unsupported contract JSON value")
+
+
+def schema_semantics(value):
+    """Position-aware, conservative canonicalization; NOT an equivalence prover.
+
+    Only actual schema annotations are removed. Named-schema maps preserve all
+    names and const/enum/default/unknown extension data remain literal JSON.
+    The two known Pydantic mapping/number representation differences retain the
+    historical minimum/reference equivalence. This function never participates
+    in task, artifact, profile or authority hashing.
+    """
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, dict):
+        raise ValueError("expected a JSON Schema object or boolean")
+    result = {}
+    for key, item in value.items():
+        if key in _PRESENTATION:
+            if not isinstance(item, str):
+                raise ValueError("schema annotation must be a string")
+            continue
+        if key in _SCHEMA_MAPS:
+            if not isinstance(item, dict):
+                raise ValueError("named schemas must be an object")
+            result[key] = {name: schema_semantics(child) for name, child in item.items()}
+        elif key in _SCHEMA_SINGLE:
+            result[key] = schema_semantics(item)
+        elif key in _SCHEMA_ARRAYS or (key == "items" and isinstance(item, list)):
+            if not isinstance(item, list):
+                raise ValueError("schema applicator must be an array")
+            result[key] = [schema_semantics(child) for child in item]
+        elif key == "items":
+            result[key] = schema_semantics(item)
+        elif key == "dependencies":  # draft-07: schema or a list of names
+            if not isinstance(item, dict):
+                raise ValueError("dependencies must be an object")
+            result[key] = {name: _json_value(child) if isinstance(child, list)
+                           else schema_semantics(child) for name, child in item.items()}
+        else:
+            result[key] = _json_value(item)
+    if (result.get("type") == "object" and "additionalProperties" not in result
+            and "properties" not in result and "$ref" not in result
+            and not any(k in result for k in ("allOf", "anyOf", "oneOf"))):
+        result["additionalProperties"] = True
+    return result
 
 
 def _cli_authority(command: str) -> str:
@@ -58,53 +101,127 @@ def _cli_authority(command: str) -> str:
     return 'bounded operator command; not a HumanGate response'
 
 
-def _cli_commands(parser, prefix=''):
-    results=[]
-    sub=next((a for a in parser._actions if isinstance(a,argparse._SubParsersAction)),None)
+def _symbol(value):
+    """Stable callable/type identity; never include repr addresses or local paths."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    # Path moved to pathlib._local in Python 3.13; its public callable contract
+    # is still pathlib.Path. Do not fingerprint that private module move.
+    if value is Path:
+        return "pathlib.Path"
+    module = getattr(value, "__module__", None)
+    name = getattr(value, "__qualname__", None)
+    if module and name and "<lambda>" not in name and "<locals>" not in name:
+        return module + "." + name
+    raise ValueError("CLI/SDK callable needs an explicit stable identity")
+
+
+def _cli_value(value, *, path='', dest='', version=False):
+    from . import __version__
+    if path == '' and dest == 'project' and isinstance(value, Path) and value == Path.cwd():
+        return {"factory": "current_working_directory"}
+    if version and value == __version__:
+        return {"source": "package_version"}
+    if value is argparse.SUPPRESS:
+        return {"special": "argparse.SUPPRESS"}
+    if isinstance(value, Path):
+        return {"path_literal": value.as_posix()}
+    return _json_value(value)
+
+
+def _cli_node(parser, path):
+    options = []
+    for index, action in enumerate(parser._actions):
+        # Help prose/wrapping are not API; the help action/exit behavior is.
+        if isinstance(action, argparse._SubParsersAction):
+            options.append({"action": "subcommands", "dest": action.dest,
+                            "required": action.required, "names": sorted(action.choices)})
+            continue
+        options.append({
+            "position": index, "dest": action.dest, "flags": list(action.option_strings),
+            "required": action.required, "nargs": action.nargs,
+            "choices": _json_value(list(action.choices)) if action.choices is not None else None,
+            "action": _symbol(type(action)), "type": _symbol(action.type),
+            "default": _cli_value(action.default, path=path, dest=action.dest),
+            "const": _cli_value(action.const),
+            **({"version": _cli_value(action.version, version=True)} if hasattr(action, "version") else {}),
+        })
+    return {"path": path, "arguments": options,
+            "defaults": {k: _cli_value(v, path=path, dest=k) for k,v in sorted(parser._defaults.items())},
+            "mutually_exclusive": [
+                {"required": group.required,
+                 "members": [parser._actions.index(a) for a in group._group_actions]}
+                for group in parser._mutually_exclusive_groups],
+            "parsing": {"allow_abbrev": parser.allow_abbrev, "prefix_chars": parser.prefix_chars,
+                        "fromfile_prefix_chars": parser.fromfile_prefix_chars,
+                        "argument_default": _cli_value(parser.argument_default),
+                        "conflict_handler": parser.conflict_handler, "exit_on_error": parser.exit_on_error}}
+
+
+def _cli_commands(parser, prefix='', _parents=()):
+    nodes = (*_parents, _cli_node(parser, prefix))
+    sub = next((a for a in parser._actions if isinstance(a, argparse._SubParsersAction)), None)
     if sub:
-        for name,child in sorted(sub.choices.items()):
-            results.extend(_cli_commands(child, (prefix+' '+name).strip()))
-    else:
-        options=[]
-        for action in parser._actions:
-            if action.dest=='help': continue
-            options.append({'dest':action.dest,'flags':action.option_strings,'required':action.required,
-                            'nargs':action.nargs, 'choices':list(action.choices) if action.choices is not None else None})
-        results.append({'name':prefix,'arguments':options,'stability':'candidate',
-                        'authority':_cli_authority(prefix),
-                        'negative_tests':['tests/test_v017_contracts.py','tests/test_v017_hardening.py']})
-    return results
+        return [entry for name, child in sorted(sub.choices.items())
+                for entry in _cli_commands(child, (prefix+' '+name).strip(), nodes)]
+    return [{"name": prefix, "parser_path": list(nodes), "stability": "v1-target",
+             "authority": _cli_authority(prefix),
+             "negative_tests": ["tests/test_v1_inventory.py", "tests/test_v017_hardening.py"]}]
 
 
 def generate() -> dict:
+    from . import __version__
     from .service import TOOLS
     from .human_gates import GATE_TOOLS
     from .cli import parser
     from .persistence import persistence_compatibility_report
+    from .public_contracts import surface, resolve, output_schemas, sdk_contracts, tool_annotations
+    declared = surface()
     models=[]
-    for name in ('models','contracts','exploration','jobs','human_gates','runtime_options',
-                 'provider_sdk','capabilities','usage','service','cancellation','receipts','maintenance'):
-        module=importlib.import_module('ai_orchestrator.'+name)
-        for cname,cls in inspect.getmembers(module,inspect.isclass):
-            if cls.__module__!=module.__name__ or not issubclass(cls,Contract) or cls is Contract or cname.startswith('_'):
-                continue
-            schema=cls.model_json_schema()
-            version=schema.get('properties',{}).get('schema_version',{})
-            models.append({'name':name+'.'+cname,'version_schema':schema_semantics(version),
-                           'schema_sha256':digest(schema_semantics(schema)),
-                           'public_entry_point':'schema/MCP or typed persisted reader',
-                           'authority':'typed data; not an approval response',
-                           'compatibility':'supported versions read without historical hash rewriting',
-                           'stability':'candidate', 'negative_tests':['tests/test_v017_contracts.py','tests/test_v012_persistence.py']})
+    for name in declared['models']:
+        cls=resolve(name)
+        schema=cls.model_json_schema()
+        models.append({'name':name,
+                       'version_schema':schema_semantics(schema.get('properties',{}).get('schema_version',{})),
+                       'schema_sha256':digest(schema_semantics(schema)),
+                       'stability':'v1-target-data', 'python_import_stable':False})
+    outputs=output_schemas()
     tools=[]
-    for name,(model,description,readonly) in sorted({**TOOLS,**GATE_TOOLS}.items()):
-        tools.append({'name':name, 'schema_sha256':digest(schema_semantics(model.model_json_schema())),
-                      'readonly':readonly, 'authority':'client-mediated HumanGate only' if name in GATE_TOOLS else
-                      'read-only' if readonly else 'bounded request, not permission',
-                      'stability':'candidate','negative_tests':['tests/test_v04_protocol.py','tests/test_v016_wire.py','tests/test_v017_contracts.py']})
-    return {'schema_version':1,'candidate_version':'0.17.0','v1_release_declared':False,
-            'models':sorted(models,key=lambda v:v['name']), 'mcp_tools':tools,
-            'cli_commands':_cli_commands(parser()), 'persistence':persistence_compatibility_report(),
+    actual={**TOOLS, **GATE_TOOLS}
+    if set(actual) != set(declared['mcp_tools']):
+        raise ValueError('public MCP allowlist differs from dispatch surface')
+    for name,(model,description,readonly) in sorted(actual.items()):
+        rule=declared['mcp_tools'][name]
+        tools.append({'name':name,'schema_sha256':digest(schema_semantics(model.model_json_schema())),
+                      'readonly':readonly,'annotations':tool_annotations(name,readonly),
+                      'authority':'client-mediated HumanGate only' if name in GATE_TOOLS else
+                          'read-only' if readonly else 'bounded request, not permission',
+                      'stability':'v1-target',**rule})
+    commands=_cli_commands(parser())
+    if {v['name'] for v in commands} != set(declared['cli_commands']):
+        raise ValueError('public CLI allowlist differs from parser surface')
+    parsers={}
+    for command in commands:
+        for node in command['parser_path']:
+            key=node['path']
+            if key in parsers and parsers[key]!=node:
+                raise ValueError('conflicting CLI parser path')
+            parsers[key]=node
+        command['parser_path']=[node['path'] for node in command['parser_path']]
+        command.update(declared['cli_commands'][command['name']])
+    return {'schema_version':2,'canonicalizer':CANONICALIZER_VERSION,
+            'package_version':__version__,'target_version':'1.0.0','stability':'v1-target; qualification pending',
+            'models':models,'mcp_tools':tools,'cli_commands':commands,
+            'cli_parsers':dict(sorted(parsers.items())),
+            'output_schemas':{name:{'schema_sha256':digest(schema_semantics(schema))}
+                              for name,schema in sorted(outputs.items())},
+            'sdk':sdk_contracts(), 'protocols':declared['protocols'],
+            'runtime_limits':declared['runtime_limits'],
+            'compatibility_policy':declared['compatibility_policy'],
+            'stable_extension_boundaries':declared['stable_extension_boundaries'],
+            'persistence':persistence_compatibility_report(),
             'human_gate_decision':{'type':'string','required':True,'enum':['no','yes'],'server_supplied_default':False},
             'intentionally_unstable':['display prose','private Python helpers','bounded selection/distillation heuristics'],
             'safety_compatibility':'unstable internals cannot silently change authority, persisted hashes or replay behavior'}

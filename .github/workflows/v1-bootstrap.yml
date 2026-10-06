@@ -17,12 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Materialize exact audited files
+      - name: Generate exact audited inventory assets
         run: |
-          cat .github/ci-source.* | base64 -d > src/ai_orchestrator/contract_inventory.py
-          cat .github/test-inventory.* | base64 -d > tests/test_v1_inventory.py
-          echo "contract=$(git hash-object src/ai_orchestrator/contract_inventory.py)"
-          echo "test=$(git hash-object tests/test_v1_inventory.py)"
           test "$(git hash-object src/ai_orchestrator/contract_inventory.py)" = "585feab2d56ab03bb822ec111e2481dec23d9b6b"
           test "$(git hash-object tests/test_v1_inventory.py)" = "249dc7ace59adaf29d15cdf85ed71e5f4d6c85e1"
           python -m pip install -r requirements/rc-reference.txt
@@ -49,4 +45,3 @@ jobs:
           git config user.email "bootstrap@users.noreply.github.com"
           git commit -m "v0.17.2: materialize v1 pre-E2E preparation"
           git push origin HEAD:v1-pre-e2e-preparation
-# hash diagnostics
