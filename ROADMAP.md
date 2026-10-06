@@ -198,6 +198,14 @@ See [public contracts](docs/PUBLIC_CONTRACTS.md),
 [final live E2E](docs/V1_LIVE_E2E.md) and
 [Japanese preparation guide](docs/V1_PREPARATION_ja.md).
 
+## v1.0 distribution decision
+
+Owner decision on **2026-10-06 JST**: release under **Apache License 2.0**.
+GitHub Releases is the canonical release record; PyPI is the package distribution
+channel and must receive the same qualified wheel/sdist bytes. This decision does
+not itself authorize a tag or publication; the final manifest-bound owner release
+approval remains a separate gate.
+
 ## Change control
 
 Version sequencing is not a promised calendar schedule. New evidence may require
