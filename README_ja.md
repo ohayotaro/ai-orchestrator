@@ -4,11 +4,11 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.17.0 alpha** は、設計監査で確定した Release Candidate Hardening を実装した候補版です。
+**v0.17.1 alpha** は、設計監査で確定した Release Candidate Hardening と live closure の follow-up 修正を含みます。
 取消要求の可視化・冪等化と operator-only の安全な終了処理、No-first HumanGate、
 完全な evidence roots、cleanup 後も残る request receipt、中断した maintenance の
 永続的な停止状態、稼働コードと Skill／契約の識別を追加しました。
-これは v1.0 の公開や v0.17 live qualification の完了宣言ではありません。
+v0.17.0 の required live flow は PASS しましたが、0.17.1 では cancel 済み task の provider-permission prepare 拒否を再確認してから正式クローズします。これは v1.0 の公開宣言ではありません。
 詳細は [RC operations](docs/RC_OPERATIONS.md) と [検証状況](docs/RC_VERIFICATION.md) に記録しています。
 
 v0.16 の Exploration / Deliberation Sessions は、仕様が曖昧な段階を扱います。
@@ -529,7 +529,7 @@ v0.15.1 の live Operational Hardening E2E まで完了し、v0.15.x はクロ�
 次の主な milestone:
 
 - v0.16 Exploration / Deliberation Sessions（v0.16.0 で live closure 済み）
-- v0.17 Release Candidate Hardening（実装候補、最終 build の live qualification は未完了）
+- v0.17 Release Candidate Hardening（0.17.1 follow-up、targeted live recheck 待ち）
 - v1.0 Stable Kernel Contracts
 
 v0.16 では、仕様が曖昧な段階で repository を調べ、仮説・選択肢・未確定事項を
