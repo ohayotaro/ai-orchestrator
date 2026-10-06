@@ -3,12 +3,12 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.17.0 alpha** implements the audited Release Candidate Hardening scope:
+**v0.17.1 alpha** contains the audited Release Candidate Hardening scope plus the live-closure follow-up:
 visible/idempotent cancellation with safe operator finalization, No-first
 HumanGates, complete evidence roots, durable request receipts, interrupted-
 maintenance barriers and explicit loaded-build/contract identity. This is an
-implementation candidate, not a v1.0 release or a claim of completed v0.17 live
-qualification. See [RC operations](docs/RC_OPERATIONS.md) and
+hardening candidate, not a v1.0 release. The 0.17.0 live qualification passed the required flows; 0.17.1
+requires only the targeted cancellation/provider-permission recheck before formal milestone closure. See [RC operations](docs/RC_OPERATIONS.md) and
 [verification status](docs/RC_VERIFICATION.md).
 
 The v0.16 foundation provides durable Exploration / Deliberation Sessions for
