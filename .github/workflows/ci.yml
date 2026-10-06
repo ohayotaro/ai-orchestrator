@@ -7,15 +7,29 @@ permissions:
   contents: read
 jobs:
   test:
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python: ['3.11', '3.12', '3.13']
         include:
+          - os: ubuntu-latest
+            python: '3.11'
+            dependencies: reference
+          - os: ubuntu-latest
+            python: '3.12'
+            dependencies: reference
+          - os: ubuntu-latest
+            python: '3.13'
+            dependencies: reference
           - os: macos-latest
             python: '3.13'
+            dependencies: reference
+          - os: ubuntu-latest
+            python: '3.11'
+            dependencies: minimum
+          - os: ubuntu-latest
+            python: '3.11'
+            dependencies: core-minimum
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +45,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -e '.[dev,interop]'
-      - run: python -m pytest -q
-      - run: python -m compileall -q src tests
-      - run: python -m pip wheel . --no-deps -w dist
+      - name: Install exact dependency lane
+        run: |
+          python -m pip install -r requirements/rc-${{ matrix.dependencies }}.txt
+          if [ '${{ matrix.dependencies }}' = core-minimum ]; then EXTRAS=dev; else EXTRAS=dev,interop; fi
+          python -m pip install --no-build-isolation -e ".[$EXTRAS]" -c requirements/rc-${{ matrix.dependencies }}.txt
+          python -m pip freeze > resolved-dependencies.txt
+      - name: Full independent-SDK suite
+        if: matrix.dependencies != 'core-minimum'
+        run: python -m pytest -q --junitxml=test-results.xml
+      - name: Explicit core-only scope (SDK not installed, checked in all other lanes)
+        if: matrix.dependencies == 'core-minimum'
+        run: python -m pytest -q --junitxml=test-results.xml --ignore=tests/test_v03_sdk_interop.py --deselect=tests/test_v04_wire.py::test_official_sdk_native_elicitation_decline
+      - run: python tools/check_no_skips.py test-results.xml
+      - run: python -m compileall -q src tests tools
+      - name: Clean wheel and source-distribution qualification
+        if: matrix.dependencies == 'reference'
+        run: python tools/check_distribution.py
+      - name: Build minimum dependency distribution
+        if: matrix.dependencies != 'reference'
+        run: python -m pip wheel . --no-deps --no-build-isolation -w dist
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.dependencies }}
+          path: |
+            test-results.xml
+            resolved-dependencies.txt
+          retention-days: 14
