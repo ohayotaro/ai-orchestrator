@@ -1511,3 +1511,58 @@ created. Formal closure requires one targeted live recheck on the 0.17.1 final
 build proving a cancelled task cannot create a provider-permission gate. The
 0.17.0 destructive scratch matrix need not be repeated unless that recheck
 reveals another core defect.
+
+
+## Owner-reported v0.17.1 targeted RC-01 closure recheck — PASS (2026-10-06 JST)
+
+The owner upgraded the accumulated E2E project to v0.17.1 at
+`13f0b43839c10e30e3ba68bcb5aec793f6779fde` and restarted the MCP host.
+Package version, main/origin/main, loaded-versus-disk build identity and the
+source/Claude/Agents Skill copies all matched. The MCP server reported loaded
+and disk build prefix `33e0f58d`.
+
+A fresh task `task-caeeda5eb97b` from intake `I-caeeda5eb97b` was registered
+through Start gate `G-061dd2cf3b5941c4b86af5962f20fd30` and planned to
+`awaiting_approval/execute`. No Execution HumanGate was requested. The operator
+then recorded one cooperative cancellation request. Runtime event sequence 1940
+was `cancel.requested` with empty payload.
+
+After cancellation, the task exposed `cancellation.requested=true`,
+`terminal=false` and `automatic_replay=false`. The targeted MCP
+`request_provider_permission` call used request ID
+`v0171-closure-perm-after-cancel-1` and was refused immediately with
+`task has a cancellation request`.
+
+The prepare-time refusal satisfied the missing RC-01 requirement:
+
+- total HumanGate rows stayed 134 -> 134;
+- gate_events stayed 383 -> 383;
+- pending/applying gates stayed 0 -> 0;
+- provider-permission gates stayed 1 existing -> 1;
+- rows for the targeted request ID stayed 0;
+- provider call started/finished counters stayed 131/120;
+- validator started/finished counters stayed 34/32;
+- task call count stayed 2;
+- provider_permission_grants stayed empty;
+- approvals stayed 42;
+- project tree SHA / Git status stayed unchanged;
+- max runtime event sequence stayed 1940 after the permission request.
+
+No HumanGate form was created or shown, no provider-permission grant appeared,
+and no provider, validator, file or authority effect occurred. The post-cancel
+snapshot and post-permission-request snapshot were identical.
+
+The fixture task remains cancellation-requested but intentionally not finalized;
+that housekeeping state is not execution authority and is not required for this
+prepare-time test. Other pre-existing unfinished fixture bindings were not
+repurposed to manufacture evidence.
+
+Combined with the full owner-reported v0.17.0 RC qualification, this targeted
+v0.17.1 PASS closes the only remaining audited RC-01 gap. Claude Code 2.1.284
+host transport remains **conditional** because of the previously recorded
+Yes-intent / No-wire anomaly; it failed safe, controlled positive retries worked,
+and no authority-increase failure was observed.
+
+**Result: PASS. v0.17 Release Candidate Hardening is formally closed at v0.17.1.**
+The next step is a separate v1.0 Stable Control Plane release decision; no v1.0
+tag or package publication is implied by this closure.
