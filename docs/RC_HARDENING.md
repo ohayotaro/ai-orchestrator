@@ -1,7 +1,7 @@
 # v0.17 — Release Candidate Hardening: approved design
 
-Status: **DESIGN FINALIZED; 0.17.0 implementation candidate present; required
-live qualification and final release decision pending**.
+Status: **DESIGN FINALIZED; v0.17 implemented and live-closed at 0.17.1;
+v1.0 qualification and publication remain separate decisions**.
 Implementation details and measured evidence are maintained separately in
 [RC_VERIFICATION.md](RC_VERIFICATION.md) and [RC_OPERATIONS.md](RC_OPERATIONS.md).
 The original audited observations below describe the 0.16.0 baseline, not a
@@ -11,9 +11,12 @@ Audited baseline: `b2700fda59b56bad0ced555f3a6e3e7f9badc6b8`
 (package 0.16.0; v0.16 live closure recorded).
 
 This is the normative elaboration of the v0.17 section of [ROADMAP](../ROADMAP.md).
-It fixes scope, safety decisions and exit criteria; it does not declare v0.17
-implemented, release-ready or live-verified. Findings and reproducible baseline
-observations are in [the design audit](V017_DESIGN_AUDIT.md).
+It fixes scope, safety decisions and exit criteria. The completed v0.17
+qualification is recorded in [RC_VERIFICATION.md](RC_VERIFICATION.md); design
+approval alone was not evidence of completion. Findings and reproducible baseline
+observations remain in [the design audit](V017_DESIGN_AUDIT.md). The separate
+v1.0 contract/release handoff is normative in
+[V1_STABLE_CONTROL_PLANE.md](V1_STABLE_CONTROL_PLANE.md).
 
 ## 1. Decision and scope boundary
 
