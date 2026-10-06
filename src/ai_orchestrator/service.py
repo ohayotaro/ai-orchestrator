@@ -344,7 +344,7 @@ class ApplicationService:
                         },
                         "validators": engine.doctor(validators_only=True),
                         "execution": "managed single-terminal is the default serve mode; legacy manual worker mode remains available",
-                        "operator_only": ["trust", "start", "approve", "accept", "validator add", "promote", "learning distill", "proposal reject/revise", "recover", "backup/restore/retention cleanup", "provider plugin pin/config changes", "arbitrary config/policy changes"],
+                        "operator_only": ["trust", "start", "approve", "accept", "cancel --finalize", "maintenance reconcile", "validator add", "promote", "learning distill", "proposal reject/revise", "recover", "backup/restore/retention cleanup", "provider plugin pin/config changes", "arbitrary config/policy changes"],
                         "human_gate_authority": ["start", "execution", "acceptance", "binding cleanup", "bounded provider adapter change", "task-scoped AGY broad permission"],
                         "operator_only_note": "Direct CLI authority commands remain operator-only; listed HumanGate equivalents are separate client-mediated confirmation paths."}
             if name == "preview_provider_change":
