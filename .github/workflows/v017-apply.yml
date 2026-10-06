@@ -1,0 +1,63 @@
+name: Apply validated v0.17 development changes
+on:
+  push:
+    branches: [v0.17-rc-hardening]
+    paths: [.github/workflows/v017-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'ohayotaro/ai-orchestrator' && github.ref == 'refs/heads/v0.17-rc-hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply exact hash-verified tested source and remove transfer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 3bec3cc5a31c902d5ce45674ab28c7a620624fdd HEAD
+          git diff --exit-code 3bec3cc5a31c902d5ce45674ab28c7a620624fdd HEAD -- . ':!.github/v017-delta.*' ':!.github/workflows/v017-apply.yml'
+          python3 - <<'PY'
+          import hashlib, json, lzma
+          from pathlib import Path, PurePosixPath
+          raw = lzma.decompress(b''.join(Path(f'.github/v017-delta.{i:02d}').read_bytes() for i in range(5)))
+          if hashlib.sha256(raw).hexdigest() != '0ac905ce87bc910361d1850e0019fa7e85e8959f4ca39ce79c10581f99bb48fc':
+              raise SystemExit('Development delta integrity mismatch')
+          entries = json.loads(raw)
+          if len(entries) != 61:
+              raise SystemExit('Unexpected development inventory')
+          root = Path.cwd().resolve()
+          for item in entries:
+              rel = PurePosixPath(item['path'])
+              if rel.is_absolute() or '..' in rel.parts or '.git' in rel.parts:
+                  raise SystemExit('Unsafe development path')
+              path = Path(rel)
+              if path.is_symlink() or root not in path.resolve().parents:
+                  raise SystemExit('Unsafe development target')
+              old = path.read_bytes() if path.exists() else b''
+              if hashlib.sha256(old).hexdigest() != item['before']:
+                  raise SystemExit('Baseline mismatch: ' + str(rel))
+              lines = old.decode('utf-8').splitlines(keepends=True)
+              for begin, end, replacement in reversed(item['edits']):
+                  lines[begin:end] = replacement.splitlines(keepends=True)
+              new = ''.join(lines).encode('utf-8')
+              if hashlib.sha256(new).hexdigest() != item['after']:
+                  raise SystemExit('Output mismatch: ' + str(rel))
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(new)
+          for i in range(5):
+              Path(f'.github/v017-delta.{i:02d}').unlink()
+          Path('.github/workflows/v017-apply.yml').unlink()
+          PY
+          git add -A
+          git diff --cached --check
+          test "$(git write-tree)" = 13d1715356b4689ce12440a51dca7797ec2443d0
+          python3 -m compileall -q src tests tools
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'v0.17: implement audited Release Candidate Hardening'
+          git push origin HEAD:refs/heads/v0.17-rc-hardening
