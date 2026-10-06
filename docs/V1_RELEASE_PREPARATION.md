@@ -1,8 +1,9 @@
 # v1 release preparation and evidence procedure
 
-Status: **preparatory implementation, not release qualification**.
-The working version is **0.17.2**. No final 1.0.0 artifact, supported v1 live
-baseline, tag or publication is asserted. The owner has selected Apache-2.0 and the publication channels below.
+Status: **1.0.0 final-candidate metadata frozen; live qualification and publication pending**.
+The working version is **1.0.0**. The candidate package metadata and distribution
+terms are fixed before final CI/live qualification. No supported v1 live baseline,
+tag or publication is asserted merely by preparing these bytes. The owner has selected Apache-2.0 and the publication channels below.
 The design's stages B–D can be implemented together; stage E is the final live
 qualification and stage F is an independent owner release decision.
 
@@ -26,10 +27,11 @@ Normal positive write, genuine Start refusal and idle cancel/finalize each still
 require **two fresh fixture IDs**, in addition to the complete host-form and
 cancelled-provider-permission checks. "One campaign" does not mean one test.
 
-The 0.17.2 batch provides the checking and evidence tools. Its passing automated
-tests do not complete V1-04's owner-live support claim or V1-05's final release
-record. Final 1.0 metadata changes still change identity: do not run the final
-paid E2E campaign on this preparatory build and later relabel it 1.0.0.
+The 0.17.2 batch provided the checking and evidence tools. The 1.0.0 candidate
+freezes the package/version/license/documentation bytes that will be qualified.
+Passing automated tests still do not complete V1-04's owner-live support claim or
+V1-05's final release record. Any packaged change after qualification changes
+identity and requires applicable requalification.
 
 ## Build once and retain evidence
 
