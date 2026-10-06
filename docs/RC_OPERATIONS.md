@@ -59,9 +59,13 @@ transport retry become another billable ask/exploration call.
 A restore merges compatible known current identities with archived history.
 Conflicting fingerprints/identities fail before destructive replacement.
 Pending restored jobs are explicitly interrupted and pending/applying gates are
-made non-replayable. Execution approvals and nonterminal task provider-permission grants
-are revoked, with counts in the restore audit. Terminal task provenance is retained
-byte-for-byte: historical grants are not reusable authority for another task. Full restore retains its existing
+made non-replayable. The approvals table is authority state, not the canonical
+historical audit ledger: restore revokes every execution-approval row, including
+rows associated with terminal tasks, and reports the exact count. Historical
+approval provenance remains in append-only runtime events and immutable task
+evidence. Nonterminal task provider-permission grants are also revoked, while
+terminal TaskState bytes and historical grant metadata remain byte-preserved and
+are not reusable authority for another task. Full restore retains its existing
 explicitly acknowledged project-profile/trusted-profile behavior; runtime-only
 restore still never replaces current config/context. A receipt can still refuse
 an old request even when an archived payload for it has been restored.

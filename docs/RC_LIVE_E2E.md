@@ -1,4 +1,4 @@
-# v0.17 live qualification procedure — not yet performed
+# v0.17 live qualification procedure — 0.17.0 full run complete; 0.17.1 targeted recheck pending
 
 Implementation/CI success does not satisfy the live release gate. Execute only on
 an explicitly selected disposable fixture or on a specifically authorized small
@@ -70,3 +70,22 @@ TESTED does not close a gate. A newly discovered authority, data-loss, replay,
 migration or recovery defect returns to correctness work; documenting it is not
 a waiver. Do not mark v0.17 live-closed, create a v1.0 tag or publish a package
 until the separate release decision is explicitly made.
+
+
+## 0.17.1 targeted closure recheck
+
+The 0.17.0 owner run completed the full required matrix above. A single
+prepare-time cancellation inconsistency was then found in
+`request_provider_permission`: the form could be prepared for a task whose
+cancellation request was already durable, although resolve/apply failed closed.
+0.17.1 rejects that request before creating the gate.
+
+After installing the final 0.17.1 build, create one fresh idle task, record
+cancellation, and request the provider-permission gate through the normal MCP
+surface. Expected result: immediate structured refusal containing
+`task has a cancellation request`, zero new HumanGate rows/forms, zero provider
+calls, zero validator calls and no file/authority mutation. Also re-check package
+/ loaded-build / host-Skill identity. If this targeted case passes and final-head
+CI remains green, the full 0.17.0 qualification may be combined with this
+0.17.1 follow-up to close the v0.17 milestone. Do not copy the 0.17.0 matrix
+entry to 0.17.1 without this evidence.

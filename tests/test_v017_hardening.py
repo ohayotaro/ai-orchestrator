@@ -12,6 +12,7 @@ from ai_orchestrator.store import Store
 from ai_orchestrator.jobs import JobQueue
 from ai_orchestrator.operational import diagnose_runtime, retention_plan, apply_retention
 from ai_orchestrator.service import ApplicationService
+from ai_orchestrator.human_gates import HumanGateBroker, ProviderPermissionRequest
 from ai_orchestrator import learning
 from conftest import spec
 
@@ -35,6 +36,28 @@ def test_cancel_is_idempotent_visible_and_rejects_direct_approval(engine):
     with pytest.raises(OrchestratorError, match='cancel'):
         e.approve(state.spec.id, e.approval_scope(state), 'operator')
     assert len(reasoning.requests) == 1 and not engineering.requests
+
+
+def test_cancelled_task_refuses_provider_permission_before_gate_creation(engine):
+    e, _, _ = engine
+    state = e.create(spec('cancel-provider-permission'))
+    e.store.request_cancel(state.spec.id)
+    broker = HumanGateBroker(
+        ApplicationService(e.project.root),
+        "cancel-provider-permission-session",
+        {"name": "test-host", "version": "1"},
+    )
+    try:
+        request = ProviderPermissionRequest(
+            task_id=state.spec.id,
+            request_id="cancel-provider-permission-request",
+            permission="agy_dangerously_skip_permissions",
+        )
+        with pytest.raises(OrchestratorError, match="cancellation request"):
+            broker.prepare_provider_permission(request)
+        assert broker.store.db.execute("SELECT count(*) FROM gates").fetchone()[0] == 0
+    finally:
+        broker.close()
 
 
 def test_shared_artifact_conflict_blocks_diagnosis_and_cleanup(workspace):

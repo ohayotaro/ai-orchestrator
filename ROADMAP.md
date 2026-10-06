@@ -1,9 +1,12 @@
 # AI Orchestrator Roadmap
 
 Current decision date: **2026-10-06 JST**.
-Implementation baseline: **0.17.0 alpha candidate**, following owner-reported
-v0.16 live closure. **v0.17 implementation is present; required final-build live
-qualification and the v1.0 release decision remain pending.**
+Implementation baseline: **0.17.1 alpha candidate**. The owner-reported 0.17.0
+live qualification passed every required flow, but exposed one remaining RC-01
+entry-point inconsistency: a cancelled task could still reach provider-permission
+form preparation before the apply path refused it. 0.17.1 fixes that fail-closed
+presentation boundary; a targeted live recheck remains before formal v0.17
+closure. The v1.0 release decision remains separate.
 
 The approved v0.17 scope and exit criteria are normative in
 [RC Hardening](docs/RC_HARDENING.md). The source audit and reproduced baseline

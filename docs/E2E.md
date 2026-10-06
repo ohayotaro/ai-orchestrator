@@ -1443,3 +1443,71 @@ flow, genuine refusal and idle cancellation/finalization must each pass twice on
 fresh IDs at the same build, as specified in [RC Live E2E](RC_LIVE_E2E.md). Historical
 v0.16 evidence and its cancelled-request residual probe do not substitute for those
 runs. Do not relabel that residual task terminal without observing finalization.
+
+
+## Owner-reported v0.17.0 RC live qualification — required flows PASS, host transport conditional (2026-10-06 JST)
+
+The owner ran the final v0.17.0 build on the accumulated E2E project with
+Claude Code 2.1.284, MCP protocol 2025-06-18, Claude reasoning/planning/review
+and Codex CLI 0.160.0 implementation. Runtime/gates/jobs SQLite versions were
+3/1/2 after the expected first v0.17 JobQueue migration. The loaded/disk build,
+packaged contract inventory and both exported host Skills matched.
+
+Required positive evidence passed twice on fresh IDs:
+
+- Fresh-Write Run A: `v017-rc-runa-sign`, measured pytest **55 passed**,
+  isolated two-file write set, independent Start/Execution/Acceptance gates.
+- Fresh-Write Run B: `v017-rc-runb-halve`, measured pytest **59 passed**,
+  same guarded lifecycle and write-set constraints.
+- Two genuine Start refusals produced no TaskState, no implementation, no new
+  execution job/event and no automatic replay.
+- Two idle cancellation/finalization runs recorded exactly one
+  `cancel.requested`, exposed nonterminal cancellation state, refused new
+  execution/acceptance authority, then operator-only exact-scope finalization
+  reached terminal `cancelled` without provider/validator/file effects.
+  Repeated finalization was a no-op.
+
+Scratch qualification also passed the audited RC boundaries: eleven
+cancellation-finalization blocker classes and stale scope refused; terminal job
+cleanup retired 147 payloads while preserving 147 request receipts; identical
+retired request IDs returned `request_retired` with
+`automatic_replay=false`; recursive/frozen evidence roots survived cleanup;
+all six conflicting shared-artifact metadata dimensions failed closed; and
+SIGKILL interruption at nine maintenance phases left a pending barrier that
+blocked normal constructors/dispatch until explicit reconciliation or
+acknowledged recovery restore. Restore preserved compatible receipt history,
+refused conflicts before mutation, interrupted queued work, cancelled pending
+gates and kept terminal TaskState bytes.
+
+Final comparison found intended source changes only in `calculator.py` and
+`tests/test_calculator.py` from the two accepted Fresh-Write tasks. Existing
+profile digest/trust, accepted knowledge, provider/workflow authority and
+historical pre-run rows were unchanged. New inactive learning candidates were
+normal post-Acceptance governed output. No original-project cleanup/restore,
+automatic replay, automatic trust/promotion or hidden provider fallback occurred.
+Known provider cost remained a subtotal because Codex did not report total cost.
+
+### Claude Code transport observation
+
+One Start form produced an unexplained Yes-intent / `decision=no` wire result.
+It failed safe and did not increase authority. A controlled retry with the user
+confirming Yes on screen delivered `decision=yes`, and both required positive
+Fresh-Write flows later completed. The required refusal flows also delivered the
+intended No responses. Therefore the 0.17.0 required baseline is PASS while the
+Claude Code 2.1.284 host-transport entry is retained as **conditional**, not
+universally supported. The observation is not evidence of forged Yes authority.
+
+### Post-run RC-01 follow-up
+
+The live review found one controller inconsistency against the approved RC-01
+entry-point wording: a task with an existing cancellation request could still
+reach `request_provider_permission` form preparation. The resolve/apply path
+already refused it, so no permission or execution authority could be granted.
+Nevertheless RC-01 requires cancellation checks at provider-permission approval
+entry points, so v0.17 is not formally closed at 0.17.0.
+
+v0.17.1 adds the missing prepare-time refusal before any HumanGate row/form is
+created. Formal closure requires one targeted live recheck on the 0.17.1 final
+build proving a cancelled task cannot create a provider-permission gate. The
+0.17.0 destructive scratch matrix need not be repeated unless that recheck
+reveals another core defect.

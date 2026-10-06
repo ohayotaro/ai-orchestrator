@@ -671,6 +671,8 @@ class HumanGateBroker:
         if kind == "provider_permission":
             request = ProviderPermissionRequest.model_validate(authority_request or {})
             state_object = engine.store.get(request.task_id)
+            if engine.store.cancelled(request.task_id):
+                raise OrchestratorError("task has a cancellation request")
             if state_object.spec.external_effects:
                 raise OrchestratorError("external-effect work cannot be authorized by this gate")
             context = engine.provider_permission_context(state_object, request.permission)
