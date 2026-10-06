@@ -244,7 +244,7 @@ def test_official_sdk_native_elicitation_decline(workspace):
     callbacks=[]
     async def elicit(context,params):
         callbacks.append(params)
-        assert params.requestedSchema['properties']['decision']['enum']==['yes','no']
+        assert params.requestedSchema['properties']['decision']['enum']==['no','yes']
         return types.ElicitResult(action='decline')
     async def exercise():
         server=StdioServerParameters(command=sys.executable,args=['-I','-m','ai_orchestrator','--project',str(workspace),'serve','--single-terminal'])
