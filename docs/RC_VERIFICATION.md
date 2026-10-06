@@ -1,7 +1,7 @@
 # v0.17 implementation and verification record
 
 Status: **implementation candidate; final-head CI and required owner live
-qualification are tracked separately**. Package version 0.17.0 is not a v1.0
+qualification are tracked separately**. Package version 0.17.1 is not a v1.0
 release declaration. The historical baseline/design findings remain unchanged
 in [V017_DESIGN_AUDIT.md](V017_DESIGN_AUDIT.md).
 
@@ -66,3 +66,22 @@ cancellation/finalization twice on fresh IDs at the same final build. Current
 host/provider rows are `unverified`, not promoted from historical PASS reports.
 Therefore Gate D (live qualification) and the final v1.0 release decision remain
 open until that evidence is supplied and reviewed.
+
+
+## 0.17.0 owner live qualification and 0.17.1 follow-up
+
+The owner-reported 0.17.0 run completed the required positive Fresh-Write flow
+twice, genuine Start refusal twice, and idle cancellation/finalization twice.
+RC-03/04/05 scratch cases and the final original-project comparison also passed.
+One Claude Code 2.1.284 Yes-intent/No-wire anomaly remained unexplained but
+failed safe; controlled positive retries succeeded and the host transport was
+therefore classified conditional rather than unsupported.
+
+The same run identified one controller inconsistency against the approved RC-01
+wording: provider-permission form preparation did not reject a task with an
+existing cancellation request, although the resolve/apply path did reject it and
+no authority increase occurred. 0.17.1 closes that entry point before the form
+is created. Formal v0.17 closure requires a targeted live recheck showing the
+cancelled task produces no provider-permission gate row/form on the 0.17.1 final
+build. No repeat of the full destructive scratch matrix is required unless that
+recheck exposes a new defect.
