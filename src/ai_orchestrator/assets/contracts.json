@@ -1967,7 +1967,7 @@
         "tests/test_v012_persistence.py"
       ],
       "public_entry_point": "schema/MCP or typed persisted reader",
-      "schema_sha256": "613f1413f45db2f62f1e0163a1f50dfc404b12e3d1895126eb06330f019c3640",
+      "schema_sha256": "9fe76be2863fa8689cb55c0851f36704f06fb29020836a46aa1f1c8b3e332376",
       "stability": "candidate",
       "version_schema": {
         "default": 1,
@@ -2134,7 +2134,7 @@
         "tests/test_v012_persistence.py"
       ],
       "public_entry_point": "schema/MCP or typed persisted reader",
-      "schema_sha256": "09c3b0af846da2e5fa38679d7f4d43b0d91e689feccded96f4ab1676c90fed9e",
+      "schema_sha256": "aaa956ad73074010ef32aecef95e2362d919a86720d456bf14827a190524b776",
       "stability": "candidate",
       "version_schema": {
         "const": 1,
@@ -2601,7 +2601,7 @@
         "tests/test_v012_persistence.py"
       ],
       "public_entry_point": "schema/MCP or typed persisted reader",
-      "schema_sha256": "1f86bd71559fb7affc813e510ab7d4eef6c0e2693a8307109e215a1f2499840f",
+      "schema_sha256": "ed1e68ab119afc54d577d52735fcba9d113e90f3a4bbd41d28574227923d5efc",
       "stability": "candidate",
       "version_schema": {
         "default": 1,
