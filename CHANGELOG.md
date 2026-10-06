@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.2 — v1 contract and release-evidence preparation
+
+- Correct schema-position normalization and inherited CLI/default/action/mutex
+  inventory coverage; add mutation-sensitive checks and retain the v0.17 baseline.
+- Add explicit public data/SDK boundaries, input/output/error schemas, full-schema
+  export, test-time actual-response conformance and independent inventory v2 checks.
+- Preserve persisted readers/writers, authority and historical evidence hashes.
+- Separate support axes in matrix v2; preserve the old matrix byte-for-byte and
+  leave final-artifact deployments unqualified until owner live evidence exists.
+- Build one wheel/sdist in CI and qualify the same artifacts on all reference
+  lanes; collect measured receipts without claiming still-running CI is finished.
+- Add read-only release evidence validation, transitive digest/archive checks and
+  scoped external publication decisions. No tool publishes or grants authority.
+- Batch V1-01–05 preparation; retain separate final 1.0.0 live and release gates.
+  No license/channel decision, runtime upgrade, support promotion or publication.
+
 ## 0.17.1 — RC live-closure follow-up
 
 - Reject `request_provider_permission` during gate preparation when the target

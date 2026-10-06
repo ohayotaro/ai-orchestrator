@@ -34,12 +34,22 @@ def run(args, *, cwd, capture=False):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--offline',action='store_true')
+    parser.add_argument('--wheel',type=Path)
+    parser.add_argument('--sdist',type=Path)
+    parser.add_argument('--report',type=Path)
     args=parser.parse_args()
     version=tomllib.loads((ROOT/'pyproject.toml').read_text())['project']['version']
-    output=ROOT/'dist';output.mkdir(exist_ok=True)
-    run([sys.executable,'-c','from setuptools.build_meta import build_sdist,build_wheel; build_sdist("dist"); build_wheel("dist")'],cwd=ROOT)
-    wheels=sorted(output.glob(f'ai_orchestrator_kernel-{version}-*.whl'))
-    source=output/f'ai_orchestrator_kernel-{version}.tar.gz'
+    if bool(args.wheel) != bool(args.sdist):
+        parser.error('--wheel and --sdist must be supplied together')
+    if args.wheel:
+        wheels=[args.wheel.resolve()];source=args.sdist.resolve()
+        if not wheels[0].name.startswith(f'ai_orchestrator_kernel-{version}-') or source.name!=f'ai_orchestrator_kernel-{version}.tar.gz':
+            raise RuntimeError('supplied distribution version differs from tested source')
+    else:
+        output=ROOT/'dist';output.mkdir(exist_ok=True)
+        run([sys.executable,'-c','from setuptools.build_meta import build_sdist,build_wheel; build_sdist("dist"); build_wheel("dist")'],cwd=ROOT)
+        wheels=sorted(output.glob(f'ai_orchestrator_kernel-{version}-*.whl'))
+        source=output/f'ai_orchestrator_kernel-{version}.tar.gz'
     if len(wheels)!=1 or not source.is_file():raise RuntimeError('Expected one versioned wheel and sdist')
     with tempfile.TemporaryDirectory(prefix='orchestrator-installed-qualification-') as tmp:
         temp=Path(tmp); env=temp/'venv'; outside=temp/'outside';outside.mkdir()
@@ -88,8 +98,16 @@ def main():
             with zipfile.ZipFile(wheel) as z:
                 return {n:hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist() if n.startswith('ai_orchestrator/')}
         assert payload(wheels[0])==payload(next((sroot/'dist').glob('*.whl')))
-    print(json.dumps({'distribution_smoke':'PASS','outside_checkout':True,
-                      'dependency_isolation':'ambient dependencies (local only)' if args.offline else 'fresh reference environment'}))
+    from ai_orchestrator.release_evidence import sha256_file
+    report={'distribution_smoke':'PASS','outside_checkout':True,
+            'wheel_sha256':sha256_file(wheels[0]),'sdist_sha256':sha256_file(source),
+            'sdist_payload_equal':True,'host_skill_export_checked':True,
+            'dependency_isolation':'ambient-offline' if args.offline else 'fresh-reference-outside-checkout',
+            'installed_identity':identity}
+    if args.report:
+        args.report.write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+    print(json.dumps(report))
+
 
 
 if __name__=='__main__':main()

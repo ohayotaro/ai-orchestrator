@@ -27,7 +27,10 @@ def test_packaged_candidate_inventory_matches_exact_public_surface():
     expected=json.loads(contract_inventory.ASSET.read_text())
     assert contract_inventory.generate()==expected
     assert set(item['name'] for item in expected['mcp_tools'])==set(TOOLS)|set(GATE_TOOLS)
-    assert expected['v1_release_declared'] is False
+    assert expected['schema_version'] == 2
+    assert 'v1_release_declared' not in expected
+    historical=json.loads((Path(__file__).parent/'fixtures/v1/contracts-v017-v1.json').read_text())
+    assert historical['schema_version']==1 and historical['v1_release_declared'] is False
     assert {'cancel','maintenance inspect','maintenance reconcile','identity','contracts'} <= {item['name'] for item in expected['cli_commands']}
     assert not {'cancel_finalize','maintenance_reconcile','restore','cleanup'} & set(TOOLS)
     assert expected['persistence']['databases']['jobs']['write_version']==2
