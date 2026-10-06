@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.17.1 — RC live-closure follow-up
+
+- Reject `request_provider_permission` during gate preparation when the target
+  task already has a durable cancellation request. The apply/resolve path already
+  failed closed; this closes the remaining RC-01 entry-point inconsistency so no
+  high-risk permission form is shown for a cancelled task.
+- Add a regression proving the provider-permission gate is refused before any
+  HumanGate row is created.
+- Update CLI release labeling and `inspect_project.operator_only` diagnostics to
+  include `cancel --finalize` and `maintenance reconcile`.
+- Clarify restore semantics: the approvals table is revocable authority state and
+  is cleared on restore, including rows associated with terminal tasks; canonical
+  historical approval provenance remains in runtime events and immutable task
+  evidence.
+- Keep the Claude Code 2.1.284 Yes→No anomaly from the 0.17.0 live run as a
+  conditional host-transport observation. It failed safe and the controlled
+  positive baseline subsequently passed twice, so no authority bypass is claimed.
+
 ## 0.17.0 — Release Candidate Hardening (implementation candidate)
 
 - Make cancellation requests idempotent and visible through a separate v1 view.
