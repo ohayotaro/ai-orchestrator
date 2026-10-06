@@ -1,0 +1,10 @@
+# Combined declared minimum with independent MCP SDK 1.29.
+# SDK 1.29 itself requires pydantic>=2.11 and jsonschema>=4.20.
+# Core-only lower bounds are qualified separately, not silently upgraded here.
+pydantic==2.11.0
+PyYAML==6.0
+pytest==8.0.0
+jsonschema==4.20.0
+mcp==1.29.0
+setuptools==68.0.0
+wheel==0.41.0

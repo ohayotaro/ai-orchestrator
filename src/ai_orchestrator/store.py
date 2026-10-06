@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from .safety import storage_constructor, cancellation_mutation, serialized, assert_ready, bind_storage, assert_storage_current
 from .contracts import IntakeState
 from .models import Artifact, OrchestratorError, TaskState, identifier
 from .persistence import (
@@ -28,7 +29,9 @@ def now() -> str:
 
 
 class Store:
+    @storage_constructor
     def __init__(self, project: Project, cancel_check: Callable[[], bool] = lambda: False):
+        assert_ready(project)
         self.cancel_check = cancel_check
         self.project = project
         project.runtime.mkdir(parents=True, exist_ok=True)
@@ -36,6 +39,7 @@ class Store:
         for suffix in ("-wal", "-shm", "-journal"):
             confined(project.root, f".orchestrator/runtime/state.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
+        bind_storage(self, path)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         try:
             validate_database_version("runtime", version, RUNTIME_DB_READABLE_VERSIONS)
@@ -59,6 +63,7 @@ class Store:
         self.db.close()
 
     def get(self, task_id: str) -> TaskState:
+        assert_storage_current(self)
         identifier(task_id)
         row = self.db.execute("SELECT data FROM tasks WHERE id=?", (task_id,)).fetchone()
         if row is None:
@@ -67,6 +72,7 @@ class Store:
             row[0], rule_key="task_state", model=TaskState
         )
 
+    @serialized
     def save(
         self,
         state: TaskState,
@@ -127,6 +133,7 @@ class Store:
             for seq, task, kind, payload, created in rows
         ]
 
+    @serialized
     def trust(self, profile_digest: str, actor: str) -> None:
         if not actor.strip():
             raise OrchestratorError("an approval actor is required")
@@ -135,18 +142,25 @@ class Store:
             self._event(None, "profile.trusted", {"digest": profile_digest, "actor": actor})
 
     def trusted(self, profile_digest: str) -> bool:
+        assert_storage_current(self)
         row = self.db.execute("SELECT value FROM metadata WHERE key='trusted_profile'").fetchone()
         return bool(row and row[0] == profile_digest)
 
+    @serialized
     def approve(self, state: TaskState, scope: str, actor: str) -> None:
         with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            if self.cancelled(state.spec.id):
+                raise OrchestratorError("task has a cancellation request")
             self.db.execute("INSERT OR REPLACE INTO approvals VALUES (?,?,?,?)", (state.spec.id, scope, actor, now()))
             self._event(state.spec.id, "execution.approved", {"scope": scope, "actor": actor})
 
     def approved(self, task_id: str, scope: str) -> bool:
+        assert_storage_current(self)
         return self.db.execute("SELECT 1 FROM approvals WHERE task_id=? AND scope=?", (task_id, scope)).fetchone() is not None
 
     def cancelled(self, task_id: str) -> bool:
+        assert_storage_current(self)
         if self.cancel_check():
             return True
         row = self.db.execute("SELECT cancel_requested FROM tasks WHERE id=?", (task_id,)).fetchone()
@@ -159,6 +173,7 @@ class Store:
         return [row[0] for row in self.db.execute("SELECT id FROM intakes ORDER BY id").fetchall()]
 
     def get_exploration(self, session_id: str):
+        assert_storage_current(self)
         from .exploration import ExplorationState
         identifier(session_id)
         row = self.db.execute("SELECT data FROM explorations WHERE id=?", (session_id,)).fetchone()
@@ -184,6 +199,7 @@ class Store:
         self._event(None, kind, {"exploration_id": state.id, "revision": state.revision,
                                 "status": state.status, "calls": state.calls})
 
+    @serialized
     def save_exploration(self, state, kind: str, *, create: bool = False) -> None:
         with self.db:
             self._put_exploration(state, kind, create=create)
@@ -210,12 +226,16 @@ class Store:
                 active.append(task_id)
         return active
 
+    @serialized
     def authorize_provider_permission(
         self, state: TaskState, scope: str, actor: str, permission: str
     ) -> None:
         if not actor.strip():
             raise OrchestratorError("an approval actor is required")
         with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            if self.cancelled(state.spec.id):
+                raise OrchestratorError("task has a cancellation request")
             self.db.execute(
                 "UPDATE tasks SET data=? WHERE id=?",
                 (state.model_dump_json(), state.spec.id),
@@ -230,6 +250,7 @@ class Store:
                 {"scope": scope, "actor": actor, "permission": permission, "attempt": state.attempt},
             )
 
+    @serialized
     def cleanup_bindings(
         self, task_ids: list[str], intake_ids: list[str], actor: str, reason: str
     ) -> dict[str, list[str]]:
@@ -302,19 +323,26 @@ class Store:
             )
         return {"task_ids": task_ids, "intake_ids": intake_ids}
 
+    @cancellation_mutation
     def request_cancel(self, task_id: str) -> None:
-        state = self.get(task_id)
-        if state.status == "succeeded":
-            raise OrchestratorError("a completed task cannot be cancelled")
+        assert_storage_current(self)
+        assert_ready(self.project)
         with self.db:
-            self.db.execute("UPDATE tasks SET cancel_requested=1 WHERE id=?", (task_id,))
-            self._event(task_id, "cancel.requested", {})
+            self.db.execute("BEGIN IMMEDIATE")
+            state = self.get(task_id)
+            if state.status == "succeeded":
+                raise OrchestratorError("a completed task cannot be cancelled")
+            cursor = self.db.execute(
+                "UPDATE tasks SET cancel_requested=1 WHERE id=? AND cancel_requested=0", (task_id,))
+            if cursor.rowcount:
+                self._event(task_id, "cancel.requested", {})
 
     def artifact(self, state: TaskState, kind: str, value: Any) -> Artifact:
         artifact = self.write_artifact(state.spec.id, state.attempt, kind, value)
         state.artifacts.append(artifact)
         return artifact
 
+    @serialized
     def write_artifact(self, owner: str, attempt: int, kind: str, value: Any) -> Artifact:
         identifier(owner)
         identifier(kind)
@@ -353,6 +381,7 @@ class Store:
 
 
     def get_intake(self, intake_id: str) -> IntakeState:
+        assert_storage_current(self)
         identifier(intake_id)
         row = self.db.execute("SELECT data FROM intakes WHERE id=?", (intake_id,)).fetchone()
         if row is None:
@@ -361,6 +390,7 @@ class Store:
             row[0], rule_key="intake_state", model=IntakeState
         )
 
+    @serialized
     def save_intake(self, intake: IntakeState, kind: str, *, create: bool = False) -> None:
         with self.db:
             if create:
@@ -382,6 +412,7 @@ class Store:
                 source.updated_at = now()
                 self._put_exploration(source, "exploration.intake_accounted")
 
+    @serialized
     def create_from_intake(self, state: TaskState, intake: IntakeState, actor: str, scope: str) -> None:
         # The project lock serializes controllers; this transaction binds consumption
         # and task registration even if the process is interrupted afterwards.

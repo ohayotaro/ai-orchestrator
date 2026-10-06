@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import model_validator
 
+from .safety import storage_constructor, cancellation_mutation, serialized, assert_ready, bind_storage, assert_storage_current
 from .models import Contract, OrchestratorError, identifier
 from .persistence import (
     JOB_DB_READABLE_VERSIONS,
@@ -45,19 +46,27 @@ class Job(Contract):
 
 
 class JobQueue:
+    @storage_constructor
     def __init__(self, project: Project):
+        assert_ready(project)
         self.project = project
         project.runtime.mkdir(parents=True, exist_ok=True)
         path = confined(project.root, ".orchestrator/runtime/jobs.sqlite3")
         for suffix in ("-wal", "-shm", "-journal"):
             confined(project.root, f".orchestrator/runtime/jobs.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
+        bind_storage(self, path)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         try:
             validate_database_version("job", version, JOB_DB_READABLE_VERSIONS)
         except OrchestratorError:
             self.db.close()
             raise
+        if version == JOB_DB_VERSION and not self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='request_receipts'"
+        ).fetchone():
+            self.db.close()
+            raise OrchestratorError("jobs v2 is missing request_receipts; refusing implicit repair")
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS jobs (
@@ -71,8 +80,12 @@ class JobQueue:
                 job_id TEXT NOT NULL, kind TEXT NOT NULL, created_at REAL NOT NULL
             );
         """)
+        from . import receipts
         if version < JOB_DB_VERSION:
-            self.db.execute(f"PRAGMA user_version={JOB_DB_VERSION}")
+            with self.db:
+                self.db.execute("BEGIN IMMEDIATE")
+                receipts.initialize(self.db)
+                self.db.execute(f"PRAGMA user_version={JOB_DB_VERSION}")
 
     def close(self) -> None:
         self.db.close()
@@ -81,6 +94,7 @@ class JobQueue:
         self.db.execute("INSERT INTO job_events(job_id,kind,created_at) VALUES (?,?,?)", (job_id, kind, time.time()))
 
     def get(self, job_id: str) -> Job:
+        assert_storage_current(self)
         identifier(job_id)
         row = self.db.execute("SELECT data,cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
         if row is None:
@@ -90,7 +104,16 @@ class JobQueue:
         return job
 
     def existing(self, request_id: str, action: str, arguments: dict[str, Any]) -> Job | None:
+        assert_storage_current(self)
         identifier(request_id)
+        from .receipts import decode, RequestRetired
+        receipt_row = self.db.execute(
+            "SELECT request_id,job_id,fingerprint,data FROM request_receipts WHERE request_id=?", (request_id,)).fetchone()
+        if receipt_row:
+            receipt = decode(receipt_row)
+            if receipt.fingerprint != digest({"action": action, "arguments": arguments}):
+                raise OrchestratorError("request_id was already used with different arguments")
+            raise RequestRetired(receipt)
         row = self.db.execute("SELECT id,fingerprint FROM jobs WHERE request_id=?", (request_id,)).fetchone()
         if row is None:
             return None
@@ -98,6 +121,7 @@ class JobQueue:
             raise OrchestratorError("request_id was already used with different arguments")
         return self.get(row[0])
 
+    @serialized
     def enqueue(self, action: Literal["ask", "run", "explore", "exploration_propose"], arguments: dict[str, Any], request_id: str, profile_digest: str, snapshot: str) -> Job:
         identifier(request_id)
         target = arguments.get("exploration_id") or arguments.get("task_id") or arguments.get("reply_to") or request_id
@@ -122,6 +146,7 @@ class JobQueue:
             raise
         return job
 
+    @serialized
     def claim(self) -> Job | None:
         try:
             self.db.execute("BEGIN IMMEDIATE")
@@ -139,6 +164,7 @@ class JobQueue:
             self.db.rollback()
             raise
 
+    @serialized
     def finish(self, job: Job) -> None:
         if job.status not in ("succeeded", "failed", "cancelled", "interrupted"):
             raise OrchestratorError("invalid terminal job status")
@@ -150,7 +176,9 @@ class JobQueue:
                 raise OrchestratorError("job is not running; refusing to overwrite terminal state")
             self._event(job.id, job.status)
 
+    @cancellation_mutation
     def cancel(self, job_id: str) -> Job:
+        assert_ready(self.project)
         try:
             self.db.execute("BEGIN IMMEDIATE")
             job = self.get(job_id)
@@ -169,9 +197,11 @@ class JobQueue:
             raise
 
     def cancelled(self, job_id: str) -> bool:
+        assert_storage_current(self)
         row = self.db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
         return bool(row and row[0])
 
+    @serialized
     def interrupt_stale(self) -> int:
         """Only the exclusive worker owner calls this; never replay an interrupted job."""
         rows = self.db.execute("SELECT id FROM jobs WHERE status='running'").fetchall()

@@ -57,7 +57,11 @@ class AutoWorker:
         if os.environ.get(WORKER_MARKER):
             raise OrchestratorError("an internal worker cannot auto-spawn another worker")
         self.project = Project(root)
+        from .safety import assert_ready
+        from .build_identity import report
+        assert_ready(self.project)
         self.env = worker_environment(os.environ)
+        self.env["AI_ORCHESTRATOR_EXPECTED_BUILD"] = report()["loaded_build"]
         self.interval = interval
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
@@ -69,6 +73,8 @@ class AutoWorker:
         self.disabled = False
 
     def kick(self) -> None:
+        from .safety import assert_ready
+        assert_ready(self.project)
         with self.mutex:
             if self.disabled:
                 return
@@ -83,6 +89,8 @@ class AutoWorker:
                     "retry_blocked": self.disabled}
 
     def _tick(self) -> None:
+        from .safety import assert_ready
+        assert_ready(self.project)
         if self.child is not None:
             code = self.child.poll()
             if code is None:

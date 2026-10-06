@@ -99,7 +99,7 @@ class Client:
         rid = self.request('tools/call', {'name':name, 'arguments':arguments})
         form = self.read()
         assert form['method']=='elicitation/create', form
-        assert form['params']['requestedSchema']['properties']['decision']['enum'] == ['yes','no']
+        assert form['params']['requestedSchema']['properties']['decision']['enum'] == ['no','yes']
         assert 'scope' in form['params']['message']
         ping = self.request('ping')
         assert self.read()['id'] == ping  # host stays responsive while dialog open
@@ -244,7 +244,7 @@ def test_official_sdk_native_elicitation_decline(workspace):
     callbacks=[]
     async def elicit(context,params):
         callbacks.append(params)
-        assert params.requestedSchema['properties']['decision']['enum']==['yes','no']
+        assert params.requestedSchema['properties']['decision']['enum']==['no','yes']
         return types.ElicitResult(action='decline')
     async def exercise():
         server=StdioServerParameters(command=sys.executable,args=['-I','-m','ai_orchestrator','--project',str(workspace),'serve','--single-terminal'])

@@ -5,6 +5,8 @@ human clicked. It is enabled only by the operator's --single-terminal opt-in.
 """
 from __future__ import annotations
 
+from .safety import storage_constructor, cancellation_mutation, serialized, assert_ready, bind_storage, assert_storage_current
+
 import json
 import os
 import pwd
@@ -432,12 +434,16 @@ def compact_gate_summary(gate: "HumanGate") -> str:
 
 
 class GateStore:
+    @storage_constructor
     def __init__(self, project: Project):
+        assert_ready(project)
+        self.project = project
         project.runtime.mkdir(parents=True, exist_ok=True)
         path = confined(project.root, ".orchestrator/runtime/gates.sqlite3")
         for suffix in ("-wal", "-shm", "-journal"):
             confined(project.root, f".orchestrator/runtime/gates.sqlite3{suffix}")
         self.db = sqlite3.connect(path, timeout=5)
+        bind_storage(self, path)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         try:
             validate_database_version(
@@ -467,6 +473,7 @@ class GateStore:
         self.db.close()
 
     def get(self, gate_id: str) -> HumanGate:
+        assert_storage_current(self)
         identifier(gate_id)
         row = self.db.execute("SELECT data FROM gates WHERE id=?", (gate_id,)).fetchone()
         if row is None:
@@ -476,6 +483,7 @@ class GateStore:
         )
 
     def by_request(self, request_id: str, kind: str, subject: str) -> HumanGate | None:
+        assert_storage_current(self)
         identifier(request_id)
         row = self.db.execute("SELECT id FROM gates WHERE request_id=?", (request_id,)).fetchone()
         if row is None:
@@ -491,6 +499,7 @@ class GateStore:
             raise OrchestratorError("gate was already consumed or changed; no replay is allowed")
         self.db.execute("INSERT INTO gate_events(gate_id,status,created_at) VALUES (?,?,?)", (gate.id, gate.status, time.time()))
 
+    @serialized
     def create(self, gate: HumanGate) -> None:
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
@@ -504,6 +513,7 @@ class GateStore:
                 raise OrchestratorError("a gate already exists for this request/subject; inspect it rather than prompting twice") from exc
             self.db.execute("INSERT INTO gate_events(gate_id,status,created_at) VALUES (?,'pending',?)", (gate.id, time.time()))
 
+    @serialized
     def transition(self, gate_id: str, session: str, previous: str, status: str, *, result: dict[str, Any] | None = None, error: str | None = None) -> HumanGate:
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
@@ -514,6 +524,7 @@ class GateStore:
             self._save(gate, previous)
         return gate
 
+    @serialized
     def update_transport_diagnostics(
         self, gate_id: str, session: str, values: dict[str, Any]
     ) -> HumanGate:
@@ -795,7 +806,7 @@ class HumanGateBroker:
             if old.status in ("pending", "applying"):
                 raise OrchestratorError("this confirmation is pending or has an uncertain effect; do not prompt/replay it")
             return old
-        with self.service.engine() as engine, engine.project.lock():
+        with self.service.engine() as engine, engine.project.lock(_wait=True):
             captured = self.capture(engine, kind, subject, authority_request)
             stamp = time.time()
             gate = HumanGate(id="G-" + uuid.uuid4().hex, session=self.session, local_uid=os.getuid(), actor=self.actor,
@@ -842,7 +853,7 @@ class HumanGateBroker:
             "message": "AI Orchestrator confirmation. Review this bounded summary; the full exact state remains scope-bound in the controller.\n"
                        + summary + "\nChoose Yes only to authorize this exact operation. No/cancel leaves it unchanged.",
             "requestedSchema": {"type": "object", "properties": {
-                "decision": {"type": "string", "title": "Authorize this exact operation?", "description": "Choose Yes to authorize this exact scope; choose No to decline.", "enum": ["yes", "no"], "enumNames": ["Yes — authorize", "No — decline"]}
+                "decision": {"type": "string", "title": f"Authorize {gate.kind}: this exact operation?", "description": "Choose Yes to authorize this exact scope; choose No to decline.", "enum": ["no", "yes"], "enumNames": ["No — decline", "Yes — authorize"]}
             }, "required": ["decision"]},
         }
 
@@ -930,7 +941,7 @@ class HumanGateBroker:
                     event_task_id = state.spec.id
                 elif gate.kind == "binding_cleanup":
                     request = BindingCleanupRequest.model_validate(gate.authority_request or {})
-                    with engine.project.lock():
+                    with engine.project.lock(_wait=True):
                         check()
                         result = authority.apply_binding_cleanup(
                             engine,
@@ -942,7 +953,7 @@ class HumanGateBroker:
                     event_task_id = None
                 elif gate.kind == "profile_change_set":
                     request = ProfileChangeSetRequest.model_validate(gate.authority_request or {})
-                    with engine.project.lock():
+                    with engine.project.lock(_wait=True):
                         check()
                         result = authority.apply_provider_change_set(
                             engine,
@@ -954,7 +965,7 @@ class HumanGateBroker:
                     event_task_id = None
                 elif gate.kind == "profile_change":
                     request = ProfileChangeRequest.model_validate(gate.authority_request or {})
-                    with engine.project.lock():
+                    with engine.project.lock(_wait=True):
                         check()
                         result = authority.apply_provider_change(
                             engine,

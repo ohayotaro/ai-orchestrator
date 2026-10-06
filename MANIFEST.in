@@ -1,0 +1,2 @@
+include README.md README_ja.md CHANGELOG.md
+recursive-include src/ai_orchestrator/assets *.md *.json

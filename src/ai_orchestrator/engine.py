@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .safety import dispatch_guard
+
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,20 +39,29 @@ from .usage import (
 class Engine:
     def __init__(self, root: Path, registry: dict[str, ProviderAdapter] | None = None, *, cancel_check: Callable[[], bool] = lambda: False):
         self.project = Project(root)
+        from .safety import assert_ready
+        assert_ready(self.project)
         self.profile, self.profile_digest, self.context = self.project.load()
         # External provider plugins are controller code. Construct persistence
         # first so the loader can prove the exact current profile digest was
         # already trusted before any third-party entry point is imported.
         self.store = Store(self.project, cancel_check)
-        if registry is None:
-            self.registry, self.provider_plugin_diagnostics = load_provider_registry(
-                self.profile,
-                trusted=self.store.trusted(self.profile_digest),
-                builtin_registry=default_registry(),
-            )
-        else:
-            self.registry = registry
-            self.provider_plugin_diagnostics = {}
+        # Serialize trusted code loading against maintenance, not against an
+        # ordinary provider run. Read-only inspection must remain responsive.
+        from .maintenance import cancellation_boundary
+        from .safety import assert_storage_current
+        with cancellation_boundary(self.project):
+            assert_ready(self.project)
+            assert_storage_current(self.store)
+            if registry is None:
+                self.registry, self.provider_plugin_diagnostics = load_provider_registry(
+                    self.profile,
+                    trusted=self.store.trusted(self.profile_digest),
+                    builtin_registry=default_registry(),
+                )
+            else:
+                self.registry = registry
+                self.provider_plugin_diagnostics = {}
         self.capability_resolver = CapabilityResolver(self.profile, self.registry)
         self.variant_resolver = ModelVariantResolver()
         self.workflow_registry = workflow_registry(self.profile)
@@ -80,7 +91,7 @@ class Engine:
         return learning.report(self.project, self.store, self.context)
 
     def distill_learning(self) -> dict[str, Any]:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             current = self.project.load()[1]
             if current != self.profile_digest or not self.store.trusted(current):
                 raise OrchestratorError("inspect and trust the current profile before generating learning candidates")
@@ -327,7 +338,7 @@ class Engine:
         )
 
     def trust(self, actor: str) -> dict[str, str]:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             if self.project.load()[1] != self.profile_digest:
                 raise OrchestratorError("profile changed while loading; inspect it and retry trust")
             self.store.trust(self.profile_digest, actor)
@@ -406,7 +417,7 @@ class Engine:
     def create(self, spec: TaskSpec, *, capability_requirements: dict[str, list[str]] | None = None,
                workflow_ref: str | None = None,
                runtime_overrides: dict[str, dict[str, object]] | None = None) -> TaskState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             missing = set(spec.validators) - self.profile.validators.keys()
             if missing:
                 raise OrchestratorError(f"unknown validators: {', '.join(sorted(missing))}")
@@ -935,8 +946,10 @@ class Engine:
         self, task_id: str, permission: str, scope: str, actor: str,
         *, precondition: Callable[[], None] | None = None,
     ) -> TaskState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get(task_id)
+            if self.store.cancelled(task_id):
+                raise OrchestratorError("task has a cancellation request")
             context = self.provider_permission_context(state, permission)
             if scope != context["scope"]:
                 raise OrchestratorError("provider-permission scope changed; request a fresh confirmation")
@@ -990,8 +1003,10 @@ class Engine:
                 raise OrchestratorError("provider permission grant has no matching approval record")
 
     def approve(self, task_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get(task_id)
+            if self.store.cancelled(task_id):
+                raise OrchestratorError("task has a cancellation request")
             self._check(state)
             if not actor.strip() or state.status != "awaiting_approval":
                 raise OrchestratorError("execution approval requires an actor and an awaiting_approval task")
@@ -1080,6 +1095,7 @@ class Engine:
                     runtime_options=dict(variant.options),
                     usage_sink=usage_raw.update,
                 )
+                dispatch_guard(self, state.spec.id)
                 raw = adapter.execute(request_value)
             else:
                 with self.readonly_workspace(
@@ -1093,6 +1109,7 @@ class Engine:
                         runtime_options=dict(variant.options),
                         usage_sink=usage_raw.update,
                     )
+                    dispatch_guard(self, state.spec.id)
                     raw = adapter.execute(request_value)
             self.record_provider_provenance(
                 state,
@@ -1163,6 +1180,7 @@ class Engine:
             remaining = self.profile.policy.task_timeout_seconds - state.elapsed_seconds
             start = time.monotonic()
             try:
+                dispatch_guard(self, state.spec.id)
                 record = run_validator(self.project, self.profile, name, timeout=remaining, cancel=lambda: self.store.cancelled(state.spec.id))
                 records.append(record)
             except ValidationFailure as exc:
@@ -1180,10 +1198,11 @@ class Engine:
 
     def check_validator(self, name: str) -> dict[str, Any]:
         """Explicit operator action; doctor itself never executes validator code."""
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             if self.project.load()[1] != self.profile_digest or not self.store.trusted(self.profile_digest):
                 raise OrchestratorError("inspect and trust the current profile before executing validators")
             try:
+                dispatch_guard(self, None)
                 record = run_validator(self.project, self.profile, name, timeout=self.profile.policy.call_timeout_seconds)
             except ValidationFailure as exc:
                 record = exc.record
@@ -1203,7 +1222,7 @@ class Engine:
         self.store.save(state, "rework.requested")
 
     def run(self, task_id: str, *, expected_workspace: str | None = None) -> TaskState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             if expected_workspace is not None and self.project.snapshot() != expected_workspace:
                 raise OrchestratorError("worktree changed since job was queued; inspect and submit a new job")
             state = self.store.get(task_id)
@@ -1213,6 +1232,12 @@ class Engine:
                 return state
             if state.status not in ("ready", "awaiting_approval"):
                 raise OrchestratorError("terminal tasks are not rerun; inspect artifacts and create a new task")
+            if self.store.cancelled(task_id):
+                state.status = "cancelled"
+                state.provider_permission_grants = {}
+                state.error = "execution cancelled before preflight"
+                self.store.save(state, "task.cancelled", clear_approvals=True)
+                return state
             try:
                 self._preflight(state)
             except (OrchestratorError, ValueError, OSError) as exc:
@@ -1283,7 +1308,7 @@ class Engine:
                 return state
 
     def accept(self, task_id: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get(task_id)
             self._check(state)
             if not actor.strip() or state.status != "awaiting_acceptance":
@@ -1437,12 +1462,12 @@ class Engine:
 
     def recovery_status(self, task_id: str) -> dict[str, Any]:
         """Return the current conservative recovery classification."""
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             return self._recovery_status(self.store.get(task_id))
 
     def recover(self, task_id: str) -> TaskState:
         """Resolve a durable running state without ever automatically replaying it."""
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get(task_id)
             if state.status != "running":
                 raise OrchestratorError("only interrupted running tasks can be recovered")

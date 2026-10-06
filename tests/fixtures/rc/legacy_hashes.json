@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "reader_version": "0.16.0",
+  "source_tree": "73f213f780bc4ce0110f9a9f672818cdac3d12fc",
+  "fixture_kind": "synthetic inputs evaluated by retained baseline reader, not owner runtime",
+  "cases": [
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 1,
+        "spec": {
+          "id": "golden-task-1",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "983299898349aad364d6ad6ea088b8a031baf52108bda06016aa2e36d065f21a"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 2,
+        "spec": {
+          "id": "golden-task-2",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "a25b5f0db872d555237df5702b90a51b7c27d370a09faff98c19a5406f3cedd9"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 3,
+        "spec": {
+          "id": "golden-task-3",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "9febf61e93cd3d8fa229084ff97e0b5e360627405d527a4f3047537e4082be07"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 4,
+        "spec": {
+          "id": "golden-task-4",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "c9343de05d1aa752e3b78dcd4543ebd4e9ef1dd66d5ac5fa919f8c58848104c2"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 5,
+        "spec": {
+          "id": "golden-task-5",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "5b3b7071603f5ec632919d5787b271615d3b242b87fdc0dc8fb7fefdc4f9a907"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 6,
+        "spec": {
+          "id": "golden-task-6",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "fd9e2a76731430e2f5a7c49c71589c6c3be7b5548c83337bdb070ef0013407e8"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 7,
+        "spec": {
+          "id": "golden-task-7",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "88a966185c29e38b8fb2a191d79f573ede66b695011dda3920a7140316a40147"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 8,
+        "spec": {
+          "id": "golden-task-8",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "f4f750e95e345360f6e7d6645453fa68e67e8f1f47d12c3fb6b95a5d7849f17b"
+    },
+    {
+      "contract": "task_state",
+      "input": {
+        "schema_version": 9,
+        "spec": {
+          "id": "golden-task-9",
+          "goal": "historical fixture",
+          "acceptance": [
+            "readable"
+          ],
+          "risk": "T0"
+        },
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical_sha256": "9faa6fcfe519bf5bc82c47ed11680b0d80f6d3ee1841224c343e68dd90d7df68"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 1,
+        "id": "I-golden-1",
+        "task_id": "golden-intake-1",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "7118f9496dec6397c1dbc5d2372f3079c8601a2fc3f62c7420441442ad119ae0"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 2,
+        "id": "I-golden-2",
+        "task_id": "golden-intake-2",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "866497c5fd99225b3a40807c7ad5e846bfcf55f3b1ee811a312efc87912f4ab5"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 3,
+        "id": "I-golden-3",
+        "task_id": "golden-intake-3",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "889675b1e1cf2a48aed999062222ff9915733014905e61d43f7207e00f990a45"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 4,
+        "id": "I-golden-4",
+        "task_id": "golden-intake-4",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "8699ccd9b2d9b30f1abf889a3449c9eca6fcf56cb36be91603494c638a61c445"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 5,
+        "id": "I-golden-5",
+        "task_id": "golden-intake-5",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "e07955f284b5a96bf7bbb2f446c2c8508b97ff56996dae20fd585dcb4374c77a"
+    },
+    {
+      "contract": "intake_state",
+      "input": {
+        "schema_version": 6,
+        "id": "I-golden-6",
+        "task_id": "golden-intake-6",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "request": "historical fixture"
+      },
+      "canonical_sha256": "043636b09c0f256f19cb9e8815717421b7ba28755631c6b7b88bada425e7d460"
+    },
+    {
+      "contract": "artifact",
+      "input": {
+        "schema_version": 1,
+        "kind": "fixture",
+        "path": ".orchestrator/runtime/owner/1-fixture-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "attempt": 1
+      },
+      "canonical_sha256": "5c4a6f8f67c8bd5857b46d5b07e51d4338b754bc8c3f7ab7d6ea1e501108ae4a"
+    },
+    {
+      "contract": "artifact",
+      "input": {
+        "schema_version": 2,
+        "kind": "fixture",
+        "path": ".orchestrator/runtime/owner/1-fixture-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "attempt": 1,
+        "id": "A-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_id": "owner",
+        "created_at": "2026-10-06T00:00:00+00:00"
+      },
+      "canonical_sha256": "1d58fc271c4b941db6d7bb30a13f588be3c6288cd2ba27851604165cf51033dc"
+    }
+  ]
+}

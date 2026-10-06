@@ -56,7 +56,7 @@ _DB_SPECS = {
 _TERMINAL_TASKS = {"succeeded", "blocked", "failed", "cancelled", "abandoned"}
 _TERMINAL_JOBS = {"succeeded", "failed", "cancelled", "interrupted"}
 _TERMINAL_GATES = {"applied", "declined", "cancelled", "expired", "failed"}
-_EPHEMERAL_RUNTIME_NAMES = {"workspace.lock", "worker.lock"}
+_EPHEMERAL_RUNTIME_NAMES = {"workspace.lock", "worker.lock", "cancellation.lock"}
 _SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 
 
@@ -185,7 +185,7 @@ def _read_task_states(path: Path) -> tuple[list[TaskState], list[str]]:
                 values.append(state)
             except (ValueError, OrchestratorError) as exc:
                 errors.append(f"{task_id}: {exc}")
-    except (sqlite3.DatabaseError, OSError) as exc:
+    except (sqlite3.DatabaseError, OSError, OrchestratorError) as exc:
         errors.append(str(exc))
     finally:
         if connection is not None:
@@ -216,7 +216,7 @@ def _read_intake_states(path: Path) -> tuple[list[IntakeState], list[str]]:
                 values.append(intake)
             except (ValueError, OrchestratorError) as exc:
                 errors.append(f"{intake_id}: {exc}")
-    except (sqlite3.DatabaseError, OSError) as exc:
+    except (sqlite3.DatabaseError, OSError, OrchestratorError) as exc:
         errors.append(str(exc))
     finally:
         if connection is not None:
@@ -248,7 +248,7 @@ def _read_exploration_states(path: Path):
                 values.append(state)
             except (ValueError, OrchestratorError) as exc:
                 errors.append(f"{session_id}: {exc}")
-    except (sqlite3.DatabaseError, OSError) as exc:
+    except (sqlite3.DatabaseError, OSError, OrchestratorError) as exc:
         errors.append(str(exc))
     finally:
         if connection is not None:
@@ -266,42 +266,16 @@ def _state_report(project: Project) -> dict[str, Any]:
     errors.extend(intake_errors)
     explorations, exploration_errors = _read_exploration_states(path)
     errors.extend(exploration_errors)
-    referenced: set[str] = set()
-    artifact_ids: set[str] = set()
-    missing: list[str] = []
-    corrupt: list[str] = []
-    artifacts_by_path = {
-        artifact.path: artifact
-        for state in states
-        for artifact in state.artifacts
-    }
-    for intake in intakes:
-        if intake.artifact is not None:
-            artifacts_by_path.setdefault(intake.artifact.path, intake.artifact)
-
-    for session in explorations:
-        for artifact in session.artifacts:
-            artifacts_by_path.setdefault(artifact.path, artifact)
-    for intake in intakes:
-        if intake.exploration is not None:
-            artifact = intake.exploration.transition_artifact
-            artifacts_by_path.setdefault(artifact.path, artifact)
-    for artifact in artifacts_by_path.values():
-        referenced.add(artifact.path)
-        if artifact.id:
-            artifact_ids.add(artifact.id)
-        try:
-            artifact_path = confined(project.root, artifact.path)
-            if not artifact_path.is_file():
-                missing.append(artifact.path)
-                continue
-            raw = artifact_path.read_bytes()
-            if hashlib.sha256(raw).hexdigest() != artifact.sha256:
-                corrupt.append(artifact.path)
-                continue
-            normalize_control_evidence(artifact.kind, json.loads(raw.decode("utf-8")))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError, OrchestratorError) as exc:
-            corrupt.append(f"{artifact.path}: {exc}")
+    from .evidence import inventory
+    refs = inventory(project)
+    errors.extend(refs["errors"])
+    referenced = refs["paths"]
+    artifact_ids = refs["ids"]
+    missing, corrupt = refs["missing"], refs["corrupt"]
+    if refs["conflicts"]:
+        errors.append("conflicting artifact reference metadata")
+    report["reference_conflicts"] = refs["conflicts"][:50]
+    report["evidence_inventory_sha256"] = refs["fingerprint"]
 
     report.update(
         task_count=len(states),
@@ -359,6 +333,8 @@ def _jobs_report(project: Project) -> dict[str, Any]:
     try:
         connection = _readonly_connection(path)
         try:
+            from .receipts import read_all
+            report["request_receipts"] = len(read_all(connection))
             rows = connection.execute("SELECT id,status,data FROM jobs ORDER BY rowid").fetchall()
             if len(rows) > MAX_DIAGNOSTIC_ROWS:
                 errors.append(f"job row count exceeds diagnostic bound ({MAX_DIAGNOSTIC_ROWS})")
@@ -378,7 +354,7 @@ def _jobs_report(project: Project) -> dict[str, Any]:
                         errors.append(f"{job_id}: {exc}")
         finally:
             connection.close()
-    except (sqlite3.DatabaseError, OSError) as exc:
+    except (sqlite3.DatabaseError, OSError, OrchestratorError) as exc:
         errors.append(str(exc))
     report.update(counts=counts, stale_running=stale[:50], expired_queued=expired[:50], errors=errors[:50])
     if errors:
@@ -431,7 +407,7 @@ def _gates_report(project: Project) -> dict[str, Any]:
                         errors.append(f"{gate_id}: {exc}")
         finally:
             connection.close()
-    except (sqlite3.DatabaseError, OSError) as exc:
+    except (sqlite3.DatabaseError, OSError, OrchestratorError) as exc:
         errors.append(str(exc))
     report.update(
         counts=counts,
@@ -561,7 +537,9 @@ def _maintenance_log_report(project: Project) -> dict[str, Any]:
 
 def diagnose_runtime(root: Path) -> dict[str, Any]:
     project = Project(root.resolve())
+    from .maintenance import inspect as inspect_maintenance
     reports = {
+        "runtime:journal": inspect_maintenance(project),
         "runtime:state": _state_report(project),
         "runtime:jobs": _jobs_report(project),
         "runtime:gates": _gates_report(project),
@@ -598,6 +576,8 @@ def _append_maintenance(
         stream.write(line)
         stream.flush()
         os.fsync(stream.fileno())
+    from .maintenance import sync_directory
+    sync_directory(path.parent)
     return event
 
 
@@ -606,6 +586,8 @@ def _runtime_excluded(relative: str) -> bool:
     if not relative.startswith(prefix):
         return False
     tail = relative[len(prefix):]
+    if tail == "maintenance-journal" or tail.startswith("maintenance-journal/"):
+        return True
     if tail == "worktrees" or tail.startswith("worktrees/"):
         return True
     if tail in _EPHEMERAL_RUNTIME_NAMES:
@@ -645,6 +627,8 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        from .maintenance import sync_directory
+        sync_directory(path.parent)
     finally:
         with contextlib.suppress(FileNotFoundError):
             temporary.unlink()
@@ -674,6 +658,8 @@ def _atomic_copy_stream(
         if expected_bytes is not None and copied != expected_bytes:
             raise OrchestratorError("backup member size changed while staging")
         os.replace(temporary, path)
+        from .maintenance import sync_directory
+        sync_directory(path.parent)
     finally:
         with contextlib.suppress(FileNotFoundError):
             temporary.unlink()
@@ -740,7 +726,8 @@ def create_backup(
         raise OrchestratorError("backup output already exists; pass --replace explicitly")
     from .worker import worker_lock
 
-    with worker_lock(project), project.lock(), tempfile.TemporaryDirectory(
+    from .maintenance import cancellation_boundary
+    with worker_lock(project), project.lock(), cancellation_boundary(project, exclusive=True), tempfile.TemporaryDirectory(
         prefix="ai-orchestrator-backup-"
     ) as temporary:
         _profile, profile_digest, _context = project.load()
@@ -783,6 +770,7 @@ def create_backup(
                 ".orchestrator/runtime/worktrees/",
                 ".orchestrator/runtime/workspace.lock",
                 ".orchestrator/runtime/worker.lock",
+            ".orchestrator/runtime/cancellation.lock",
                 "SQLite WAL/SHM/journal sidecars (folded into database snapshots)",
             ],
         }
@@ -1080,6 +1068,9 @@ def _remove_managed_files(project: Project, mode: str) -> None:
     for path in reversed(_iter_managed_files(project, mode)):
         with contextlib.suppress(FileNotFoundError):
             path.unlink()
+            from .maintenance import sync_directory, checkpoint
+            sync_directory(path.parent)
+            checkpoint("after_file_remove")
     _remove_runtime_sidecars(project)
     if mode in ("runtime", "full"):
         worktrees = confined(project.root, ".orchestrator/runtime/worktrees")
@@ -1093,6 +1084,9 @@ def _restore_stage(stage: Path, project: Project, manifest: dict[str, Any]) -> N
         source = stage / relative
         destination = confined(project.root, relative)
         _atomic_copy_file(source, destination)
+        from .maintenance import sync_directory, checkpoint
+        sync_directory(destination.parent)
+        checkpoint("after_file_replace")
 
 
 def _stage_archive(path: Path, destination: Path, manifest: dict[str, Any]) -> None:
@@ -1118,11 +1112,14 @@ def _iter_rollback_files(project: Project, mode: str) -> list[Path]:
     for path in sorted(base.rglob("*")):
         relative = path.relative_to(project.root).as_posix()
         confined(project.root, relative)
+        if relative.startswith(".orchestrator/runtime/maintenance-journal"):
+            continue
         if relative.startswith(".orchestrator/runtime/worktrees/"):
             continue
         if relative in (
             ".orchestrator/runtime/workspace.lock",
             ".orchestrator/runtime/worker.lock",
+            ".orchestrator/runtime/cancellation.lock",
         ):
             continue
         if path.is_symlink():
@@ -1165,220 +1162,219 @@ def _structural_runtime_ok(project: Project) -> tuple[bool, dict[str, Any]]:
 
 
 def restore_backup(
-    root: Path,
-    archive_path: Path,
-    *,
-    scope: str,
-    actor: str,
-    replace: bool,
+    root: Path, archive_path: Path, *, scope: str, actor: str, replace: bool,
     acknowledge_authority_restore: bool = False,
     acknowledge_unreadable_current_state: bool = False,
+    acknowledge_incomplete_operation: str | None = None,
 ) -> dict[str, Any]:
+    from . import maintenance, receipts
+    from .safety import operator_only
+    from .build_identity import assert_current
+    from .worker import worker_lock
+    operator_only(); assert_current()
     if not replace:
         raise OrchestratorError("restore requires explicit --replace acknowledgement")
+    actor = _validate_maintenance_identity("restore", actor, scope)
     inspected = inspect_backup(archive_path)
     if inspected["scope"] != scope:
         raise OrchestratorError("backup scope changed; inspect the archive again before restore")
-    actor = _validate_maintenance_identity("restore", actor, scope)
     mode = inspected["mode"]
     if mode == "full" and not acknowledge_authority_restore:
-        raise OrchestratorError(
-            "full restore can reinstate config/context/trusted-profile authority; "
-            "pass --ack-authority-restore explicitly"
-        )
+        raise OrchestratorError("full restore requires --ack-authority-restore")
     project = Project(root.resolve())
-    had_control_state = project.control.exists()
-    from .worker import worker_lock
-
-    rolled_back = False
-    with worker_lock(project), project.lock():
-        # Revalidate current project authority after acquiring the same lock used
-        # by normal controller execution. Full restore can be the recovery path
-        # for malformed current authority, but only with the explicit unreadable
-        # state acknowledgement. A fresh project root has no authority to
-        # overwrite and therefore needs only the full-restore acknowledgement.
-        current_authority_readable = True
+    had_control = project.control.exists()
+    with worker_lock(project), project.lock(maintenance=True), maintenance.cancellation_boundary(project, exclusive=True):
+        pending = maintenance.inspect(project)
+        if pending["pending"]:
+            if pending["reconciliation_scope"] != acknowledge_incomplete_operation:
+                raise OrchestratorError("maintenance_pending: inspect and acknowledge the exact incomplete operation")
+        elif acknowledge_incomplete_operation is not None:
+            raise OrchestratorError("no incomplete operation matches this acknowledgement")
+        unreadable = []
         try:
             project.load()
-        except (
-            OSError,
-            UnicodeError,
-            ValueError,
-            OrchestratorError,
-            yaml.YAMLError,
-        ) as exc:
-            current_authority_readable = False
+        except (OSError, ValueError, OrchestratorError, yaml.YAMLError):
             if mode != "full":
-                raise OrchestratorError(
-                    "runtime restore requires readable current project authority; "
-                    "use a full verified backup to recover project authority"
-                ) from exc
-            if had_control_state and not acknowledge_unreadable_current_state:
-                raise OrchestratorError(
-                    "current project authority is unreadable; pass "
-                    "--ack-unreadable-current-state only when intentionally "
-                    "restoring a verified full backup over that state"
-                ) from exc
-
-        current_reports = diagnose_runtime(project.root)
-        readable = {
-            "state": bool(current_reports["runtime:state"].get("integrity_ok")),
-            "jobs": bool(current_reports["runtime:jobs"].get("integrity_ok")),
-            "gates": bool(current_reports["runtime:gates"].get("integrity_ok")),
-        }
-        unreadable = sorted(name for name, ok in readable.items() if not ok)
-        if not current_authority_readable and had_control_state:
-            unreadable.append("project_authority")
-        maintenance_readable = bool(
-            current_reports["runtime:maintenance"].get("integrity_ok")
-        )
-        if not maintenance_readable:
-            unreadable.append("maintenance")
+                raise OrchestratorError("runtime restore requires readable current project authority")
+            if had_control:
+                unreadable.append("project_authority")
+                if not acknowledge_unreadable_current_state:
+                    raise OrchestratorError("current project authority is unreadable; --ack-unreadable-current-state required")
+        reports = diagnose_runtime(project.root)
+        readable = {key: reports["runtime:"+key].get("integrity_ok", False) for key in ("state","jobs","gates")}
+        unreadable += [key for key, ok in readable.items() if not ok]
+        if not reports["runtime:maintenance"]["integrity_ok"]: unreadable.append("maintenance")
         if unreadable and not acknowledge_unreadable_current_state:
-            raise OrchestratorError(
-                "current runtime state is inconsistent; inspect doctor output and "
-                "pass --ack-unreadable-current-state only when intentionally "
-                "restoring a verified backup over that state: "
-                + ", ".join(unreadable)
-            )
-        _assert_quiescent(project, readable=readable)
-        _assert_restore_worktrees_clear(project)
-        with tempfile.TemporaryDirectory(prefix="ai-orchestrator-restore-") as temporary:
-            root_tmp = Path(temporary)
-            frozen_archive = root_tmp / "verified-backup.zip"
-            _atomic_copy_file(Path(inspected["path"]), frozen_archive)
-            frozen = inspect_backup(frozen_archive)
-            if frozen["scope"] != scope:
-                raise OrchestratorError(
-                    "backup changed after inspection; inspect the archive again before restore"
-                )
-            mode = frozen["mode"]
-            manifest = frozen["manifest"]
-            archive_stage = root_tmp / "archive"
-            rollback_stage = root_tmp / "rollback"
-            _stage_archive(frozen_archive, archive_stage, manifest)
-            _stage_current(project, mode, rollback_stage)
+            raise OrchestratorError("current runtime state is inconsistent; --ack-unreadable-current-state required")
+        if not pending["pending"]:
+            _assert_quiescent(project, readable=readable)
+            _assert_restore_worktrees_clear(project)
+        else:
+            # Recovery may replace a partially restored job/gate DB. Worker/project
+            # locks and the persistent barrier, not those partially replaced rows,
+            # are the proof that no cooperating execution is active.
+            prior = maintenance._read(project) if pending.get("valid") else None
+            allowed = set((prior or {}).get("targets", {}).get("worktrees", []))
+            worktrees = confined(project.root, '.orchestrator/runtime/worktrees')
+            if worktrees.exists():
+                for path in worktrees.iterdir():
+                    if path.relative_to(project.root).as_posix() not in allowed:
+                        raise OrchestratorError("recovery restore refuses an unrecorded worktree; conservative recovery required")
+        current_receipts = {}
+        current_tombstones = set()
+        jobpath = confined(project.root, '.orchestrator/runtime/jobs.sqlite3')
+        if jobpath.exists() and readable["jobs"]:
+            connection = _readonly_connection(jobpath)
             try:
+                current_tombstones = set(receipts.read_all(connection))
+                current_receipts = receipts.collect(connection, include_jobs=True)
+            finally: connection.close()
+        coverage = ('current-and-archive' if jobpath.exists() and readable['jobs'] else
+                    'archive-only; current request history unreadable' if jobpath.exists() else
+                    'archive-only; no current jobs database')
+        # Freeze and validate before publishing an intent. Negative archive/scope
+        # tests must not leave a destructive operation marker behind.
+        with tempfile.TemporaryDirectory(prefix='orchestrator-restore-preflight-') as temp:
+            frozen_path = Path(temp)/'frozen.zip'
+            _atomic_copy_file(Path(inspected['path']), frozen_path)
+            frozen = inspect_backup(frozen_path)
+            if frozen['scope'] != scope:
+                raise OrchestratorError('backup changed after inspection')
+            stage = Path(temp)/'incoming'
+            _stage_archive(frozen_path, stage, frozen['manifest'])
+            revocations = _prepare_restored_runtime(Project(stage), current_receipts, current_tombstones)
+            handle = maintenance.begin(project, action='restore', actor=actor, scope=scope,
+                mode=mode, acknowledge_incomplete=acknowledge_incomplete_operation)
+            opdir = maintenance.directory(project, handle)
+            incoming, rollback = opdir/'incoming', opdir/'before'
+            try:
+                shutil.copytree(stage, incoming)
+                _atomic_copy_file(frozen_path, opdir/'archive.zip')
+                _stage_current(project, mode, rollback)
+                maintenance.sync_tree(opdir)
+                handle['rollback_ready'] = True
+                maintenance.applying(project, handle)
                 _remove_managed_files(project, mode)
-                _restore_stage(archive_stage, project, manifest)
-                structural, _reports = _structural_runtime_ok(project)
+                _restore_stage(incoming, project, _file_manifest(incoming))
+                maintenance.checkpoint('after_db_commit')
+                structural, _ = _structural_runtime_ok(project)
                 if not structural:
-                    raise OrchestratorError(
-                        "restored runtime failed structural integrity checks"
-                    )
-                if mode == "full":
-                    _profile, restored_profile_digest, _context = project.load()
-                    if restored_profile_digest != manifest["source_profile_digest"]:
-                        raise OrchestratorError(
-                            "full restore profile digest does not match the verified backup"
-                        )
+                    raise OrchestratorError('restored runtime failed structural integrity checks')
+                current_digest = project.load()[1]
+                if mode == 'full' and current_digest != frozen['manifest']['source_profile_digest']:
+                    raise OrchestratorError('full restore profile digest does not match the verified backup')
+                maintenance.verified(project, handle)
+                maintenance.checkpoint('before_audit')
+                event = _append_maintenance(project, action='restore', actor=actor, scope=scope,
+                    details={'operation_id':handle['operation_id'], 'mode':mode,
+                             'archive':Path(inspected['path']).name,
+                             'source_version':frozen['manifest']['source_version'],
+                             'source_profile_digest':frozen['manifest']['source_profile_digest'],
+                             'source_trusted_profile':frozen['manifest']['source_trusted_profile'],
+                             'authority_restore':mode=='full', 'authorization_revocations':revocations,
+                             'request_receipt_coverage':coverage,
+                             'unreadable_current_state_acknowledged':bool(unreadable),
+                             'unreadable_current_components':unreadable,
+                             'superseded_incomplete_operation':pending['pending'],
+                             'automatic_replay':False})
+                maintenance.finish(project, handle, event)
             except Exception:
-                rolled_back = True
-                _remove_managed_files(project, mode)
-                _restore_stage(
-                    rollback_stage,
-                    project,
-                    {
-                        "files": [
-                            {
-                                "path": path.relative_to(rollback_stage).as_posix(),
-                            }
-                            for path in sorted(rollback_stage.rglob("*"))
-                            if path.is_file()
-                        ]
-                    },
-                )
+                # Restore rollback is part of this exact authorized operation,
+                # not a replay on restart. A second failure leaves the marker.
+                if handle.get('rollback_ready'):
+                    maintenance.checkpoint('before_rollback')
+                    _remove_managed_files(project, mode)
+                    _restore_stage(rollback, project, _file_manifest(rollback, include_sidecars=True))
+                    maintenance.checkpoint('after_rollback')
+                if maintenance.snapshot(project, mode) == handle['before']:
+                    handle['phase'] = 'rolled_back'
+                    maintenance._save(project, handle)
+                    event = _append_maintenance(project, action='restore', actor=actor, scope=scope,
+                        details={'operation_id':handle['operation_id'], 'outcome':'rolled_back',
+                                 'automatic_replay':False})
+                    # A recovery rollback restores the prior incomplete state;
+                    # it must remain blocked, never clear the predecessor barrier.
+                    if not pending['pending']: maintenance.finish(project, handle, event)
                 raise
-
-        event = _append_maintenance(
-            project,
-            action="restore",
-            actor=actor,
-            scope=scope,
-            details={
-                "mode": mode,
-                "archive": Path(inspected["path"]).name,
-                "source_version": manifest["source_version"],
-                "source_profile_digest": manifest["source_profile_digest"],
-                "source_trusted_profile": manifest["source_trusted_profile"],
-                "authority_restore": mode == "full",
-                "unreadable_current_state_acknowledged": bool(unreadable),
-                "unreadable_current_components": unreadable,
-                "rollback_used": rolled_back,
-            },
-        )
         current_digest = project.load()[1]
-        restored_trusted_profile = _trusted_profile(
-            confined(project.root, ".orchestrator/runtime/state.sqlite3")
-        )
+        trusted = _trusted_profile(confined(project.root, '.orchestrator/runtime/state.sqlite3'))
+        return {'restored':True,'mode':mode,'scope':scope, 'current_profile_digest':current_digest,
+                'source_profile_digest':frozen['manifest']['source_profile_digest'],
+                'profile_matches_backup':current_digest==frozen['manifest']['source_profile_digest'],
+                'restored_trusted_profile':trusted, 'current_profile_trusted':trusted==current_digest,
+                'retrust_required':trusted!=current_digest, 'maintenance_event':event,
+                'request_receipt_coverage':coverage, 'automatic_replay':False}
 
-    current_trusted = restored_trusted_profile == current_digest
-    return {
-        "restored": True,
-        "mode": mode,
-        "scope": scope,
-        "current_profile_digest": current_digest,
-        "source_profile_digest": manifest["source_profile_digest"],
-        "profile_matches_backup": current_digest == manifest["source_profile_digest"],
-        "restored_trusted_profile": restored_trusted_profile,
-        "current_profile_trusted": current_trusted,
-        "retrust_required": not current_trusted,
-        "maintenance_event": event,
-    }
+
+def _file_manifest(root: Path, *, include_sidecars=False) -> dict:
+    return {'files':[{'path':path.relative_to(root).as_posix()} for path in sorted(root.rglob('*'))
+                     if path.is_file() and (include_sidecars or not _runtime_excluded(path.relative_to(root).as_posix()))]}
+
+
+def _prepare_restored_runtime(project: Project, known: dict, tombstones: set[str] | None = None) -> dict:
+    """Stage explicit no-replay invalidation before any target replacement."""
+    from . import receipts
+    from .jobs import JobQueue, Job
+    tombstones = set(known) if tombstones is None else tombstones
+    revoked = {'queued_running_jobs':0, 'nonterminal_gates':0, 'execution_approvals':0, 'permission_grants':0}
+    jobpath = confined(project.root, '.orchestrator/runtime/jobs.sqlite3')
+    if jobpath.exists() or known:
+        queue = JobQueue(project)
+        try:
+            with queue.db:
+                queue.db.execute('BEGIN IMMEDIATE')
+                archived = receipts.collect(queue.db, include_jobs=True)
+                for request_id, ref in known.items():
+                    if request_id in archived: receipts.compatible(ref, archived[request_id])
+                    retained = queue.db.execute('SELECT status FROM jobs WHERE request_id=?', (request_id,)).fetchone()
+                    if request_id in tombstones or retained is None or retained[0] not in receipts.TERMINAL:
+                        receipts.insert(queue.db, ref)
+                for job_id, data in queue.db.execute("SELECT id,data FROM jobs WHERE status IN ('queued','running')").fetchall():
+                    job = Job.model_validate_json(data)
+                    job.status = 'interrupted'
+                    job.error = 'Restored pending work is not replayed; inspect history and make an explicit new request.'
+                    queue.db.execute("UPDATE jobs SET status='interrupted',data=? WHERE id=?", (job.model_dump_json(), job_id))
+                    row = queue.db.execute('SELECT id,request_id,fingerprint,action,status,data FROM jobs WHERE id=?', (job_id,)).fetchone()
+                    receipts.insert(queue.db, receipts.from_job_row(row))
+                    queue._event(job_id, 'restore.interrupted')
+                    revoked['queued_running_jobs'] += 1
+        finally: queue.close()
+    gatespath = confined(project.root, '.orchestrator/runtime/gates.sqlite3')
+    if gatespath.exists():
+        from .human_gates import HumanGate
+        conn = sqlite3.connect(gatespath)
+        try:
+            with conn:
+                for gate_id, data in conn.execute("SELECT id,data FROM gates WHERE status IN ('pending','applying')").fetchall():
+                    gate = decode_versioned_model_json(data, rule_key='human_gate', model=HumanGate)
+                    gate.status = 'uncertain' if gate.status == 'applying' else 'cancelled'
+                    gate.error = 'Restored gate is non-replayable; prior remote effect may be uncertain.'
+                    conn.execute('UPDATE gates SET status=?,data=? WHERE id=?', (gate.status,gate.model_dump_json(),gate_id))
+                    conn.execute('INSERT INTO gate_events(gate_id,status,created_at) VALUES (?,?,?)', (gate_id,gate.status,time.time()))
+                    revoked['nonterminal_gates'] += 1
+        finally: conn.close()
+    statepath = confined(project.root, '.orchestrator/runtime/state.sqlite3')
+    if statepath.exists():
+        conn = sqlite3.connect(statepath)
+        try:
+            with conn:
+                revoked['execution_approvals'] = conn.execute('DELETE FROM approvals').rowcount
+                for task_id, data in conn.execute('SELECT id,data FROM tasks').fetchall():
+                    task = decode_versioned_model_json(data, rule_key='task_state', model=TaskState)
+                    if task.provider_permission_grants and task.status not in _TERMINAL_TASKS:
+                        revoked['permission_grants'] += len(task.provider_permission_grants)
+                        task.provider_permission_grants = {}
+                        conn.execute('UPDATE tasks SET data=? WHERE id=?', (task.model_dump_json(),task_id))
+        finally: conn.close()
+    return revoked
 
 
 def _protected_evidence_ids(project: Project) -> tuple[set[str], bool]:
-    protected: set[str] = set()
-    legacy_untyped = False
-    accepted_directories = (
-        confined(project.root, ".orchestrator/knowledge/accepted"),
-        confined(project.root, ".orchestrator/policies"),
-        confined(project.root, ".orchestrator/skills"),
-    )
-    candidates = confined(project.root, ".orchestrator/knowledge/candidates")
-    from . import knowledge, learning
-
-    for directory in accepted_directories:
-        if not directory.exists():
-            continue
-        for path in directory.glob("*.md"):
-            try:
-                text = path.read_text(encoding="utf-8")
-                metadata = learning._learning_metadata(text)
-            except (OSError, UnicodeDecodeError, OrchestratorError) as exc:
-                raise OrchestratorError(
-                    f"retention cannot verify accepted learning metadata: {path.name}"
-                ) from exc
-            if metadata:
-                for raw in metadata.get("evidence_refs") or []:
-                    try:
-                        reference = EvidenceRef.model_validate(raw)
-                    except Exception as exc:
-                        raise OrchestratorError(
-                            f"retention cannot verify accepted learning evidence: {path.name}"
-                        ) from exc
-                    protected.add(reference.id)
-            elif (
-                path.stem.startswith("P-")
-                and "## Evidence references (not automatically verified)" in text
-            ):
-                # v1 promotion intentionally had untyped human-readable evidence.
-                # Do not guess whether an apparently orphan Artifact v2 file is
-                # referenced by that prose.
-                legacy_untyped = True
-
-    if candidates.exists():
-        for path in candidates.glob("*.json"):
-            try:
-                proposal = knowledge.load_proposal(project.root, path.stem)
-            except (OSError, OrchestratorError, ValueError) as exc:
-                raise OrchestratorError(
-                    f"retention cannot verify Project Learning candidate: {path.name}"
-                ) from exc
-            if proposal.schema_version == 1 and proposal.evidence:
-                legacy_untyped = True
-            protected.update(ref.id for ref in proposal.evidence_refs)
-    return protected, legacy_untyped
+    from .evidence import inventory
+    refs = inventory(project)
+    if refs["errors"] or refs["conflicts"] or refs["missing"] or refs["corrupt"]:
+        raise OrchestratorError("incomplete evidence inventory")
+    return set(refs["protected_evidence_ids"]), refs["legacy_untyped"]
 
 def _artifact_id_from_path(path: Path) -> str | None:
     stem = path.stem
@@ -1454,7 +1450,13 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
         raise OrchestratorError("retention planning requires readable exploration state")
     referenced_paths.update(artifact.path for session in sessions for artifact in session.artifacts)
     referenced_paths.update(intake.exploration.transition_artifact.path for intake in intakes if intake.exploration is not None)
-    protected_ids, legacy_untyped_evidence = _protected_evidence_ids(project)
+    from .evidence import inventory, orphan_shape
+    refs = inventory(project)
+    if refs["errors"] or refs["conflicts"] or refs["missing"] or refs["corrupt"]:
+        raise OrchestratorError("retention requires a complete consistent evidence inventory")
+    referenced_paths.update(refs["paths"])
+    protected_ids = set(refs["protected_evidence_ids"])
+    legacy_untyped_evidence = refs["legacy_untyped"]
 
     worktrees: list[str] = []
     worktree_markers: dict[str, str] = {}
@@ -1514,7 +1516,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
             artifact_id = _artifact_id_from_path(path)
             # Legacy/unrecognized JSON does not have stable Artifact v2 identity
             # and is therefore retained conservatively.
-            if artifact_id is None:
+            if artifact_id is None or not orphan_shape(project, path):
                 continue
             artifact_candidates += 1
             if artifact_candidates > MAX_BACKUP_FILES:
@@ -1530,6 +1532,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     plan_core = {
         "schema_version": RETENTION_SCHEMA_VERSION,
         "cutoff": cutoff_dt.isoformat(),
+        "evidence_inventory_sha256": refs["fingerprint"],
         "worktrees": worktrees,
         "worktree_markers": worktree_markers,
         "terminal_jobs": jobs,
@@ -1554,7 +1557,7 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
                 else "none detected"
             ),
             "disposable_worktrees": "delete only when no running task owns them",
-            "job_records": "delete terminal rows/events older than cutoff",
+            "job_records": "retire terminal payloads; durable request receipts retained",
             "orphan_artifacts": (
                 "delete only stable Artifact-v2-shaped files when unreferenced "
                 "and older than cutoff"
@@ -1568,78 +1571,62 @@ def retention_plan(root: Path, *, cutoff: str) -> dict[str, Any]:
     }
 
 
-def apply_retention(
-    root: Path,
-    *,
-    cutoff: str,
-    scope: str,
-    actor: str,
-) -> dict[str, Any]:
-    actor = _validate_maintenance_identity("cleanup", actor, scope)
-    project = Project(root.resolve())
-    project.load()
+def apply_retention(root: Path, *, cutoff: str, scope: str, actor: str) -> dict[str, Any]:
+    from . import maintenance, receipts
+    from .safety import operator_only
     from .worker import worker_lock
-
-    with worker_lock(project), project.lock():
+    operator_only()
+    actor = _validate_maintenance_identity('cleanup', actor, scope)
+    project = Project(root.resolve())
+    with worker_lock(project), project.lock(), maintenance.cancellation_boundary(project, exclusive=True):
         plan = retention_plan(project.root, cutoff=cutoff)
         _assert_quiescent(project)
-        if plan["scope"] != scope:
-            raise OrchestratorError(
-                "retention plan changed; inspect the new plan before deleting anything"
-            )
-        removed_worktrees: list[str] = []
-        for relative in plan["worktrees"]:
+        if plan['scope'] != scope:
+            raise OrchestratorError('retention plan changed; inspect the new plan before deleting anything')
+        handle = maintenance.begin(project, action='cleanup', scope=scope, actor=actor,
+            mode='runtime', targets={'worktrees':plan['worktrees'],'orphan_artifacts':plan['orphan_artifacts'],
+                                     'terminal_jobs':plan['terminal_jobs']})
+        # Retain full plan/hash evidence even on interruption. Disposable deletions
+        # are not automatically undone or retried on restart.
+        maintenance._write(maintenance.directory(project, handle)/'plan.json', plan)
+        maintenance.applying(project, handle)
+        removed_worktrees, removed_artifacts = [], []
+        for relative in plan['worktrees']:
             path = confined(project.root, relative)
             if path.exists():
                 shutil.rmtree(path)
+                maintenance.sync_directory(path.parent)
                 removed_worktrees.append(relative)
-        removed_artifacts: list[str] = []
-        for relative in plan["orphan_artifacts"]:
+                maintenance.checkpoint('after_worktree_delete')
+        for relative in plan['orphan_artifacts']:
             path = confined(project.root, relative)
             if path.is_file():
                 path.unlink()
+                maintenance.sync_directory(path.parent)
                 removed_artifacts.append(relative)
+                maintenance.checkpoint('after_artifact_delete')
         deleted_jobs = 0
-        jobs_path = confined(project.root, ".orchestrator/runtime/jobs.sqlite3")
-        if plan["terminal_jobs"] and jobs_path.exists():
-            connection = sqlite3.connect(jobs_path, timeout=5)
+        jobpath = confined(project.root, '.orchestrator/runtime/jobs.sqlite3')
+        if plan['terminal_jobs']:
+            conn = sqlite3.connect(jobpath, timeout=5)
             try:
-                with connection:
-                    job_ids = plan["terminal_jobs"]
-                    for offset in range(0, len(job_ids), 500):
-                        batch = job_ids[offset:offset + 500]
-                        placeholders = ",".join("?" for _ in batch)
-                        connection.execute(
-                            f"DELETE FROM job_events WHERE job_id IN ({placeholders})",
-                            batch,
-                        )
-                        cursor = connection.execute(
-                            f"DELETE FROM jobs WHERE id IN ({placeholders}) "
-                            "AND status IN ('succeeded','failed','cancelled','interrupted')",
-                            batch,
-                        )
-                        deleted_jobs += cursor.rowcount
-            finally:
-                connection.close()
-        event = _append_maintenance(
-            project,
-            action="cleanup",
-            actor=actor,
-            scope=scope,
-            details={
-                "cutoff": plan["cutoff"],
-                "worktrees_removed": len(removed_worktrees),
-                "terminal_jobs_removed": deleted_jobs,
-                "orphan_artifacts_removed": len(removed_artifacts),
-                "canonical_history_retained": True,
-            },
-        )
-    return {
-        "scope": scope,
-        "cutoff": plan["cutoff"],
-        "worktrees_removed": removed_worktrees,
-        "terminal_jobs_removed": deleted_jobs,
-        "orphan_artifacts_removed": removed_artifacts,
-        "maintenance_event": event,
-        "automatic_repair": False,
-    }
+                with conn:
+                    conn.execute('BEGIN IMMEDIATE')
+                    conn.execute('PRAGMA user_version=2')
+                    deleted_jobs = receipts.retire(conn, plan['terminal_jobs'])
+                maintenance.checkpoint('after_db_commit')
+            finally: conn.close()
+        structural, reports = _structural_runtime_ok(project)
+        if not structural:
+            raise OrchestratorError('cleanup postconditions failed; maintenance remains blocked')
+        maintenance.verified(project, handle)
+        maintenance.checkpoint('before_audit')
+        event = _append_maintenance(project, action='cleanup', actor=actor, scope=scope,
+            details={'operation_id':handle['operation_id'], 'cutoff':plan['cutoff'],
+                     'worktrees_removed':len(removed_worktrees), 'terminal_jobs_removed':deleted_jobs,
+                     'orphan_artifacts_removed':len(removed_artifacts),'canonical_history_retained':True,
+                     'request_receipts_retained':True,'automatic_replay':False})
+        maintenance.finish(project, handle, event)
+    return {'scope':scope,'cutoff':plan['cutoff'],'worktrees_removed':removed_worktrees,
+            'terminal_jobs_removed':deleted_jobs,'orphan_artifacts_removed':removed_artifacts,
+            'maintenance_event':event,'automatic_repair':False}

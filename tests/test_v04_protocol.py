@@ -54,7 +54,7 @@ def test_native_start_response_is_not_model_tool_permission(server_setup):
     server, manager, intake, engine, _, _ = server_setup
     prompt = tool(server, "request_start", {"intake_id": intake.id, "request_id": "native-1"}, id="caller-1")
     assert prompt["method"] == "elicitation/create"
-    assert prompt["params"]["requestedSchema"]["properties"]["decision"]["enum"] == ["yes","no"]
+    assert prompt["params"]["requestedSchema"]["properties"]["decision"]["enum"] == ["no","yes"]
     assert engine.store.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
     result = confirm(server, prompt)
     assert result["id"] == "caller-1"

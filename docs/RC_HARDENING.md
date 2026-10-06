@@ -1,6 +1,11 @@
 # v0.17 — Release Candidate Hardening: approved design
 
-Status: **DESIGN FINALIZED; implementation and release verification pending**.
+Status: **DESIGN FINALIZED; 0.17.0 implementation candidate present; required
+live qualification and final release decision pending**.
+Implementation details and measured evidence are maintained separately in
+[RC_VERIFICATION.md](RC_VERIFICATION.md) and [RC_OPERATIONS.md](RC_OPERATIONS.md).
+The original audited observations below describe the 0.16.0 baseline, not a
+waiver for implementation defects.
 Decision date: 2026-10-06 JST.
 Audited baseline: `b2700fda59b56bad0ced555f3a6e3e7f9badc6b8`
 (package 0.16.0; v0.16 live closure recorded).

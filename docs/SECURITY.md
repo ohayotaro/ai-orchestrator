@@ -723,3 +723,27 @@ replay an ambiguous call. Explicit abandonment preserves history and does not
 claim remote cancellation or zero cost. Exploration prose is not auto-promoted
 into accepted Project Learning. All retained exploration evidence is a physical
 retention root. See [Exploration](EXPLORATION.md).
+
+
+## v0.17 release-candidate boundaries
+
+Maintenance finalization/reconciliation are deliberately not MCP mutation tools.
+Known host/worker environment markers reject these operator operations before
+mutation; the markers and actor strings are trusted-local conventions, not proof
+of human identity or protection against a hostile same-OS-user process. No-first
+forms reduce an avoidable presentation hazard without certifying host focus or
+who clicked. Missing/untouched/No/stale/timed-out responses never authorize work.
+
+Incomplete/invalid durable maintenance intent blocks authority mutation and new
+dispatch before provider-plugin loading. Pending restored jobs and gates are
+non-replayable; current known request receipts are retained across replacement.
+Missing prior/remote history cannot establish exactly-once. A loaded-build mismatch
+stops new work, not a remotely dispatched effect; missing final cost remains unknown.
+
+Canonical reference completeness and conflicting-metadata checks precede physical
+cleanup. No metadata source is arbitrarily preferred simply because it was read
+first. Raw old state is not rewritten by diagnosis to make it agree. Recovery
+retains journal/staging evidence and requires exact operator scope; deleting a
+marker manually or lowering DB versions is not a supported repair. Detailed limits
+and reproducible process-loss tests are in [RC Operations](RC_OPERATIONS.md) and
+[RC Verification](RC_VERIFICATION.md). Mandatory live qualification remains separate.

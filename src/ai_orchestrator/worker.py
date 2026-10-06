@@ -46,6 +46,8 @@ def process_one(queue: JobQueue, *, registry: dict[str, ProviderAdapter] | None 
     """Caller owns worker_lock. A claim is consumed at most once, never replayed."""
     import time
 
+    from .safety import assert_ready
+    assert_ready(queue.project)
     job = queue.claim()
     if job is None:
         return None

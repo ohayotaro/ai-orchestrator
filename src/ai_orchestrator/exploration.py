@@ -6,6 +6,8 @@ There is deliberately no execution, validator, trust or permission grant here.
 """
 from __future__ import annotations
 
+from .safety import dispatch_guard
+
 import time
 import uuid
 from typing import TYPE_CHECKING, Annotated, Any, Literal
@@ -320,7 +322,7 @@ class Explorations:
         params = ExploreInput(request=request, request_id="direct-exploration",
                               exploration_id=exploration_id, expected_revision=expected_revision,
                               supervisor_runtime_override=supervisor_runtime_override)
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             self._check()
             snapshot = self.project.snapshot()
             if expected_workspace is not None and snapshot != expected_workspace:
@@ -402,6 +404,7 @@ class Explorations:
                         lambda: self.store.cancelled(state.id), result_model=ExplorationResult,
                         runtime_options=dict(variant.options), usage_sink=raw_usage.update,
                     )
+                    dispatch_guard(self.engine, state.id)
                     raw = adapter.execute(request_value)
                     if self.store.cancelled(state.id):
                         raise OrchestratorError("exploration cancelled; no task was created")
@@ -469,7 +472,7 @@ class Explorations:
                                           request_id="direct-transition", decision=decision, task_id=task_id,
                                           advisory=advisory, workflow_ref=workflow_ref)
         from .supervisor import Supervisor
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get_exploration(exploration_id)
             _revision(state, expected_revision)
             self._check(state)
@@ -514,7 +517,7 @@ class Explorations:
             return intake
 
     def abandon(self, exploration_id: str, expected_revision: int) -> ExplorationState:
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             state = self.store.get_exploration(exploration_id)
             _revision(state, expected_revision)
             if state.status == "transitioned":

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .safety import dispatch_guard
+
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import threading
 import time
@@ -401,6 +403,7 @@ class WorkflowExecutor:
                     telemetry_sink=telemetry.update,
                     usage_sink=usage_raw.update,
                 )
+                dispatch_guard(self.engine, state.spec.id)
                 raw = adapter.execute(request_value)
                 call_outcome = "completed"
             else:
@@ -417,6 +420,7 @@ class WorkflowExecutor:
                         telemetry_sink=telemetry.update,
                         usage_sink=usage_raw.update,
                     )
+                    dispatch_guard(self.engine, state.spec.id)
                     raw = adapter.execute(request_value)
                     call_outcome = "completed"
             engine.record_provider_provenance(
@@ -670,6 +674,8 @@ class WorkflowExecutor:
             def execute_item(item: dict[str, Any]):
                 call_started = time.monotonic()
                 try:
+                    from .safety import thread_dispatch_guard
+                    thread_dispatch_guard(engine.project, state.spec.id)
                     return item["adapter"].execute(item["request"])
                 finally:
                     item["call_elapsed"] = time.monotonic() - call_started
@@ -921,6 +927,7 @@ class WorkflowExecutor:
                 remaining = engine.profile.policy.task_timeout_seconds - state.elapsed_seconds
                 started = time.monotonic()
                 try:
+                    dispatch_guard(self.engine, state.spec.id)
                     record = run_validator(
                         engine.project, engine.profile, name, timeout=remaining,
                         cancel=lambda: engine.store.cancelled(state.spec.id),

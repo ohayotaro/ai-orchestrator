@@ -146,3 +146,25 @@ Exploration queue actions use Job schema v2; normal ask/run jobs remain v1.
 The jobs SQLite layout/user_version 1 and HumanGate schema/layout are unchanged.
 Exploration artifacts are immutable and retained even after abandonment. Reads
 never resume an interrupted session. See [Exploration](EXPLORATION.md).
+
+
+## v0.17 candidate additions
+
+Jobs SQLite readable versions are 0/1/2 and the write version is 2. Migration
+creates the compact `request_receipts` table transactionally; a current DB2 missing
+that table is an error, not permission to silently reset request history. Receipt
+creation and terminal job/event removal are atomic. Receipts survive cleanup and
+merge compatibly on restore; unavailable earlier/remote history is not invented.
+
+Runtime state stays3, HumanGate DB stays1, TaskState stays9, IntakeState stays6 and
+Exploration stays1. Supported historical samples retain baseline canonical hashes.
+Cancellation view1, request receipt1 and maintenance intent1 are independent
+contracts in the packaged `assets/contracts.json` inventory, available through
+`orchestrator contracts`. Unknown versions fail closed. New views do not inject
+fields into historical TaskState/IntakeState dumps.
+
+The controller-only runtime maintenance journal is excluded from archive members
+and normal retention/replacement. Incomplete intent/recovery material remains
+persistent and blocks new work until explicitly reconciled or recovered. This
+journal is not canonical project authority and does not change profile trust.
+See [RC operations](RC_OPERATIONS.md) and [verification](RC_VERIFICATION.md).

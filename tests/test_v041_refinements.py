@@ -87,7 +87,7 @@ def test_gate_uses_explicit_yes_no_enum(workspace):
         try:
             gate = broker.prepare("start", intake.id, "enum-1")
             field = broker.form(gate)["requestedSchema"]["properties"]["decision"]
-            assert field["enum"] == ["yes", "no"] and "default" not in field
+            assert field["enum"] == ["no", "yes"] and "default" not in field
             assert broker.resolve(gate, {"action":"accept","content":{"decision":"no"}})["gate_status"] == "declined"
         finally:
             broker.close()

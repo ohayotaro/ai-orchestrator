@@ -17,7 +17,7 @@ def propose(root: Path, kind: str, statement: str, evidence: list[str]) -> Propo
     project.load()
     if kind == "workflow":
         raise OrchestratorError("manual workflow candidates use the task-scoped workflow-save evidence path")
-    with project.lock():
+    with project.lock(_wait=True):
         proposal = Proposal(id="P-" + uuid.uuid4().hex[:12], kind=kind, statement=statement, evidence=evidence)
         path = confined(project.root, f".orchestrator/knowledge/candidates/{proposal.id}.json")
         atomic_write(path, proposal.model_dump_json(indent=2) + "\n")
@@ -41,7 +41,7 @@ def _scope(proposal: Proposal) -> str:
 
 def promote(root: Path, proposal_id: str, scope: str, actor: str) -> Proposal:
     project = Project(root)
-    with project.lock():
+    with project.lock(_wait=True):
         proposal = load_proposal(root, proposal_id)
         if not actor.strip() or proposal.status != "candidate":
             raise OrchestratorError("promotion requires an actor and a candidate proposal")
@@ -112,7 +112,7 @@ def promote(root: Path, proposal_id: str, scope: str, actor: str) -> Proposal:
 
 def reject(root: Path, proposal_id: str, scope: str, actor: str, reason: str) -> Proposal:
     project = Project(root)
-    with project.lock():
+    with project.lock(_wait=True):
         proposal = load_proposal(root, proposal_id)
         if proposal.status != "candidate" or not actor.strip() or not reason.strip():
             raise OrchestratorError("rejection requires a candidate, actor and reason")
@@ -128,7 +128,7 @@ def reject(root: Path, proposal_id: str, scope: str, actor: str, reason: str) ->
 
 def revise(root: Path, proposal_id: str, scope: str, actor: str, statement: str) -> Proposal:
     project = Project(root)
-    with project.lock():
+    with project.lock(_wait=True):
         original = load_proposal(root, proposal_id)
         if original.status != "candidate" or not actor.strip() or not statement.strip():
             raise OrchestratorError("revision requires a candidate, actor and nonblank statement")

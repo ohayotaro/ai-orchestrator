@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .safety import dispatch_guard
+
 import time
 from contextlib import nullcontext
 import uuid
@@ -262,7 +264,7 @@ class Supervisor:
         if not request.strip() or len(request) > 20000:
             raise OrchestratorError("ask requires a nonblank request of at most 20,000 characters")
         # _lock_held is a private controller integration, never a CLI/MCP input.
-        with nullcontext() if _lock_held else self.project.lock():
+        with nullcontext() if _lock_held else self.project.lock(_wait=True):
             self._check_profile(self.engine.profile_digest)
             if supervisor_runtime_override is not None:
                 supervisor_runtime_override = RuntimeOverride.model_validate(supervisor_runtime_override)
@@ -439,6 +441,7 @@ class Supervisor:
                             runtime_options=dict(variant.options),
                             usage_sink=usage_raw.update,
                         )
+                        dispatch_guard(self.engine, intake.id)
                         raw = adapter.execute(request_value)
                         call_outcome = "completed"
                 finally:
@@ -581,7 +584,7 @@ class Supervisor:
 
     def start(self, intake_id: str, scope: str, actor: str, *, precondition: Callable[[], None] | None = None) -> TaskState:
         """Operator confirms a proposal. Execution approval is a separate gate."""
-        with self.project.lock():
+        with self.project.lock(_wait=True):
             intake = self.store.get_intake(intake_id)
             self._check_profile(intake.profile_digest)
             if not actor.strip() or intake.status != "proposed" or intake.task is None:
