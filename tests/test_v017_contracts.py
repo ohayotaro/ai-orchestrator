@@ -25,24 +25,7 @@ GOLDEN=json.loads((Path(__file__).parent/'fixtures/rc/legacy_hashes.json').read_
 
 def test_packaged_candidate_inventory_matches_exact_public_surface():
     expected=json.loads(contract_inventory.ASSET.read_text())
-    generated=contract_inventory.generate()
-    if generated != expected:
-        import importlib, inspect
-        affected={
-            'contracts.IntakeState','exploration.ExplorationState','human_gates.HumanGate','jobs.Job',
-            'maintenance.MaintenanceIntent','models.BudgetPolicy','models.Policy','models.Profile',
-            'models.TaskState','models.WorkflowNodeState','receipts.RequestReceipt',
-            'usage.UsageRecord','usage.UsageSeconds',
-        }
-        debug={}
-        for module_name in ('models','contracts','exploration','jobs','human_gates','usage','receipts','maintenance'):
-            module=importlib.import_module('ai_orchestrator.'+module_name)
-            for class_name, cls in inspect.getmembers(module, inspect.isclass):
-                key=module_name+'.'+class_name
-                if key in affected:
-                    debug[key]=contract_inventory.schema_semantics(cls.model_json_schema())
-        print('V017_CONTRACT_SCHEMA_DEBUG='+json.dumps(debug,sort_keys=True))
-    assert generated==expected
+    assert contract_inventory.generate()==expected
     assert set(item['name'] for item in expected['mcp_tools'])==set(TOOLS)|set(GATE_TOOLS)
     assert expected['v1_release_declared'] is False
     assert {'cancel','maintenance inspect','maintenance reconcile','identity','contracts'} <= {item['name'] for item in expected['cli_commands']}
