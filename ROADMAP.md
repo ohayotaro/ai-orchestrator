@@ -153,19 +153,35 @@ combinations to supported.
 The exact operation contracts, failure handling, implementation sequencing and
 scope exclusions are in [RC_HARDENING.md](docs/RC_HARDENING.md).
 
-## v1.0 — Stable Control Plane
+## v1.0 — Stable Control Plane — design finalized; implementation/qualification pending
 
-v1.0 is a contract-stability release. Candidate stable surfaces include TaskSpec
-and effect/write policy, capabilities, Workflow Schema, Provider SDK/plugin pins,
-HumanGate, MCP and documented CLI operations, persisted evidence/migration,
-usage/budget policy, recovery and operational safety, Project Learning governance,
-and exploration-to-task transition semantics. Private implementation helpers,
-display prose and bounded discovery/selection heuristics are not automatically
-frozen, but may not change authority or historical hashes silently.
+The normative scope, stable/private boundary, compatibility policy and release
+criteria are finalized in [Stable Control Plane](docs/V1_STABLE_CONTROL_PLANE.md).
+The source audit, evidence limits and reproduced contract-checker gaps are in
+[v1.0 Design Audit](docs/V1_DESIGN_AUDIT.md). This is not a version-only release,
+a v1.0 publication approval or a reversal of the recorded v0.17 closure.
 
-A v1.0 declaration requires the RC exit gates, a published compatibility/support
-matrix, versioned extension points, retained evidence, and explicit non-goals.
-It does not expand the trust model or excuse remaining controller defects.
+| Workstream | Fixed v1.0 decision | Required evidence |
+| --- | --- | --- |
+| V1-01 Sound inventory | Schema-position-aware canonicalization; complete CLI behavior; versioned inventory v2 | Reproduced collisions fixed; mutation-sensitive tests; historical hashes unchanged |
+| V1-02 Public surfaces | Explicit stable allowlist covering inputs, outputs/errors, CLI and SDK signatures | Independent compatibility/behavior fixtures; no accidental private Python API freeze |
+| V1-03 Compatibility | Package SemVer separate from schema/SDK versions; retain current readers and database writers 3/1/2 | Golden history, migration/restore and documented rollback boundaries |
+| V1-04 Qualified support | Separate transport/provider-role axes; at least one supported final-artifact single-terminal baseline | Positive/refusal/cancellation twice on fresh IDs; conditional hosts are not relabeled |
+| V1-05 Release proof | Full artifact/environment identity, durable evidence, clean packaging and explicit publication decision | Final-head six-lane CI, clean wheel/sdist checks, final-artifact live qualification |
+
+The existing candidate checker can hide schema and CLI changes; those are
+mandatory correctness fixes before stable freeze. The current Claude Code host
+entry remains conditional and cannot alone satisfy the v1.0 supported-baseline
+gate. Existing 0.17.0/0.17.1 runs remain historical evidence for their tested scope.
+Do not infer a full build digest from its reported prefix, alter tested package
+metadata after qualification, or use expiring CI artifacts as the only release
+record.
+
+v1.0 adds no new provider, permission, workflow, learning-promotion or exploration
+feature family. Start/Execution/Acceptance, explicit trust, isolated writes,
+unknown-usage semantics, conservative recovery and non-authoritative exploration
+remain invariant. Design completion, implementation, live qualification and
+publication are four different facts.
 
 ## Change control
 
