@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.0 — Stable Control Plane
+
+- Freeze the reviewed v1 public contract inventory, position-aware schema
+  canonicalization, complete CLI behavior, MCP result/error contracts and Provider
+  SDK extension surface established by the 0.17.2 preparation cycle.
+- Preserve the established authority model: independent Start / Execution /
+  Acceptance, explicit trust, isolated writable execution, conservative recovery,
+  durable request identity, complete historical evidence roots and unknown-usage
+  semantics.
+- Retain TaskState v1-v9, IntakeState v1-v6, Artifact v1-v2 and the documented
+  persistence/database compatibility boundaries without read-side restamping.
+- Separate host-transport and provider-role qualification; final supported status
+  is bound to exact 1.0.0 artifacts and fresh live evidence rather than historical
+  RC runs.
+- Build wheel/sdist once and qualify the same bytes across the six supported
+  CI lanes; bind source/tree/build/contract/Skill/dependency identities into
+  release evidence.
+- License the project under Apache-2.0. GitHub Releases is the canonical release
+  record and PyPI receives the same qualified artifacts.
+- Publication remains a separate explicit owner decision after final-artifact
+  live qualification and manifest validation; no post-qualification rebuild is
+  permitted.
+
+
 ## 0.17.2 — v1 contract and release-evidence preparation
 
 - Correct schema-position normalization and inherited CLI/default/action/mutex

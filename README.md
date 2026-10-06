@@ -3,14 +3,14 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.17.1 alpha** closes the audited Release Candidate Hardening milestone:
-visible/idempotent cancellation with safe operator finalization, No-first
-HumanGates, complete evidence roots, durable request receipts, interrupted-
-maintenance barriers and explicit loaded-build/contract identity. The full
-0.17.0 live RC matrix passed, and the targeted 0.17.1 recheck confirmed a
-cancelled task is rejected before provider-permission HumanGate preparation.
-This is not a v1.0 release. See [RC operations](docs/RC_OPERATIONS.md) and
-[verification status](docs/RC_VERIFICATION.md).
+**v1.0.0** is the stable-contract target for the trusted-local control plane.
+The exact 1.0.0 package bytes are prepared before final live qualification and
+are published only after the supported baseline, release evidence and explicit
+owner release decision pass. v0.17.1 remains the formally closed RC-hardening
+historical milestone; its evidence is not reused as final 1.0 qualification.
+See [v1 release preparation](docs/V1_RELEASE_PREPARATION.md),
+[final live E2E](docs/V1_LIVE_E2E.md), and
+[RC verification](docs/RC_VERIFICATION.md).
 
 The v0.16 foundation provides durable Exploration / Deliberation Sessions for
 multi-turn ambiguous work. Explore the repository, compare options and revise

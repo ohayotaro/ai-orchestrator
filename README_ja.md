@@ -4,14 +4,13 @@
 
 既存の AI クライアントから使える、**プロジェクト駆動・プロバイダー中立**のローカル実行コントロールプレーンです。
 
-**v0.17.1 alpha** で、設計監査に基づく Release Candidate Hardening を正式クローズしました。
-取消要求の可視化・冪等化と operator-only の安全な終了処理、No-first HumanGate、
-完全な evidence roots、cleanup 後も残る request receipt、中断した maintenance の
-永続的な停止状態、稼働コードと Skill／契約の識別を実装しています。
-v0.17.0 の full live RC matrix が PASS し、0.17.1 の targeted recheck で cancel 済み
-task が provider-permission HumanGate 作成前に拒否されることも確認しました。
-これは v1.0 の公開宣言ではありません。
-詳細は [RC operations](docs/RC_OPERATIONS.md) と [検証状況](docs/RC_VERIFICATION.md) に記録しています。
+**v1.0.0** は trusted-local control plane の stable-contract target です。
+最終 live qualification より前に 1.0.0 の package bytes を固定し、supported baseline、
+release evidence、明示的な owner release decision がすべて PASS した場合だけ同じ
+artifact を公開します。v0.17.1 は正式クローズ済みの RC-hardening 履歴として保持し、
+その evidence を final 1.0 qualification の PASS として流用しません。
+詳細は [v1 release preparation](docs/V1_RELEASE_PREPARATION.md)、
+[final live E2E](docs/V1_LIVE_E2E.md)、[RC verification](docs/RC_VERIFICATION.md) を参照してください。
 
 v0.16 の Exploration / Deliberation Sessions は、仕様が曖昧な段階を扱います。
 repository の read-only 調査、仮説・選択肢・未確定事項の整理、方針変更を複数ターンで継続できます。

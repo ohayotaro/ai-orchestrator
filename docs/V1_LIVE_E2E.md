@@ -1,8 +1,10 @@
 # v1 final-artifact live qualification
 
-**NOT RUN by the 0.17.2 preparatory implementation.** Use this procedure only
-after the final 1.0.0 candidate metadata/bytes and distribution terms have been
-prepared. The owner controls real host-form answers and any provider expense.
+Use this procedure only against the exact **1.0.0 final-candidate** wheel/sdist
+produced by the completed build-once CI and identified by full SHA-256 values.
+The owner controls real host-form answers and any provider expense. A source or
+package mismatch stops qualification; do not substitute an editable build whose
+identity cannot be tied to the qualified artifacts.
 
 Read [release preparation](V1_RELEASE_PREPARATION.md) and preserve the detailed
 [RC live procedure](RC_LIVE_E2E.md). Do not rerun all live probes after each V1-01

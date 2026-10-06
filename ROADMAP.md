@@ -1,7 +1,7 @@
 # AI Orchestrator Roadmap
 
 Current decision date: **2026-10-06 JST**.
-Implementation baseline: **0.17.1**, with v0.17 Release Candidate Hardening
+Implementation baseline: **1.0.0 final candidate**, with v0.17 Release Candidate Hardening
 formally live-closed. The owner-reported 0.17.0 qualification passed the full RC
 matrix; v0.17.1 then closed the remaining RC-01 provider-permission prepare gap
 with a targeted live recheck showing refusal before any HumanGate row/form or
@@ -153,7 +153,7 @@ combinations to supported.
 The exact operation contracts, failure handling, implementation sequencing and
 scope exclusions are in [RC_HARDENING.md](docs/RC_HARDENING.md).
 
-## v1.0 — Stable Control Plane — design finalized; implementation/qualification pending
+## v1.0 — Stable Control Plane — final candidate prepared; qualification/publication pending
 
 The normative scope, stable/private boundary, compatibility policy and release
 criteria are finalized in [Stable Control Plane](docs/V1_STABLE_CONTROL_PLANE.md).
@@ -185,9 +185,9 @@ publication are four different facts.
 
 ## v1 implementation batching and current preparation
 
-V1-01 through V1-05 preparatory changes are delivered as one 0.17.2 implementation
-batch, with focused automated regression/contract/installation checks between
-workstreams. A separate owner live E2E is not required after each workstream.
+V1-01 through V1-05 preparatory changes were delivered as one 0.17.2 implementation
+batch. The 1.0.0 final candidate freezes the publishable package metadata/bytes
+before final CI and owner live qualification. A separate owner live E2E is not required after each workstream.
 Final live qualification is one campaign on the frozen final 1.0.0 artifact,
 with the required fresh positive/refusal/cancellation repetitions and all
 negative host/scratch cases. Preparation does not complete the live or release
