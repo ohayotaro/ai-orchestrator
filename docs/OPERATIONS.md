@@ -358,3 +358,22 @@ abandoned sessions, discarded understanding and proposal transitions. Intake/tas
 transition artifacts remain roots as well. Runtime/full backups include this
 state; restore keeps the existing scope, quiescence and authority acknowledgement
 rules. No MCP maintenance authority is added by exploration.
+
+
+## v0.17 hardening supplement
+
+The v0.17 [RC operations contract](RC_OPERATIONS.md) supersedes earlier assumptions
+about job-payload cleanup, interrupted replacement and artifact-root enumeration.
+Request receipts survive physical job cleanup. Doctor and retention share complete
+recursive/frozen evidence roots and reject shared metadata conflicts. Restore and
+cleanup persist an intent/recovery journal before destructive mutation; pending
+or invalid journals block normal work. Explicit operator reconciliation never
+replays a provider or deletes additional payload. Cancel intent and safe operator
+finalization are distinct operations.
+
+The archive format remains manifest v1, but v0.17 excludes its maintenance-journal
+area and ephemeral cancellation lock in addition to existing worktree/lock/SQLite
+sidecars. Restore preserves compatible current request identities, explicitly
+interrupts restored pending jobs/gates and revokes execution/provider-permission
+approvals with audit evidence. Its full trusted-profile acknowledgement semantics
+remain unchanged. Do not use old runtime software against a pending new journal.

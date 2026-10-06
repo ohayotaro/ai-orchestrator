@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "kernel_version": "0.17.0",
+  "axes": [
+    "host-transport",
+    "provider-role-execution"
+  ],
+  "allowed_statuses": [
+    "supported",
+    "conditional",
+    "known-incompatible",
+    "unverified"
+  ],
+  "live_qualified": false,
+  "entries": [
+    {
+      "id": "claude-code-v017",
+      "status": "unverified",
+      "required_positive_baseline": true,
+      "host": {
+        "name": "Claude Code",
+        "version": null,
+        "negotiated_protocol": null,
+        "capabilities": null
+      },
+      "kernel": {
+        "version": "0.17.0",
+        "build_digest": null
+      },
+      "os": null,
+      "python": null,
+      "providers": [
+        {
+          "role": "reasoning/review",
+          "adapter": "claude",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        },
+        {
+          "role": "implementation",
+          "adapter": "codex",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        }
+      ],
+      "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
+      "evidence_date": null,
+      "runs": [],
+      "required_repetitions": 2,
+      "historical_reference": "docs/E2E.md; prior-version evidence does not establish this build"
+    },
+    {
+      "id": "codex-v017",
+      "status": "unverified",
+      "required_positive_baseline": false,
+      "host": {
+        "name": "Codex",
+        "version": null,
+        "negotiated_protocol": null,
+        "capabilities": null
+      },
+      "kernel": {
+        "version": "0.17.0",
+        "build_digest": null
+      },
+      "os": null,
+      "python": null,
+      "providers": [
+        {
+          "role": "reasoning/review",
+          "adapter": "claude",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        },
+        {
+          "role": "implementation",
+          "adapter": "codex",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        }
+      ],
+      "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
+      "evidence_date": null,
+      "runs": [],
+      "required_repetitions": null,
+      "historical_reference": "docs/E2E.md; prior-version evidence does not establish this build"
+    },
+    {
+      "id": "antigravity-v017",
+      "status": "unverified",
+      "required_positive_baseline": false,
+      "host": {
+        "name": "Antigravity",
+        "version": null,
+        "negotiated_protocol": null,
+        "capabilities": null
+      },
+      "kernel": {
+        "version": "0.17.0",
+        "build_digest": null
+      },
+      "os": null,
+      "python": null,
+      "providers": [
+        {
+          "role": "reasoning/review",
+          "adapter": "claude",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        },
+        {
+          "role": "implementation",
+          "adapter": "codex",
+          "cli_version": null,
+          "model": null,
+          "effort": null
+        }
+      ],
+      "native_permission_assumptions": "Existing explicit operator configuration; no broad bypass added",
+      "evidence_date": null,
+      "runs": [],
+      "required_repetitions": null,
+      "historical_reference": "docs/E2E.md; prior-version evidence does not establish this build"
+    }
+  ]
+}

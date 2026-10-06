@@ -85,7 +85,7 @@ def save(engine: Any, intake_id: str, template_id: str, scope: str, actor: str, 
          replace: bool = False) -> dict[str, Any]:
     if not actor.strip():
         raise OrchestratorError("workflow template save requires an operator actor")
-    with engine.project.lock():
+    with engine.project.lock(_wait=True):
         current = engine.project.load()[1]
         if current != engine.profile_digest or not engine.store.trusted(current):
             raise OrchestratorError("profile changed or is untrusted; inspect/re-trust before saving a workflow template")

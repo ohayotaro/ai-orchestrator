@@ -3,7 +3,15 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.16.0 alpha** adds durable Exploration / Deliberation Sessions for
+**v0.17.0 alpha** implements the audited Release Candidate Hardening scope:
+visible/idempotent cancellation with safe operator finalization, No-first
+HumanGates, complete evidence roots, durable request receipts, interrupted-
+maintenance barriers and explicit loaded-build/contract identity. This is an
+implementation candidate, not a v1.0 release or a claim of completed v0.17 live
+qualification. See [RC operations](docs/RC_OPERATIONS.md) and
+[verification status](docs/RC_VERIFICATION.md).
+
+The v0.16 foundation provides durable Exploration / Deliberation Sessions for
 multi-turn ambiguous work. Explore the repository, compare options and revise
 assumptions without creating an executable task. An explicit user decision
 freezes the source revision into a normal Supervisor proposal; the existing
@@ -582,7 +590,9 @@ v0.16 Exploration/Deliberation Sessions are implemented and live-closed at
 v0.16.0. The owner-reported live run verified multi-turn direction changes,
 stale-revision rejection, explicit transition, Start/Execution/Acceptance gates,
 abandonment, usage carry-forward and exploration-aware operational inspection.
-The next implementation milestone is v0.17 Release Candidate Hardening.
+v0.17 hardening is now implemented as an alpha candidate; final-source CI and the
+required owner live runs are recorded separately. The next release gate is
+qualified v0.17 live evidence, not automatic v1.0 publication.
 Exploration remains a separate pre-authority contract, not relaxed TaskSpec or
 HumanGate semantics.
 

@@ -305,3 +305,19 @@ scopes. A linked intake cannot bypass this through ordinary `reply_to`.
 Inspection of interrupted work never dispatches or replays it. No exploration
 surface installs providers/validators/workflows, grants permissions/trust, changes
 budgets, promotes learning or performs maintenance. See [Exploration](EXPLORATION.md).
+
+
+## v0.17 additive diagnostics and refusal contracts
+
+`get_task` exposes a separate versioned `cancellation` view; requested cancellation
+is not terminal status or remote cancellation attestation. It does not expose an
+approval scope for a requested task. `inspect_project.installation` reports loaded
+build, process and packaged Skill/contract hashes. It can report a maintenance or
+build block without loading provider plugins through the service inspection path.
+
+Retired request IDs return `code=request_retired`, original job identity and
+`automatic_replay=false`; hosts must not synthesize a fresh request ID as an
+implicit retry. Restore/cleanup/finalization/reconciliation do not gain MCP tools.
+No-first HumanGate presentation preserves the exact `decision=yes` affirmative
+wire value and the single required field, with no schema default. The complete
+candidate input inventory is packaged under `assets/contracts.json`.

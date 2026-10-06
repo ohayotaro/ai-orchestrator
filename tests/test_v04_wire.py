@@ -99,7 +99,7 @@ class Client:
         rid = self.request('tools/call', {'name':name, 'arguments':arguments})
         form = self.read()
         assert form['method']=='elicitation/create', form
-        assert form['params']['requestedSchema']['properties']['decision']['enum'] == ['yes','no']
+        assert form['params']['requestedSchema']['properties']['decision']['enum'] == ['no','yes']
         assert 'scope' in form['params']['message']
         ping = self.request('ping')
         assert self.read()['id'] == ping  # host stays responsive while dialog open

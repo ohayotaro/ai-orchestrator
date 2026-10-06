@@ -531,7 +531,7 @@ def test_operational_contracts_are_published_without_execution_schema_bumps():
     report = persistence_compatibility_report()
     assert report["databases"]["runtime_state"]["write_version"] == 3
     assert report["databases"]["human_gate"]["write_version"] == 1
-    assert report["databases"]["jobs"]["write_version"] == 1
+    assert report["databases"]["jobs"]["write_version"] == 2
     assert report["contracts"]["task_state"]["write_version"] == 9
     assert report["contracts"]["intake_state"]["write_version"] == 6
     assert report["contracts"]["backup_manifest"]["write_version"] == 1

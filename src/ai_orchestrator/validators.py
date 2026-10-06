@@ -82,6 +82,10 @@ class ValidationFailure(OrchestratorError):
 
 
 def run_validator(project: Project, profile: Profile, name: str, *, timeout: float, cancel: Callable[[], bool] = lambda: False) -> dict[str, Any]:
+    from .safety import assert_ready
+    assert_ready(project)
+    if cancel():
+        raise OrchestratorError("validator cancelled before dispatch")
     report = inspect_validator(project, profile, name)
     config = profile.validators[name]
     before = project.manifest()
@@ -124,7 +128,7 @@ def run_validator(project: Project, profile: Profile, name: str, *, timeout: flo
 def register_validator(root: Path, name: str, argv: list[str], *, timeout: int = 120, env: dict[str, str] | None = None, generated_paths: list[str] | None = None, replace: bool = False) -> dict[str, Any]:
     identifier(name)
     project = Project(root)
-    with project.lock():
+    with project.lock(_wait=True):
         project.load()
         path = confined(project.root, ".orchestrator/config.yaml")
         data = load_yaml(path)

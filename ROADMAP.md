@@ -1,9 +1,9 @@
 # AI Orchestrator Roadmap
 
 Current decision date: **2026-10-06 JST**.
-Implementation baseline: **0.16.0**, with owner-reported v0.16 live closure.
-Next milestone: **v0.17 Release Candidate Hardening — design finalized,
-implementation pending**.
+Implementation baseline: **0.17.0 alpha candidate**, following owner-reported
+v0.16 live closure. **v0.17 implementation is present; required final-build live
+qualification and the v1.0 release decision remain pending.**
 
 The approved v0.17 scope and exit criteria are normative in
 [RC Hardening](docs/RC_HARDENING.md). The source audit and reproduced baseline
@@ -83,9 +83,15 @@ This is not a new provider, permission, workflow or exploration feature cycle.
 | RC-06 Contract/install freeze | Versioned public inventory, historical hash/wire fixtures, build/install and loaded-code/Skill identity checks | Compatibility matrix and clean wheel/sdist installation outside the editable checkout |
 | RC-07 Qualified release | Separate host transport from provider-role support; exact versions, scope and evidence | Supported baseline passes twice on fresh IDs; conditional and unverified combinations labelled honestly |
 
-### Findings that cannot be waived by documentation
+Implementation mapping, regression/build evidence and the remaining qualification
+boundary are in [RC Verification](docs/RC_VERIFICATION.md). Operator commands are
+specified in [RC Operations](docs/RC_OPERATIONS.md). The versioned
+[support matrix](docs/support-matrix.json) deliberately keeps v0.17 live entries
+unverified until the required repeated owner runs are recorded.
 
-The baseline audit reproduced four cases in temporary repositories:
+### Audited baseline findings that cannot be waived by documentation
+
+The pre-implementation 0.16.0 audit reproduced four cases in temporary repositories:
 cancellation intent remains invisible/nonterminal and direct approval can still
 be recorded; doctor can hide conflicting metadata for a shared artifact path;
 nested accepted learning roots can be omitted from a cleanup plan; and deleting
@@ -107,7 +113,7 @@ audit does not operate on that live task.
 
 Keep TaskState v9, IntakeState v6, Exploration v1, runtime SQLite v3 and gate
 SQLite v1 unless a reviewed design amendment proves another change necessary.
-The approved receipt addition deliberately advances jobs SQLite v1 to v2;
+The implemented receipt addition deliberately advances jobs SQLite v1 to v2;
 it does not reinterpret an old marker or rewrite historical state merely on read.
 New cancellation-view, receipt and maintenance-intent contracts are separately
 versioned. Retain supported historical readers and exact evidence hashes.

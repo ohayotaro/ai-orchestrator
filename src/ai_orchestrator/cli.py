@@ -65,6 +65,16 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--name", default="my-project")
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--validators-only", action="store_true")
+    doctor.add_argument("--operational-only", action="store_true")
+    identity = commands.add_parser("identity", help="Read loaded build and packaged contract/Skill identity without provider calls")
+    identity.add_argument("--skill", type=Path, action="append", default=[], help="Compare one explicit host Skill path; never synchronize it implicitly")
+    commands.add_parser("contracts", help="Read candidate contract inventory")
+    maintenance = commands.add_parser("maintenance", help="Read incomplete operations or explicitly reconcile")
+    maintenance_actions = maintenance.add_subparsers(dest="maintenance_action", required=True)
+    maintenance_actions.add_parser("inspect")
+    reconcile = maintenance_actions.add_parser("reconcile")
+    reconcile.add_argument("--scope", required=True)
+    reconcile.add_argument("--by", required=True)
     backup = commands.add_parser("backup", help="Create or inspect a verified operational backup")
     backup_actions = backup.add_subparsers(dest="backup_action", required=True)
     backup_create = backup_actions.add_parser("create", help="Create a runtime-evidence or full controller backup")
@@ -79,6 +89,7 @@ def parser() -> argparse.ArgumentParser:
     restore.add_argument("--by", required=True)
     restore.add_argument("--replace", action="store_true", required=True)
     restore.add_argument("--ack-authority-restore", action="store_true")
+    restore.add_argument("--ack-incomplete-operation", metavar="EXACT_SCOPE")
     restore.add_argument(
         "--ack-unreadable-current-state",
         action="store_true",
@@ -168,6 +179,10 @@ def parser() -> argparse.ArgumentParser:
     for command in ("run", "status", "cancel", "recover"):
         sub = commands.add_parser(command)
         sub.add_argument("task_id")
+        if command == "cancel":
+            sub.add_argument("--finalize", action="store_true")
+            sub.add_argument("--scope")
+            sub.add_argument("--by")
     events = commands.add_parser("events")
     events.add_argument("--task-id")
     approve = commands.add_parser("approve")
@@ -207,6 +222,41 @@ def parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     root = args.project.resolve()
+    if args.command == "identity":
+        from .build_identity import report
+        value = report(args.skill)
+        return value, 0 if value["matches"] else 1
+    if args.command == "contracts":
+        from .contract_inventory import report
+        return report(), 0
+    if args.command == "maintenance":
+        from .maintenance import inspect, reconcile
+        from .project import Project
+        if args.maintenance_action == "inspect":
+            value = inspect(Project(root))
+            return value, 1 if value["pending"] else 0
+        return reconcile(root, scope=args.scope, actor=args.by), 0
+    if args.command == "doctor" and args.operational_only:
+        from .operational import diagnose_runtime
+        value = diagnose_runtime(root)
+        return value, 0 if all(item.get("ok", False) for item in value.values()) else 1
+    if args.command == "cancel":
+        from .cancellation import finalize, view
+        from .project import Project
+        from .store import Store
+        if args.finalize:
+            if not args.scope or not args.by:
+                raise OrchestratorError("cancel --finalize requires --scope and --by")
+            return finalize(root, args.task_id, scope=args.scope, actor=args.by), 0
+        if args.scope or args.by:
+            raise OrchestratorError("--scope/--by require --finalize")
+        store = Store(Project(root))
+        try:
+            store.request_cancel(args.task_id)
+            return {"task_id":args.task_id, "cancellation_requested":True,
+                    "cancellation":view(store.project, args.task_id)}, 0
+        finally:
+            store.close()
     if args.command == "worker":
         from .worker import run_worker
         result = run_worker(root, once=args.once, poll_interval=args.poll_interval, idle_seconds=args.idle_seconds)
@@ -283,6 +333,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             replace=args.replace,
             acknowledge_authority_restore=args.ack_authority_restore,
             acknowledge_unreadable_current_state=args.ack_unreadable_current_state,
+            acknowledge_incomplete_operation=args.ack_incomplete_operation,
         ), 0
     if args.command == "retention":
         from . import operational
@@ -300,7 +351,7 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         from .operational import diagnose_runtime
         structural = diagnose_runtime(root)
         state_report = structural["runtime:state"]
-        if state_report.get("present") and not state_report.get("integrity_ok"):
+        if structural["runtime:journal"]["pending"] or (state_report.get("present") and not state_report.get("integrity_ok")):
             structural["controller"] = {
                 "ok": False,
                 "skipped": True,
@@ -403,9 +454,11 @@ def dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         elif args.command == "status":
             state = engine.store.get(args.task_id)
             result = state.model_dump()
+            from .cancellation import view
+            result["cancellation"] = view(engine.project, args.task_id)
             if state.status == "running":
                 result["recovery"] = engine.recovery_status(args.task_id)
-            if state.status == "awaiting_approval":
+            if state.status == "awaiting_approval" and not result["cancellation"]["requested"]:
                 result["approval_scope"] = engine.approval_scope(state)
             return result, 0
         elif args.command == "approve":
@@ -451,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
             raise OrchestratorError("use MCP exploration requests or a separate operator terminal; nested provider calls are prohibited")
         if os.environ.get("CLAUDECODE") and (args.command in ("ask", "run") or (args.command == "start" and not args.no_run)):
             raise OrchestratorError("this command would start a nested model session; use MCP single-terminal requests or a separate operator terminal. No task was created or changed")
-        if os.environ.get("CLAUDECODE") and args.command in ("restore", "cleanup"):
+        if any(os.environ.get(k) for k in ("CLAUDECODE", "AI_ORCHESTRATOR_INTERNAL_WORKER", "CODEX_THREAD_ID")) and args.command in ("restore", "cleanup"):
             raise OrchestratorError(
                 "restore/cleanup mutation is operator-only; run it from a separate normal terminal"
             )
@@ -464,5 +517,5 @@ def main(argv: list[str] | None = None) -> int:
         return code
     except (OrchestratorError, ValidationError, ValueError, OSError, sqlite3.Error, yaml.YAMLError) as exc:
         # Validation errors may include supplied content; never paste secrets into profiles/tasks.
-        print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        print(json.dumps({"error": str(exc), **getattr(exc, "details", {})}, ensure_ascii=False), file=sys.stderr)
         return 1

@@ -8,6 +8,10 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
+import time
+
+_LOCKS = threading.local()
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -191,21 +195,44 @@ class Project:
         return profile, self.fingerprint(profile, context), context
 
     @contextlib.contextmanager
-    def lock(self) -> Iterator[None]:
+    def lock(self, *, maintenance: bool = False, _nested: bool = False, _wait: bool = False) -> Iterator[None]:
         if os.name != "posix":
             raise OrchestratorError("v0.1 execution requires Linux or macOS (POSIX process groups/locking)")
         import fcntl
+        from .safety import assert_ready
+        key = str(self.root)
+        held = getattr(_LOCKS, 'held', {})
+        if key in held:
+            if not _nested:
+                raise OrchestratorError("another controller is operating on this workspace")
+            if not maintenance:
+                from .maintenance import assert_clear
+                assert_clear(self)
+            yield
+            return
+        if not maintenance:
+            assert_ready(self)
 
         self.runtime.mkdir(parents=True, exist_ok=True)
         path = confined(self.root, ".orchestrator/runtime/workspace.lock")
         with path.open("a+") as stream:
+            deadline = time.monotonic() + (5.0 if _wait else 0.0)
+            while True:
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError as exc:
+                    if time.monotonic() >= deadline:
+                        raise OrchestratorError("another controller is operating on this workspace") from exc
+                    time.sleep(0.01)
             try:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as exc:
-                raise OrchestratorError("another controller is operating on this workspace") from exc
-            try:
+                _LOCKS.held = held
+                held[key] = stream
+                if not maintenance:
+                    assert_ready(self)
                 yield
             finally:
+                held.pop(key, None)
                 fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
     def git(self, *arguments: str) -> bytes:

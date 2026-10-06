@@ -485,7 +485,7 @@ class StdioServer:
             except ValidationError:
                 return error(request_id, -32602, "Arguments do not match the tool's inputSchema")
             except (OrchestratorError, ValueError, OSError) as exc:
-                return self._result(request_id, {"error": redact(str(exc))[:4000]}, True)
+                return self._result(request_id, {"error": redact(str(exc))[:4000], **getattr(exc, "details", {})}, True)
             except Exception:
                 print("MCP tool failed; inspect the operator runtime", file=sys.stderr)
                 return self._result(request_id, {"error": "Internal tool error; inspect the operator runtime"}, True)

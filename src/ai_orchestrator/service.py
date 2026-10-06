@@ -210,13 +210,15 @@ class ApplicationService:
     def task_view(engine: Engine, task_id: str) -> dict[str, Any]:
         state = engine.store.get(task_id)
         result = state.model_dump()
+        from .cancellation import view
+        result["cancellation"] = view(engine.project, task_id)
         result["usage"] = engine.usage_evidence(state)
         result["budget"] = engine.budget_status(state)
         if state.status == "running":
             # Read-only diagnosis only. Agent-facing APIs still cannot invoke
             # recover or grant authority; an operator must apply recovery.
             result["recovery"] = engine.recovery_status(task_id)
-        if state.status == "awaiting_approval":
+        if state.status == "awaiting_approval" and not result["cancellation"]["requested"]:
             result["approval_scope"] = engine.approval_scope(state)
         return result
 
@@ -224,6 +226,8 @@ class ApplicationService:
     def check_run(engine: Engine, task_id: str) -> None:
         state = engine.store.get(task_id)
         engine._check(state)
+        if engine.store.cancelled(task_id):
+            raise OrchestratorError("task has a cancellation request")
         if state.status not in ("ready", "awaiting_approval"):
             raise OrchestratorError("task cannot be queued in this state; inspect get_task")
         gated = state.require_execution_approval or engine.profile.policy.require_execution_approval or state.spec.risk == "T3"
@@ -236,6 +240,15 @@ class ApplicationService:
         if name not in TOOLS:
             raise OrchestratorError("unknown or unauthorized tool")
         params = TOOLS[name][0].model_validate(arguments)
+        if name == "inspect_project":
+            from .build_identity import report as build_report
+            from .maintenance import inspect as maintenance_report
+            identity = build_report()
+            maintenance = maintenance_report(Project(self.root))
+            if maintenance["pending"] or not identity["matches"]:
+                return {"schema_version":1,"project":str(self.root),"blocked":True,
+                        "installation":identity,"maintenance":maintenance,
+                        "agent_can_restore":False,"agent_can_cleanup":False,"automatic_replay":False}
         if name in ("get_job", "wait_job", "cancel_job"):
             with self.queue() as queue:
                 job = queue.cancel(params.job_id) if name == "cancel_job" else queue.get(params.job_id)
@@ -256,7 +269,7 @@ class ApplicationService:
                 state = Explorations(engine).abandon(params.exploration_id, params.expected_revision)
                 return state.model_dump()
             if name in ("explore", "propose_from_exploration"):
-                with engine.project.lock(), self.queue() as queue:
+                with engine.project.lock(_wait=True), self.queue() as queue:
                     action = "explore" if name == "explore" else "exploration_propose"
                     data = params.model_dump(exclude={"request_id"})
                     old = queue.existing(params.request_id, action, data)
@@ -289,6 +302,7 @@ class ApplicationService:
                             "automatic_promotion": False, "automatic_replay": False,
                             "context_selection": "latest-understanding-v1; historical turn artifacts retained",
                         },
+                        "installation": identity,
                         "operational_hardening": {
                             "diagnostics": diagnose_runtime(self.root),
                             "backup": "operator-only CLI; runtime-evidence and full controller/authority modes are explicit",
@@ -390,7 +404,7 @@ class ApplicationService:
                     "selected_paths": list(selected),
                     "authority": "preview only; accepted context selection does not grant execution authority",
                 }
-            with engine.project.lock(), self.queue() as queue:
+            with engine.project.lock(_wait=True), self.queue() as queue:
                 action = "ask" if name == "propose_task" else "run"
                 data = params.model_dump(exclude={"request_id"})
                 old = queue.existing(params.request_id, action, data)

@@ -1,0 +1,3267 @@
+{
+  "candidate_version": "0.17.0",
+  "cli_commands": [
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "explicit operator approval; never an agent fallback for a refused HumanGate",
+      "name": "accept",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "interactive",
+          "flags": [
+            "--interactive"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "explicit operator approval; never an agent fallback for a refused HumanGate",
+      "name": "approve",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "prompt",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [
+            "--task-id"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "advisory",
+          "flags": [
+            "--advisory"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "reply_to",
+          "flags": [
+            "--reply-to"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "workflow_ref",
+          "flags": [
+            "--workflow"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "ask",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": [
+            "runtime",
+            "full"
+          ],
+          "dest": "mode",
+          "flags": [
+            "--mode"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "output",
+          "flags": [
+            "--output"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "backup create",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "archive",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "backup inspect",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "finalize",
+          "flags": [
+            "--finalize"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "cooperative intent; --finalize is exact-scope operator-only terminalization",
+      "name": "cancel",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "job_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "cancel-job",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "capabilities",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "before",
+          "flags": [
+            "--before"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "cleanup",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "contracts",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_file",
+          "flags": [
+            "--task-file"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "require",
+          "flags": [
+            "--require"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "workflow_ref",
+          "flags": [
+            "--workflow"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "create",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "validators_only",
+          "flags": [
+            "--validators-only"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "operational_only",
+          "flags": [
+            "--operational-only"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "doctor inspects/probes; validator check explicitly executes trusted validation",
+      "name": "doctor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [
+            "--task-id"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "events",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "exploration_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "exploration",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "exploration_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "revision",
+          "flags": [
+            "--revision"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "exploration-abandon",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "exploration_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "revision",
+          "flags": [
+            "--revision"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "decision",
+          "flags": [
+            "--decision"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [
+            "--task-id"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "advisory",
+          "flags": [
+            "--advisory"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "workflow",
+          "flags": [
+            "--workflow"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "exploration-propose",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "request",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "exploration_id",
+          "flags": [
+            "--session"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "expected_revision",
+          "flags": [
+            "--revision"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "model",
+          "flags": [
+            "--model"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "effort",
+          "flags": [
+            "--effort"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "explore",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "gate_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "gate",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "skill",
+          "flags": [
+            "--skill"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "identity",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "name",
+          "flags": [
+            "--name"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "init",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "intake_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "intake",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "job_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "job",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "query",
+          "flags": [
+            "--query"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "learning context",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "learning distill",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "learning report",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "maintenance inspect",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "maintenance reconcile",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "persistence",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "proposal_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "promote",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "proposal_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "proposal",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "proposal_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "reason",
+          "flags": [
+            "--reason"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "proposal-reject",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "proposal_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "statement",
+          "flags": [
+            "--statement"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "proposal-revise",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": [
+            "knowledge",
+            "policy",
+            "skill"
+          ],
+          "dest": "kind",
+          "flags": [
+            "--kind"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "statement",
+          "flags": [
+            "--statement"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "evidence",
+          "flags": [
+            "--evidence"
+          ],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "propose",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "provider-plugins",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "recover",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "archive",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "ack_authority_restore",
+          "flags": [
+            "--ack-authority-restore"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "ack_incomplete_operation",
+          "flags": [
+            "--ack-incomplete-operation"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "ack_unreadable_current_state",
+          "flags": [
+            "--ack-unreadable-current-state"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "restore",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "before",
+          "flags": [
+            "--before"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "days",
+          "flags": [
+            "--days"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "retention",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "run",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": [
+            "profile",
+            "task",
+            "result",
+            "plan",
+            "implementation",
+            "review",
+            "supervisor",
+            "intake",
+            "state",
+            "artifact",
+            "proposal",
+            "evidence-ref",
+            "context-influence",
+            "provider-plugin-pin",
+            "capability-registry",
+            "provider-descriptor",
+            "provider-resolution",
+            "workflow",
+            "workflow-node",
+            "workflow-input",
+            "workflow-artifact",
+            "runtime-value",
+            "runtime-options",
+            "runtime-override",
+            "model-variant-resolution",
+            "exploration",
+            "exploration-result"
+          ],
+          "dest": "kind",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "output",
+          "flags": [
+            "--output"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "schema",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "single_terminal",
+          "flags": [
+            "--single-terminal"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "single_terminal",
+          "flags": [
+            "--legacy-terminal"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "gate_timeout",
+          "flags": [
+            "--gate-timeout"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "serve",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "output",
+          "flags": [
+            "--output"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "skill",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "intake_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "no_run",
+          "flags": [
+            "--no-run"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "explicit operator approval; never an agent fallback for a refused HumanGate",
+      "name": "start",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "task_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "status",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "ack_local_execution",
+          "flags": [
+            "--ack-local-execution"
+          ],
+          "nargs": 0,
+          "required": true
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "trust",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "name",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "timeout",
+          "flags": [
+            "--timeout"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "env",
+          "flags": [
+            "--env"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "generated_path",
+          "flags": [
+            "--generated-path"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "argv",
+          "flags": [],
+          "nargs": "+",
+          "required": true
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "validator add",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "name",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        }
+      ],
+      "authority": "doctor inspects/probes; validator check explicitly executes trusted validation",
+      "name": "validator check",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "once",
+          "flags": [
+            "--once"
+          ],
+          "nargs": 0,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "poll_interval",
+          "flags": [
+            "--poll-interval"
+          ],
+          "nargs": null,
+          "required": false
+        },
+        {
+          "choices": null,
+          "dest": "idle_seconds",
+          "flags": [
+            "--idle-seconds"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "bounded operator command; not a HumanGate response",
+      "name": "worker",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "workflow_ref",
+          "flags": [
+            "--ref"
+          ],
+          "nargs": null,
+          "required": false
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "workflow",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "intake_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "template_id",
+          "flags": [
+            "--as"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "workflow-candidate",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [
+        {
+          "choices": null,
+          "dest": "intake_id",
+          "flags": [],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "template_id",
+          "flags": [
+            "--as"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "scope",
+          "flags": [
+            "--scope"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "by",
+          "flags": [
+            "--by"
+          ],
+          "nargs": null,
+          "required": true
+        },
+        {
+          "choices": null,
+          "dest": "replace",
+          "flags": [
+            "--replace"
+          ],
+          "nargs": 0,
+          "required": false
+        }
+      ],
+      "authority": "operator-only explicit authority/maintenance change",
+      "name": "workflow-save",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    },
+    {
+      "arguments": [],
+      "authority": "read-only diagnosis; no authority granted",
+      "name": "workflows",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v017_hardening.py"
+      ],
+      "stability": "candidate"
+    }
+  ],
+  "human_gate_decision": {
+    "enum": [
+      "no",
+      "yes"
+    ],
+    "required": true,
+    "server_supplied_default": false,
+    "type": "string"
+  },
+  "intentionally_unstable": [
+    "display prose",
+    "private Python helpers",
+    "bounded selection/distillation heuristics"
+  ],
+  "mcp_tools": [
+    {
+      "authority": "bounded request, not permission",
+      "name": "abandon_exploration",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "77e82c1c5ed9ee2e462a0f14484a6d85567bf277abe0ac7a7550bb6c981c65f5",
+      "stability": "candidate"
+    },
+    {
+      "authority": "bounded request, not permission",
+      "name": "cancel_job",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+      "stability": "candidate"
+    },
+    {
+      "authority": "bounded request, not permission",
+      "name": "explore",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "ec5689ea1b41cd105f53b62c3c71573f2485d50fcc17ecc18a777ff54d6ea45c",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_artifact",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "e5709e2191c654859de898972335b1836b9164ecfe1d6096bafda1dc5dcf4c5e",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_exploration",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "75288ccd47ea9d75ab01254281f9c477c8c3b5ec57e477a797f2aa390d5e2175",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_exploration_artifact",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "d3627eb7fde2c17004467949a29cec862b55d9ac6e3c85ee6701fda8a7ac1aae",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_intake",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "73157f6646fd18b1ee19c1dddb3b41101c8f502babb7ba8f16723ebda6fd4abd",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_job",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_learning_candidate",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "cb71d8e24043f52d6fbc2adab78250bd5e298ce5dd655e4c9b308ce0693e9267",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "get_task",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "431e26a88d577077723820e7389f30b8b2847662b288660765f727c5d85a2a37",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "inspect_project",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "list_explorations",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "list_learning_candidates",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "preview_binding_cleanup",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "d15916ebc66e7ca26a144e942b31b6c056f9f2cc272d34ad339b77f6a36e8894",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "preview_learning_context",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "0213c1acf6fc730a2cc9467b0a06ab529e16d9a082d07f5b75f4ddef0cd23bc5",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "preview_provider_change",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "0d93675f0f1269ed2494ed4328e73c9f8026383c411be0627dbd7d0ebe6a9d11",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "preview_provider_change_set",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "a31342ebd24415faed7ad617b6b85b29411a3cd56fecf7d3dc03376960d8eadc",
+      "stability": "candidate"
+    },
+    {
+      "authority": "bounded request, not permission",
+      "name": "propose_from_exploration",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "8bd63fa62f79e8901dab551e3db4c7cd28b80ddf9ac423eb793b7980ef76817d",
+      "stability": "candidate"
+    },
+    {
+      "authority": "bounded request, not permission",
+      "name": "propose_task",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "0b9a433c0476f73354b82624e2c6e7bfd1283f492b76ec53d81ece180b652343",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_acceptance",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "68684593cc06112e29c83a48173a7972d1ab0ed15d9c283779905c2c2fd09d2f",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_binding_cleanup",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "abf134c0784017e0a7882fd6a4fd035e25a995e4ffff8d37ea85f03870e1e77a",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_execution",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "68684593cc06112e29c83a48173a7972d1ab0ed15d9c283779905c2c2fd09d2f",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_provider_change",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "181421cbae424843630a071f3238cdbecdbd75f6b2bdd01c715d97ce42cfcb76",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_provider_change_set",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "134d846f56c2b789a095c01378ce150c9866bc6f4c44b301cfb178d08e294926",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_provider_permission",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "0aeb21e2ab7a5669a8172b28a44bc4dc61952ed7ca62124c188aad22ef4922b4",
+      "stability": "candidate"
+    },
+    {
+      "authority": "client-mediated HumanGate only",
+      "name": "request_start",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "c546d660ee0eb78ea04a2c5b600fc687384c8e47bbdb425ae798ba824892a6f7",
+      "stability": "candidate"
+    },
+    {
+      "authority": "bounded request, not permission",
+      "name": "run_task",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": false,
+      "schema_sha256": "68684593cc06112e29c83a48173a7972d1ab0ed15d9c283779905c2c2fd09d2f",
+      "stability": "candidate"
+    },
+    {
+      "authority": "read-only",
+      "name": "wait_job",
+      "negative_tests": [
+        "tests/test_v04_protocol.py",
+        "tests/test_v016_wire.py",
+        "tests/test_v017_contracts.py"
+      ],
+      "readonly": true,
+      "schema_sha256": "56a811ebbd2312dc68ad197b6bfe320b585495b0fb1bf1df875eaf9b4575b94e",
+      "stability": "candidate"
+    }
+  ],
+  "models": [
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "cancellation.CancellationView",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "23778ec267663697456762a403e6228f852a6090088d9fefd2e9d2054d87c381",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "capabilities.CapabilityRegistryDescriptor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "646a198d614ec2edb55a94970e449fe2622344420f4869b56c8957aa08d0f4de",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "capabilities.ProviderDescriptor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "247fdeb99323ba1f7f9ec3f39f60986adbb16675c1696fb06e3faed40b4878be",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 2,
+        "default": 2,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "capabilities.ProviderResolution",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "079fc1b31508277b03120c76ee93e1953a7ac7a5be4567214409d9dc57a15725",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.ImplementationResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "ad1d2700fa8d36b460c3cc107daf82c224868a64ca8216fba926ad3a07a09391",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.IntakeState",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "613f1413f45db2f62f1e0163a1f50dfc404b12e3d1895126eb06330f019c3640",
+      "stability": "candidate",
+      "version_schema": {
+        "default": 1,
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.PlanResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "7d5a602c8d961c78c046b02ec392776a886edc46dd7398f96931e17cd5a8dfff",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.ReviewResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "3d7283ab3b970d8f413c2e0965f241ea10a3df39d84dbdfe9a28a548a0131993",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.SupervisorResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "7401223400c59bed0cc35555744b4d8ee107df236474fc484e15aa71b0047746",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.SupervisorResultScoped",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "20f1611f4ee5fc8fc2e9e0a6d726c8614eed52207abd220c1359ccda4fb1e120",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.TaskDraft",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "8a2e9215438d50649499008d73c84a39ab52878e37c1d95709f32ec62d13b3f1",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "contracts.TaskDraftScoped",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a01c257aef643bc05604f4fe2771e2ffbd4bf10bf35d069cf9f866895b04e62f",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationArtifactInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "d3627eb7fde2c17004467949a29cec862b55d9ac6e3c85ee6701fda8a7ac1aae",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "75288ccd47ea9d75ab01254281f9c477c8c3b5ec57e477a797f2aa390d5e2175",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationProposalInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "8bd63fa62f79e8901dab551e3db4c7cd28b80ddf9ac423eb793b7980ef76817d",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "6ea587424decf327d3d997b2acf566dcb9d7be1548c4a82a2935e5ff5dec26fd",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationRevisionInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "77e82c1c5ed9ee2e462a0f14484a6d85567bf277abe0ac7a7550bb6c981c65f5",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExplorationState",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "09c3b0af846da2e5fa38679d7f4d43b0d91e689feccded96f4ab1676c90fed9e",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "exploration.ExploreInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "ec5689ea1b41cd105f53b62c3c71573f2485d50fcc17ecc18a777ff54d6ea45c",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.BindingCleanupRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "abf134c0784017e0a7882fd6a4fd035e25a995e4ffff8d37ea85f03870e1e77a",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.HumanGate",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a433bad3df47b597cfd4af1b1da2ea5244faf08f46c6738c2fd81519bacda386",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.ProfileChangeRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "181421cbae424843630a071f3238cdbecdbd75f6b2bdd01c715d97ce42cfcb76",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.ProfileChangeSetRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "134d846f56c2b789a095c01378ce150c9866bc6f4c44b301cfb178d08e294926",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.ProviderPermissionRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "0aeb21e2ab7a5669a8172b28a44bc4dc61952ed7ca62124c188aad22ef4922b4",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.StartRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "c546d660ee0eb78ea04a2c5b600fc687384c8e47bbdb425ae798ba824892a6f7",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "human_gates.TaskRequest",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "68684593cc06112e29c83a48173a7972d1ab0ed15d9c283779905c2c2fd09d2f",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "jobs.Job",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "447316b2c886c767b901867418ba614c54bebbb87622015e8c462981a981df80",
+      "stability": "candidate",
+      "version_schema": {
+        "default": 1,
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "maintenance.MaintenanceIntent",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "33829d149cd4a7ad3e9ecc4b5d5dc7872e02c088678bf893cdc3775b387e088d",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.AgentResult",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a7b5e56f8022d6f02b3797f5e03af4ffb250f811689d76a40df111edb723bd81",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.Artifact",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "1409f39ec226c5c52a56b705ae59340cab0478956c63f8be2b27756865e4e006",
+      "stability": "candidate",
+      "version_schema": {
+        "default": 1,
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.BudgetCallLimit",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "d5b96ececb57675841896550cc8a48e9c71f390d9e9decdea245cea9bf76b2ae",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.BudgetPolicy",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "6151b50e65b7b5b67e9dc217902013f49b0c57cae0278748df8837439c8179cb",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ContextInfluence",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "28a4c55539ab64b6bca7d62b72629a38e90aeecabb3d607577e6c59f5369e021",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ContextInfluenceEntry",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "8370cd615b2face3f03ead6d7da66022dfb2b866b68139ba7b6aca75bd950891",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.EvidenceRef",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "eafb50c495d098ae208e732609663cb49895d8b93975354a548a01cf693f14a6",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ExplorationProvenance",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "13043e72d9b73ba744f7343cd7de8c9f9114d2c642a785e9868f621ca3ddf7c2",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.LearningProvenance",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "ac6d1e2028d4b535b8f86e4f7df9c276d40129463cba8eab1a41f3276e2cb74f",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.LearningSupport",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "760049d43206007e153463c1c19e3fd1b2f0b805c4825c2b8ecb546b32d17bfe",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.Policy",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "69cf75cf37c50808a5330e8885e1e33b0dbcbb7b682bf2b1c724d24d0671bb90",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.PricingRule",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "cc88b69b9375e368539157b40e5c0839e366dd7dcc55f01d735e666e54451be0",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.Profile",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "66c46bce4ffb2643b63175b8642686dfec4c4c7a4bc8a694db2786644c08d004",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.Proposal",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "58de4649d8224455e595ba30396f04175cdcf10f66d7f6c9a37a8f63f6327112",
+      "stability": "candidate",
+      "version_schema": {
+        "default": 1,
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ProviderConfig",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a84f46cc651fc1adf0d800cc0890fb428097efe77c6172311acd9e3fdd996abf",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ProviderPermissionGrant",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "d3077e2ad0403d61a41762dd696c65e1ca00f2db19662c1f6ade07c333b64215",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ProviderPluginPin",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "4c06c4c6cbcbd65f1695a74a6e71827e7bbf03f69e24e8b4bfb1e6fd8a525378",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.RoleConfig",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "3f795910ca0ebf225386a1e1496b2ab3419a9e34423bf5e4df6f3cbe08924195",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.TaskSpec",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "06d8f831ac0de7908f5253d07ea661730765e4dffae2343e268453be1663abd8",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.TaskState",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "1f86bd71559fb7affc813e510ab7d4eef6c0e2693a8307109e215a1f2499840f",
+      "stability": "candidate",
+      "version_schema": {
+        "default": 1,
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.ValidatorConfig",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "335bebba6c8584c628badf738479dd52c736d28e2b4581303a736177c55807e3",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowArtifactSpec",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "74bd919d2e6dbec79bd91a63a52016114eda6abbb01b94833f918cb3e1507ffd",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowInputSpec",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a398e1e5f8fbc8be4c637f473f6026179c716ad56ecf663d9ed299c88ec02697",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowNodeSpec",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "5432f73150deeb1b29d1f0a6d2e43c25db06c5b610aa928e97305a0eae82a188",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowNodeState",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "d993cdd56d9bf4a8b6f4e0c931959fdad333326a462e04221625e264ab1fb8ba",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowProvenance",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "643e9fe1d165050808879c06089f8a74feb4733614077e00d0c0171258026959",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "models.WorkflowSpec",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a364e7046c4ab8fdfca520057bd79647e21f10dd870ed87a9fa9e26d525b9a2b",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "receipts.RequestReceipt",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "4945fe5221aa9cf7799f399179e470fa9ea69ca7f80c45ab1e5d9a531bc40eb9",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "runtime_options.ModelVariantResolution",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "27d222c9a23ed805e7eefea090659022d9e2ffeb60993252f33df251f64069de",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "runtime_options.RuntimeOptionsDescriptor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "befe1cbf748eb795d9e324a4b331a520cb88b7532be04de50e54875c4bce6e89",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "runtime_options.RuntimeOverride",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "4382d228b0e6aca08636a281468b07864c2b2c9f02ff41646f37b7e964b25d71",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "runtime_options.RuntimeValueDescriptor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "3e38bfe9594540d4c616a4d2fd422c264936f2d9cd140ea7bab53f640d547058",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.ArtifactInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "e5709e2191c654859de898972335b1836b9164ecfe1d6096bafda1dc5dcf4c5e",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.AskInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "0b9a433c0476f73354b82624e2c6e7bfd1283f492b76ec53d81ece180b652343",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.BindingCleanupInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "d15916ebc66e7ca26a144e942b31b6c056f9f2cc272d34ad339b77f6a36e8894",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.Empty",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.IntakeInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "73157f6646fd18b1ee19c1dddb3b41101c8f502babb7ba8f16723ebda6fd4abd",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.JobInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.LearningContextInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "0213c1acf6fc730a2cc9467b0a06ab529e16d9a082d07f5b75f4ddef0cd23bc5",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.ProposalInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "cb71d8e24043f52d6fbc2adab78250bd5e298ce5dd655e4c9b308ce0693e9267",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.ProviderChangeInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "0d93675f0f1269ed2494ed4328e73c9f8026383c411be0627dbd7d0ebe6a9d11",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.ProviderChangeSetInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "a31342ebd24415faed7ad617b6b85b29411a3cd56fecf7d3dc03376960d8eadc",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.RunInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "68684593cc06112e29c83a48173a7972d1ab0ed15d9c283779905c2c2fd09d2f",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.TaskInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "431e26a88d577077723820e7389f30b8b2847662b288660765f727c5d85a2a37",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "service.WaitJobInput",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "56a811ebbd2312dc68ad197b6bfe320b585495b0fb1bf1df875eaf9b4575b94e",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "usage.CostEvidence",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "f0becfb78168fdf418d83e5656cae5fe89dce847d13bdfbaf8221ce8cc3ce4a9",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "usage.UsageDescriptor",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "855dbf31c2e26b536d0fd6202da666e3d79fae8e82e80c8f702478bc65c9eae7",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "usage.UsageRecord",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "dd53bf7c4931961f768edf2cbfad4d345d2aa3126f4b072f6191bde5545d2c1f",
+      "stability": "candidate",
+      "version_schema": {
+        "const": 1,
+        "default": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "usage.UsageSeconds",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "3769967c5cdd35b42fb20a0e7c48b3db0b4762a8731039f4776fc193167b843c",
+      "stability": "candidate",
+      "version_schema": {}
+    },
+    {
+      "authority": "typed data; not an approval response",
+      "compatibility": "supported versions read without historical hash rewriting",
+      "name": "usage.UsageValue",
+      "negative_tests": [
+        "tests/test_v017_contracts.py",
+        "tests/test_v012_persistence.py"
+      ],
+      "public_entry_point": "schema/MCP or typed persisted reader",
+      "schema_sha256": "72b86b6d403a6a2da884e5726ecbaba1d104e799f468dc49f721c39158f48c23",
+      "stability": "candidate",
+      "version_schema": {}
+    }
+  ],
+  "persistence": {
+    "contracts": {
+      "artifact": {
+        "name": "Artifact",
+        "readable_versions": [
+          1,
+          2
+        ],
+        "strategy": "v1 remains readable; v2 adds stable identity/provenance metadata",
+        "write_version": 2
+      },
+      "backup_manifest": {
+        "name": "BackupManifest",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "archive manifest is hash/size verified before restore; unknown versions fail closed",
+        "write_version": 1
+      },
+      "budget_evidence": {
+        "name": "BudgetEvidence",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "policy evidence is interpreted only under the recorded schema",
+        "write_version": 1
+      },
+      "cancellation_view": {
+        "name": "CancellationView",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "derived read-only view; never alters historical TaskState hashes",
+        "write_version": 1
+      },
+      "context_influence": {
+        "name": "ContextInfluence",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "frozen selected-context provenance; unknown selector contracts fail closed",
+        "write_version": 1
+      },
+      "exploration_state": {
+        "name": "ExplorationState",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "non-authoritative durable sessions; no rewrite or automatic replay on read",
+        "write_version": 1
+      },
+      "exploration_transition": {
+        "name": "ExplorationTransition",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "exact source revision and decision bound into intake and Start gate",
+        "write_version": 1
+      },
+      "exploration_turn": {
+        "name": "ExplorationTurn",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "immutable hash-verified reasoning evidence, never project authority",
+        "write_version": 1
+      },
+      "human_gate": {
+        "name": "HumanGate",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "read-compatible; terminal gate history is never replayed",
+        "write_version": 1
+      },
+      "intake_state": {
+        "name": "IntakeState",
+        "readable_versions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "strategy": "read-compatible; never rewrite on read",
+        "write_version": 6
+      },
+      "job": {
+        "name": "Job",
+        "readable_versions": [
+          1,
+          2
+        ],
+        "strategy": "v1 ask/run remains readable; v2 adds exploration queue actions",
+        "write_version": 2
+      },
+      "maintenance_event": {
+        "name": "MaintenanceEvent",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "restore/cleanup provenance is append-only JSON-lines audit evidence",
+        "write_version": 1
+      },
+      "maintenance_intent": {
+        "name": "MaintenanceIntent",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "durable incomplete operation; read-only inspection never repairs or replays",
+        "write_version": 1
+      },
+      "project_learning_candidate": {
+        "name": "ProjectLearningCandidate",
+        "readable_versions": [
+          1,
+          2
+        ],
+        "strategy": "v1 manual proposals remain readable; v2 adds typed evidence/support/provenance",
+        "write_version": 2
+      },
+      "provider_provenance": {
+        "name": "ProviderProvenance",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "content-free dispatch provenance is append-only evidence",
+        "write_version": 1
+      },
+      "recovery_evidence": {
+        "name": "RecoveryEvidence",
+        "readable_versions": [
+          0,
+          1
+        ],
+        "strategy": "legacy v0.11 unversioned recovery JSON is read as schema v1 in memory; artifact bytes and hashes are not rewritten",
+        "write_version": 1
+      },
+      "request_receipt": {
+        "name": "RequestReceipt",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "durable request identity survives job-payload retirement",
+        "write_version": 1
+      },
+      "retention_plan": {
+        "name": "RetentionPlan",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "read-only plan digest is the exact cleanup scope; plans are never applied implicitly",
+        "write_version": 1
+      },
+      "runtime_event": {
+        "name": "RuntimeEvent",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "legacy SQLite rows are exposed through the v1 event envelope",
+        "write_version": 1
+      },
+      "task_state": {
+        "name": "TaskState",
+        "readable_versions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "strategy": "read-compatible; never rewrite on read",
+        "write_version": 9
+      },
+      "usage_evidence": {
+        "name": "UsageEvidence",
+        "readable_versions": [
+          1
+        ],
+        "strategy": "unknown counters remain unknown; no inferred migration",
+        "write_version": 1
+      }
+    },
+    "databases": {
+      "human_gate": {
+        "readable_versions": [
+          0,
+          1
+        ],
+        "write_version": 1
+      },
+      "jobs": {
+        "readable_versions": [
+          0,
+          1,
+          2
+        ],
+        "write_version": 2
+      },
+      "runtime_state": {
+        "readable_versions": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "write_version": 3
+      }
+    },
+    "policy": {
+      "automatic_rewrite": false,
+      "downgrade": "use a verified matching full backup (or a complete pre-v0.15 control/runtime backup) with the matching older executable; lossy in-place downgrade is unsupported",
+      "forward_compatibility": "never guess semantics for unknown versions",
+      "read_migration": "non-mutating compatibility view",
+      "unknown_version": "fail closed before authority/effect interpretation"
+    },
+    "schema_version": 1
+  },
+  "safety_compatibility": "unstable internals cannot silently change authority, persisted hashes or replay behavior",
+  "schema_version": 1,
+  "v1_release_declared": false
+}

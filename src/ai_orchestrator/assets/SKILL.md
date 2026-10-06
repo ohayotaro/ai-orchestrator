@@ -437,3 +437,33 @@ or interrupted; inspect before explicit abandonment and never auto-replay it.
 Do not promote exploratory conclusions, register validators, run experiments,
 write the root worktree, grant provider permissions, alter budgets/profile trust
 or perform restore/cleanup merely because the operation is called exploration.
+
+
+## v0.17 release-candidate hardening
+
+HumanGate choice order is No then Yes. A missing/default/untouched response is
+not affirmative authority. Explain which operation the form authorizes and never
+answer it or silently retry a refusal. Host rendering/focus still requires live
+qualification; do not promise that No-first prevents every accidental click.
+
+Inspect `get_task.cancellation`: requested cancellation and terminal cancellation
+are different facts. A requested task is not runnable; do not request approval,
+run it to make its display terminal, or repurpose provider-change binding cleanup.
+`cancel --finalize` is an exact-scope operator-only maintenance/lifecycle command,
+not an MCP tool. Never invoke it on the user's behalf through shell or by removing
+host/worker environment guards.
+
+A `request_retired` refusal means the request identity is retained but its old job
+payload was cleaned. It is not a failed transport retry to evade with new IDs.
+Explain the original job identity and `automatic_replay=false`; a new request ID
+requires an intentional new user operation, not automatic resubmission.
+
+`inspect_project.installation` identifies the loaded build/Skill contract. A
+loaded-build mismatch or incomplete maintenance blocks new work. Report the
+read-only diagnosis and stop; do not restart an in-flight effect, remove a journal,
+change trust, restore backups, reconcile maintenance, or synchronize host Skills
+implicitly. `maintenance inspect` and archive inspection are diagnostic paths;
+reconciliation and recovery restore belong to a separate normal operator terminal.
+
+v0.17 implementation/offline verification is not itself a v1.0 release or live
+qualification. Record PASS, FAIL, NOT TESTED and NOT APPLICABLE distinctly.

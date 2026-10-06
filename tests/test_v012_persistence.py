@@ -280,8 +280,8 @@ def test_persistence_report_is_explicit_and_complete():
     assert report["policy"]["automatic_rewrite"] is False
     assert report["policy"]["unknown_version"].startswith("fail closed")
     assert report["databases"]["jobs"] == {
-        "readable_versions": [0, 1],
-        "write_version": 1,
+        "readable_versions": [0, 1, 2],
+        "write_version": 2,
     }
     assert report["contracts"]["task_state"]["readable_versions"] == list(range(1, 10))
     assert report["contracts"]["artifact"]["write_version"] == 2

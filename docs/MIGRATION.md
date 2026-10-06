@@ -597,3 +597,31 @@ Restart/reload the connected hosts/MCP servers and verify `orchestrator --versio
 `orchestrator persistence`, `doctor` and MCP `inspect_project`. An unchanged
 profile does not need a new trust grant. New exploration work remains
 non-authoritative until an explicit proposal and the existing Start HumanGate.
+
+
+## v0.16.0 to v0.17.0
+
+Stop existing MCP controllers/workers and preserve a verified full pre-upgrade
+backup plus the project worktree/Git state before reinstalling. Re-export host
+Skills and restart all processes; a changed editable source tree or parent/worker
+build mismatch now explicitly stops new work. `identity --skill PATH` compares
+supplied host copies without changing them or requiring provider credentials.
+
+Runtime SQLite remains v3; gates remain v1. Jobs SQLite advances to v2 to add
+request receipts. Retained job payloads and IDs remain intact during migration.
+TaskState v9, IntakeState v6, Exploration v1 and old evidence hashes are unchanged;
+the cancellation view, receipt and maintenance intent are independent v1 contracts.
+An unchanged profile needs no new trust solely for this code upgrade.
+
+An old kernel must not be run against jobs DB2 or an incomplete maintenance
+journal. Downgrade requires the complete retained pre-upgrade backup and matching
+software, not lowering PRAGMA values, dropping receipts/journal files or editing
+TaskState. After a v0.17 restore, pending jobs/gates and execution permissions are
+explicitly made non-replayable, with audit counts; full restore's separately
+acknowledged trusted-profile binding remains distinct from runtime-only restore.
+
+Use `doctor --operational-only`, `maintenance inspect`, `identity`, `contracts`
+and `persistence` for diagnosis. Never run a cancelled task to obtain a terminal
+display. Exact-scope `cancel --finalize` and `maintenance reconcile` remain normal
+operator-terminal operations; no corresponding MCP authority is added. See
+[RC operations](RC_OPERATIONS.md) for recovery and retained-history boundaries.

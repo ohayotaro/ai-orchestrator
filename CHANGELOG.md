@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.17.0 — Release Candidate Hardening (implementation candidate)
+
+- Make cancellation requests idempotent and visible through a separate v1 view.
+  Reject cancellation consistently at approval/scheduling/dispatch entry points.
+  Add exact-scope operator-only idle finalization without provider, validator,
+  file deletion, rollback or trust effects; revoke approvals/grants atomically.
+- Render HumanGate decisions as No then Yes with operation-specific titles.
+  Keep a single required string decision, no server default, and unchanged exact
+  affirmative response, expiration, stale-state and no-replay semantics.
+- Share a complete evidence inventory between doctor and retention, including
+  recursive accepted context and frozen historical Task/Intake/Exploration
+  references. Detect conflicting shared metadata before deduplicating reads;
+  retain compatible legacy references and reject incomplete cleanup roots.
+- Upgrade jobs SQLite v1 to v2 for durable request receipts. Atomically retain
+  request identity while deleting terminal payloads/events. Retired IDs return
+  structured refusals, never new queued calls. Restore merges compatible known
+  history, suppresses pending restored work and records explicit revocations.
+- Persist maintenance intent and recovery staging before destructive changes.
+  Block startup/mutation/new dispatch on pending or invalid intents; provide
+  read-only inspection and exact-scope operator reconciliation. Preserve crash
+  evidence across process loss, reject replaced database handles and keep audit
+  completion inside the durable success boundary. Add actual SIGKILL regressions.
+- Add candidate schema/API inventory, historical baseline hash fixtures,
+  content-free loaded-build/Skill identity, explicit host Skill comparison,
+  minimum/reference dependency lanes and clean wheel/sdist qualification.
+- Keep TaskState v9, IntakeState v6, Exploration v1, runtime SQLite v3 and gates
+  SQLite v1. No automatic old-row rewrite, provider fallback, permission expansion,
+  learning promotion, maintenance replay, tag creation or package publication.
+- Supply a versioned host/provider support matrix and repeated live qualification
+  procedure. v0.17 live entries remain unverified; implementation completion is
+  distinct from the separate v1.0 release decision.
+
 ## 0.16.0 — Exploration / Deliberation Sessions
 
 - Add durable, non-authoritative ExplorationState v1 with bounded multi-turn

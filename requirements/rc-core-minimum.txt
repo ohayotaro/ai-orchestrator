@@ -1,0 +1,7 @@
+# Core/dev-only declared lower bounds: no independent MCP SDK dependency.
+pydantic==2.10.0
+PyYAML==6.0
+pytest==8.0.0
+jsonschema==4.0.0
+setuptools==68.0.0
+wheel==0.41.0

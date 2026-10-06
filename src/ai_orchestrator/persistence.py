@@ -21,11 +21,17 @@ RUNTIME_DB_VERSION = 3
 RUNTIME_DB_READABLE_VERSIONS = (0, 1, 2, 3)
 HUMAN_GATE_DB_VERSION = 1
 HUMAN_GATE_DB_READABLE_VERSIONS = (0, 1)
-JOB_DB_VERSION = 1
-JOB_DB_READABLE_VERSIONS = (0, 1)
+JOB_DB_VERSION = 2
+JOB_DB_READABLE_VERSIONS = (0, 1, 2)
 EVENT_SCHEMA_VERSION = 1
 
 PERSISTED_CONTRACT_RULES: dict[str, dict[str, Any]] = {
+    "cancellation_view": {"name":"CancellationView", "readable_versions":(1,), "write_version":1,
+                          "strategy":"derived read-only view; never alters historical TaskState hashes"},
+    "request_receipt": {"name":"RequestReceipt", "readable_versions":(1,), "write_version":1,
+                        "strategy":"durable request identity survives job-payload retirement"},
+    "maintenance_intent": {"name":"MaintenanceIntent", "readable_versions":(1,), "write_version":1,
+                           "strategy":"durable incomplete operation; read-only inspection never repairs or replays"},
     "task_state": {
         "name": "TaskState",
         "readable_versions": (1, 2, 3, 4, 5, 6, 7, 8, 9),

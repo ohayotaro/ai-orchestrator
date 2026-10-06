@@ -1423,3 +1423,23 @@ as housekeeping; it is not part of the successful task or the rejection proof.
 **Result: PASS.** v0.16.0 satisfies the planned live Exploration / Deliberation
 closure boundary and the v0.16 milestone is closed. The next implementation
 milestone is v0.17 Release Candidate Hardening.
+
+
+## v0.17 implementation verification and pending live qualification
+
+v0.17 adds regression cases derived from the retained design audit and actual
+subprocess SIGKILL tests on disposable maintenance fixtures. Those checks cover
+cancellation/direct-approval parity, atomic safe finalization, recursive and frozen
+evidence roots, shared metadata conflicts, request-ID retirement/restore lineage,
+incomplete-operation barriers, reconciliation and loaded-build mismatch.
+
+The existing real stdio MCP/managed-worker/three-HumanGate provider-shim tests
+continue under No-first presentation. Clean wheel/sdist checks run outside the
+editable checkout; minimum/reference dependency CI records resolved versions.
+See [RC Verification](RC_VERIFICATION.md) for the final-source evidence mapping.
+
+No owner v0.17 live run is claimed by this implementation. The required normal
+flow, genuine refusal and idle cancellation/finalization must each pass twice on
+fresh IDs at the same build, as specified in [RC Live E2E](RC_LIVE_E2E.md). Historical
+v0.16 evidence and its cancelled-request residual probe do not substitute for those
+runs. Do not relabel that residual task terminal without observing finalization.
