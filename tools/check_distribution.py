@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import venv
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -34,10 +35,11 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--offline',action='store_true')
     args=parser.parse_args()
+    version=tomllib.loads((ROOT/'pyproject.toml').read_text())['project']['version']
     output=ROOT/'dist';output.mkdir(exist_ok=True)
     run([sys.executable,'-c','from setuptools.build_meta import build_sdist,build_wheel; build_sdist("dist"); build_wheel("dist")'],cwd=ROOT)
-    wheels=sorted(output.glob('ai_orchestrator_kernel-0.17.0-*.whl'))
-    source=output/'ai_orchestrator_kernel-0.17.0.tar.gz'
+    wheels=sorted(output.glob(f'ai_orchestrator_kernel-{version}-*.whl'))
+    source=output/f'ai_orchestrator_kernel-{version}.tar.gz'
     if len(wheels)!=1 or not source.is_file():raise RuntimeError('Expected one versioned wheel and sdist')
     with tempfile.TemporaryDirectory(prefix='orchestrator-installed-qualification-') as tmp:
         temp=Path(tmp); env=temp/'venv'; outside=temp/'outside';outside.mkdir()
@@ -55,7 +57,7 @@ def main():
         run(install,cwd=outside)
         run([python,'-m','pip','freeze'],cwd=outside)
         identity=json.loads(run([cli,'identity'],cwd=outside,capture=True))
-        assert identity['package_version']=='0.17.0' and identity['matches']
+        assert identity['package_version']==version and identity['matches']
         assert identity['contract_inventory_sha256'] and identity['skill_sha256']
         run([python,'-I','-c',
              'import sys;from pathlib import Path;import ai_orchestrator;import ai_orchestrator.worker;'
