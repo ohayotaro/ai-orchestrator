@@ -3,12 +3,13 @@
 [日本語 README](README_ja.md)
 
 Project-driven, provider-neutral orchestration for existing AI clients.
-**v0.17.1 alpha** contains the audited Release Candidate Hardening scope plus the live-closure follow-up:
+**v0.17.1 alpha** closes the audited Release Candidate Hardening milestone:
 visible/idempotent cancellation with safe operator finalization, No-first
 HumanGates, complete evidence roots, durable request receipts, interrupted-
-maintenance barriers and explicit loaded-build/contract identity. This is an
-hardening candidate, not a v1.0 release. The 0.17.0 live qualification passed the required flows; 0.17.1
-requires only the targeted cancellation/provider-permission recheck before formal milestone closure. See [RC operations](docs/RC_OPERATIONS.md) and
+maintenance barriers and explicit loaded-build/contract identity. The full
+0.17.0 live RC matrix passed, and the targeted 0.17.1 recheck confirmed a
+cancelled task is rejected before provider-permission HumanGate preparation.
+This is not a v1.0 release. See [RC operations](docs/RC_OPERATIONS.md) and
 [verification status](docs/RC_VERIFICATION.md).
 
 The v0.16 foundation provides durable Exploration / Deliberation Sessions for
@@ -590,9 +591,11 @@ v0.16 Exploration/Deliberation Sessions are implemented and live-closed at
 v0.16.0. The owner-reported live run verified multi-turn direction changes,
 stale-revision rejection, explicit transition, Start/Execution/Acceptance gates,
 abandonment, usage carry-forward and exploration-aware operational inspection.
-v0.17 hardening is now implemented as an alpha candidate; final-source CI and the
-required owner live runs are recorded separately. The next release gate is
-qualified v0.17 live evidence, not automatic v1.0 publication.
+v0.17 Release Candidate Hardening is implemented and live-closed at v0.17.1.
+Claude Code 2.1.284 host transport remains conditional because of one fail-safe
+Yes-intent/No-wire anomaly; untested host combinations remain unverified. The
+next step is a separate v1.0 Stable Control Plane release decision, not automatic
+publication.
 Exploration remains a separate pre-authority contract, not relaxed TaskSpec or
 HumanGate semantics.
 
