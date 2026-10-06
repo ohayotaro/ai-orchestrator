@@ -12,10 +12,33 @@ ASSET = Path(__file__).resolve().parent/'assets/contracts.json'
 
 
 def schema_semantics(value):
-    """Ignore presentation-only titles/descriptions, not validators/defaults."""
+    """Canonical JSON-Schema semantics across supported Pydantic releases.
+
+    Presentation fields are excluded. Pydantic 2.10 omitted
+    ``additionalProperties: true`` for unconstrained mappings while later
+    releases emit it explicitly; JSON Schema defines those forms identically.
+    JSON numeric values also treat integral floats and integers equivalently.
+    Defaults and actual validation constraints remain part of the contract.
+    """
     if isinstance(value, dict):
-        return {k:schema_semantics(v) for k,v in value.items() if k not in ('title','description','$comment')}
-    if isinstance(value, list): return [schema_semantics(v) for v in value]
+        result = {
+            k: schema_semantics(v)
+            for k, v in value.items()
+            if k not in ('title', 'description', '$comment')
+        }
+        if (
+            result.get('type') == 'object'
+            and 'additionalProperties' not in result
+            and 'properties' not in result
+            and '$ref' not in result
+            and not any(key in result for key in ('allOf', 'anyOf', 'oneOf'))
+        ):
+            result['additionalProperties'] = True
+        return result
+    if isinstance(value, list):
+        return [schema_semantics(v) for v in value]
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
     return value
 
 
