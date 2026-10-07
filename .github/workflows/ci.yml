@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -20,7 +22,9 @@ jobs:
           python -m pip install -r requirements/rc-reference.txt
           python -m pip install --no-build-isolation -e '.[dev,interop]' -c requirements/rc-reference.txt
           python tools/check_contracts.py
+          python tools/check_v101_maintenance.py --baseline v1.0.0
           python -c 'from setuptools.build_meta import build_sdist, build_wheel; build_sdist("dist"); build_wheel("dist")'
+          python tools/check_v101_maintenance.py --baseline v1.0.0 --wheel dist/*.whl --sdist dist/*.tar.gz
           python tools/collect_release_evidence.py build --dist dist
           git archive --format=tar.gz -o "$RUNNER_TEMP/source.tar.gz" HEAD
       - uses: actions/upload-artifact@v4
