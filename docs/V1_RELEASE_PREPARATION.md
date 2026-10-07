@@ -42,4 +42,6 @@ These commands do not publish. A documentation PR or a new CI artifact also does
 
 ## Follow-ups
 
-The original archive was last reported on one owner Mac; replication and token revocation must not be marked complete without confirmation. License-Expression metadata, residual packaged alpha wording and Trusted Publishing are separate proposed work in the [roadmap](../ROADMAP.md), not retroactive changes to 1.0.0.
+The original archive was last reported on one owner Mac; replication and token revocation must not be marked complete without confirmation.
+
+The License-Expression / embedded README / Trusted Publishing work is now scoped as the separate **v1.0.1 documentation/packaging maintenance candidate**. See [V1_0_1_RELEASE.md](V1_0_1_RELEASE.md). It does not retroactively alter v1.0.0 or convert its live evidence into evidence for a different artifact.
