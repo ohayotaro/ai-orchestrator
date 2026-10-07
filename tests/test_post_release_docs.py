@@ -34,7 +34,7 @@ def test_readme_shell_walkthrough_is_identical_in_both_languages():
     en = shell_blocks("README.md")
     assert en and en == shell_blocks("README_ja.md")
     combined = "\n".join(en)
-    assert "ai-orchestrator-kernel[interop]==1.0.0" in combined
+    assert "ai-orchestrator-kernel[interop]==1.0.1" in combined
     assert combined.index("validator add pytest") < combined.index("trust --by")
     assert combined.index("trust --by") < combined.index("validator check pytest")
     assert 'cd "$PROJECT" && claude' in combined
