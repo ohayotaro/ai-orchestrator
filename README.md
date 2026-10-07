@@ -1,12 +1,12 @@
 # AI Orchestrator
 
-[日本語](README_ja.md) · [PyPI](https://pypi.org/project/ai-orchestrator-kernel/1.0.0/) · [Release](https://github.com/ohayotaro/ai-orchestrator/releases/tag/v1.0.0) · [Support](docs/SUPPORT.md)
+[日本語](README_ja.md) · [PyPI](https://pypi.org/project/ai-orchestrator-kernel/) · [Release](https://github.com/ohayotaro/ai-orchestrator/releases) · [Support](docs/SUPPORT.md)
 
 **Give your existing AI coding tools a shared workflow: plan, approve, implement, test, review, and accept.**
 
 AI Orchestrator is a local coordinator, not another model or hosted agent service. You talk to a supported AI client; it delegates work through the orchestrator to separately managed workers. The default roles use Claude for reasoning, planning and review, and Codex for implementation. After setup, ordinary tasks do not require you to write a workflow/DAG or name providers every time.
 
-**v1.0.0 was released on October 7, 2026**, under Apache-2.0. Start with the Claude Code walkthrough below. Other host/provider combinations do not inherit its qualification; see [tested support and limitations](docs/SUPPORT.md).
+**v1.0.1 is a documentation/packaging maintenance release for the v1 Stable Control Plane.** It embeds this post-release README in the distribution and updates license metadata and the PyPI publication path. It does not expand control-plane runtime behavior, public contracts, or the supported live baseline established by v1.0.0. Start with the Claude Code walkthrough below. Other host/provider combinations do not inherit its qualification; see [tested support and limitations](docs/SUPPORT.md).
 
 ## Why use it?
 
@@ -34,7 +34,7 @@ PROJECT="$HOME/ai-orchestrator-demo"
 ```
 
 ```bash
-test ! -e "$VENV" && python3.13 -m venv "$VENV" && "$VENV/bin/python" -m pip install 'ai-orchestrator-kernel[interop]==1.0.0' 'pytest>=8,<10'
+test ! -e "$VENV" && python3.13 -m venv "$VENV" && "$VENV/bin/python" -m pip install 'ai-orchestrator-kernel[interop]==1.0.1' 'pytest>=8,<10'
 ```
 
 ```bash
@@ -42,7 +42,7 @@ ORCH="$VENV/bin/orchestrator"
 "$ORCH" --version
 ```
 
-Expected: `1.0.0`. The distribution name is `ai-orchestrator-kernel`; the command is `orchestrator`. The extra includes the MCP SDK used for interoperability; pytest is for this demo's validator. Keep the absolute venv path: no activation is needed.
+Expected: `1.0.1`. The distribution name is `ai-orchestrator-kernel`; the command is `orchestrator`. The extra includes the MCP SDK used for interoperability; pytest is for this demo's validator. Keep the absolute venv path: no activation is needed.
 
 ### 2. Create a small Git project
 
