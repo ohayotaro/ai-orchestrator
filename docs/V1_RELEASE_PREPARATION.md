@@ -1,130 +1,45 @@
-# v1 release preparation and evidence procedure
+# v1 release procedure and post-release status
 
-Status: **1.0.0 final-candidate metadata frozen; live qualification and publication pending**.
-The working version is **1.0.0**. The candidate package metadata and distribution
-terms are fixed before final CI/live qualification. No supported v1 live baseline,
-tag or publication is asserted merely by preparing these bytes. The owner has selected Apache-2.0 and the publication channels below.
-The design's stages B–D can be implemented together; stage E is the final live
-qualification and stage F is an independent owner release decision.
+Status: **v1.0.0 RELEASED / CLOSED — 2026-10-07**. [Verification](V1_VERIFICATION.md) · [Exact release record](releases/v1.0.0.json) · [Live results](E2E_V1.md).
 
-## Owner distribution decision
+This document was updated after publication. It is not the frozen document referenced by the approved release manifest. The [v1.0.0-tagged procedure](https://github.com/ohayotaro/ai-orchestrator/blob/v1.0.0/docs/V1_RELEASE_PREPARATION.md) remains unchanged with the published source. Never replace a manifest reference with a newer main-branch document and claim the old approval still applies.
 
-The owner decision recorded on **2026-10-06 JST** is:
+## Completed release
 
-- **License:** Apache License 2.0.
-- **Canonical release record:** GitHub Releases.
-- **Package distribution:** PyPI, using the exact wheel/sdist bytes already qualified and attached/referenced by the canonical GitHub release.
-- **No rebuild after qualification:** PyPI must receive the same verified artifacts; a rebuild, metadata edit or repack requires applicable requalification.
-- **Publication remains gated:** selecting terms/channels is not permission to tag or publish. Stage F still requires an explicit owner approval bound to the final release manifest digest.
+The owner selected Apache-2.0, GitHub Releases as the canonical public record, and PyPI for the identical qualified wheel/sdist. Preparation was followed by build-once CI #330, the main owner-live campaign, two follow-up probes, controlled evidence assembly, qualification-only READY, explicit manifest-bound approval, normal-checker READY, and publication without rebuild/repack. The approval scope is `74411890270252c2cddc5bfd32a7c7615b0296334c6b999f357b1f6ac1d93d6f`.
 
-## One implementation batch; one final-artifact live campaign
+The public support index is a projection; full evidence stays in the owner's controlled archive. The post-release documentation task does not recreate that archive, change the approved manifest, or claim a new READY run. [Evidence boundaries](SUPPORT.md#public-index-versus-the-approved-evidence-bundle).
 
-V1-01 through V1-05 need not each interrupt the owner for another full real-host
-E2E campaign. Run focused regression, mutation, schema/wire, storage/crash and
-installation tests during implementation. After applicable CI is green, finalize
-package metadata and build the candidate once. Then qualify those exact bytes.
-Normal positive write, genuine Start refusal and idle cancel/finalize each still
-require **two fresh fixture IDs**, in addition to the complete host-form and
-cancelled-provider-permission checks. "One campaign" does not mean one test.
+## Procedure retained for subsequent release work
 
-The 0.17.2 batch provided the checking and evidence tools. The 1.0.0 candidate
-freezes the package/version/license/documentation bytes that will be qualified.
-Passing automated tests still do not complete V1-04's owner-live support claim or
-V1-05's final release record. Any packaged change after qualification changes
-identity and requires applicable requalification.
+Finalize package metadata before qualification. Build the primary wheel/sdist once, record full source commit/tree, kernel build, canonical inventory and Skill identities, and test the same primary artifacts. A rebuilt wheel used for sdist payload comparison is not a replacement release file. All six dependency/platform lanes and their explicit SDK scope remain required unless a reviewed release design changes them.
 
-## Build once and retain evidence
+A running job may record measurements, but cannot certify its own eventual completion. Save actual completed GitHub run/job responses including all pages, then use the existing `tools/collect_release_evidence.py complete` tooling to create completed receipts tied to the exact run/head/artifacts. Do not relabel queued, failing or skipped checks as success.
 
-The CI `build-distribution` job creates one wheel and sdist, records exact commit,
-tree, kernel build, inventory/canonicalizer, Skill and distribution SHA-256, and
-uploads `qualified-distributions`. The six existing lanes remain: Linux Python
-3.11/3.12/3.13 reference, macOS Python 3.13 reference, and Linux Python 3.11 minimum
-and core-only minimum. All four reference lanes install the same primary wheel
-outside the checkout, export/check Skill, smoke CLI/worker/imports and compare
-package payloads with a wheel rebuilt from the same sdist. The rebuilt wheel is
-not a replacement release artifact.
+Keep host-transport and provider-role support separate. Record exact environment/permissions and model/effort modes. New final-artifact live evidence must not be synthesized from old results. Review historical anomalies without claiming that non-reproduction proves a root-cause fix.
 
-Reference and combined-minimum lanes run independent MCP SDK tests with no
-skips. Only the explicitly core-only lane excludes the SDK interoperability file
-and the named SDK-dependent wire test. Record full resolved dependency versions,
-actual OS/Python and JUnit testcase counts. Installation `>=3.11` is not evidence
-for every newer interpreter.
+Assemble the complete transitive evidence bundle before approval: distributions, matrix, original probe records, anomaly disposition and its references, completed lanes, JUnit, dependencies, completion records, and release/upgrade/rollback documents. Preserve sensitive raw material in controlled storage, not public source. Verify a release-lifetime archive copy and record its full file set. Ninety-day CI retention alone is not durable release custody.
 
-`tools/collect_release_evidence.py build` produces `artifact-identity.json`.
-Its `lane` subcommand records measured evidence as **in_progress/pending**:
-a job cannot truthfully attest its own later completion. After the whole run has
-completed, save the actual GitHub run and all paginated job results together as
-`{"run": <run object>, "jobs": {"jobs": [<all job objects>]}}`. The `complete`
-subcommand requires completed-success run, build and matching lane jobs, the
-exact CI head and run ID before writing a separate completed lane receipt:
+## Check and approve without publishing implicitly
+
+Run the tooling from the intended qualified source/package with the original complete evidence-root:
 
 ```bash
-python tools/collect_release_evidence.py complete \
-  --lane-file evidence/ci/linux-3.13-reference/measured.json \
-  --completion evidence/ci-completion.json --evidence-root evidence \
-  --output evidence/ci/linux-3.13-reference/completed.json
+python tools/check_release.py evidence/release-manifest.json --evidence-root evidence --qualification-only
 ```
 
-Keep the run's source identity distinct from a later evidence-document commit.
-A synthetic merge commit may differ while its exact source tree and artifacts
-match; a changed tree/build is not equivalent. These records are offline
-consistency checks of supplied CI evidence, not cryptographic authentication of
-who created the JSON files.
+Qualification-only omits the owner decision, not technical gates. Review the actual evidence and scope, not merely the READY label. The checker is an offline consistency/attestation checker; it cannot authenticate a human click or prove remote archive availability.
 
-CI artifacts are retained for 90 days as working evidence, not forever. Before
-release, copy all distribution, CI, dependency, JUnit, live probe, disposition
-and documentation bytes to a controlled durable archive. The archive receipt
-must identify the complete transitive file set, hashes, exact artifact, location
-and release-lifetime retention. Verify access to that archive separately; the
-checker cannot establish remote availability from a local receipt.
-
-## Support matrix and live records
-
-The current matrix uses schema **2**, separating `host.transport` from each
-provider role's `execution` status and binding probes to the exact deployment
-configuration and artifact. Historical v0.17 conditional/unverified records are
-retained byte-for-byte in [support-matrix-v017.json](support-matrix-v017.json).
-The new matrix initially has **no qualified deployment**. It does not upgrade
-historical PASS to a final-v1 result.
-
-Use `ArtifactIdentity`, `Deployment` and `ProbeRecord` schemas in
-`ai_orchestrator.release_evidence` when preparing operator evidence. This is an
-offline release-tool data contract, not a new MCP operation or runtime authority.
-`adapter_default` records an unresolved choice, not a measured model identity.
-Host/CLI versions, explicit model/effort, OS/Python, checked Skill and native
-permission assumptions all participate in configuration identity.
-
-The required baseline remains Claude Code host, Claude reasoning/planning/review
-and Codex implementation. Claude Code 2.1.284 cannot silently omit the known
-intent/wire anomaly. Promotion requires a configuration-bound disposition and
-supporting evidence, or a different exact host version qualified independently.
-A timeout does not establish fault attribution. Never use hidden form answers,
-CLI fallback, broader permissions or automatic paid retry to manufacture PASS.
-
-## Manifest and release decision
-
-A release manifest points to the exact wheel/sdist, matrix, six completed lane
-receipts and release/upgrade/rollback documentation. Every file reference has a
-normalized relative path and full SHA-256. Symlinks, traversal, duplicates,
-metadata conflicts, nonfinite JSON, unknown/coerced versions, partial results,
-stale identities or insufficient evidence fail closed. JUnit summary counters
-must agree with individual testcase failure/skip entries.
+The owner decision must bind actor, terms and channels to the emitted approval_scope. Preserve the pending manifest and record approval separately. The decision field is excluded from scope calculation; other bound payload/evidence changes invalidate approval.
 
 ```bash
-python tools/check_release.py evidence/release-manifest.json \
-  --evidence-root evidence --qualification-only
-python tools/check_release.py evidence/release-manifest.json \
-  --evidence-root evidence
+python tools/check_release.py evidence/release-manifest.approved.json --evidence-root evidence
 ```
 
-The first form omits only the publication decision, not any technical gate.
-The second also requires the owner's actor, distribution terms, channel and
-approval bound to the entire manifest payload digest. A change to evidence
-invalidates that decision. Neither command publishes, probes a provider, opens
-a runtime DB, trusts a profile or changes authority. Synthetic tests of `READY`
-are not actual owner live qualification.
+Only after the normal check is READY and publication is explicitly authorized may the exact approved files be published. Do not rebuild, repack, move an existing release tag or use ambiguous skip-existing behavior to manufacture success. Verify uploaded file hashes on both channels. Never put tokens in prompts, logs or evidence.
 
-Before preparing the final candidate, verify the recorded Apache-2.0 / GitHub Releases + PyPI decision, align English/Japanese release/version/installation metadata, review
-upgrade/rollback guidance, and freeze all package bytes. Prepare 1.0.0 without
-publishing it, complete final CI and live qualification, approve externally,
-and publish the already-verified bytes. Do not rebuild after approval.
+These commands do not publish. A documentation PR or a new CI artifact also does not publish. v1.0.0 has already crossed this process; it must not be rerun with substituted public-summary evidence.
+
+## Follow-ups
+
+The original archive was last reported on one owner Mac; replication and token revocation must not be marked complete without confirmation. License-Expression metadata, residual packaged alpha wording and Trusted Publishing are separate proposed work in the [roadmap](../ROADMAP.md), not retroactive changes to 1.0.0.

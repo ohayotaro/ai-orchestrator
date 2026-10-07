@@ -1,95 +1,71 @@
-# V1-01 through V1-05 preparation — verification record
+# v1.0.0 — verification and publication record
 
-Baseline: `eb046e27bb0de1f07413111d8e0ba48c5c444cea` (tree
-`36bfea74a7e6b01e257ca7ada3dd0a46f3adab29`). Working package: **0.17.2**.
-This record describes preparatory implementation, not completion of final-v1
-live qualification, support promotion or release approval.
+**RELEASED / CLOSED — 2026-10-07.** This post-release summary separates owner-reported live/checker results from checks performed while editing documentation. It does not rerun live qualification or replace the approved evidence bundle.
 
-## Mapping and explicit remaining gates
+## Release identity
 
-| Workstream | Implemented preparation | Still required before v1 release |
+[Machine-readable public release record](releases/v1.0.0.json) · [GitHub Release](https://github.com/ohayotaro/ai-orchestrator/releases/tag/v1.0.0) · [PyPI](https://pypi.org/project/ai-orchestrator-kernel/1.0.0/).
+
+| Item | Exact value |
+| --- | --- |
+| Package | ai-orchestrator-kernel 1.0.0 |
+| Annotated tag object | `5d3c31b72019c0d9deb8509d2f1d011980c0296e` |
+| Tagged source commit | `a566c5c22be28b942a4c8256ae1bdf56d6182f41` |
+| CI checkout commit | `cecf86b8ab749150453a6079f6dbe8acd7f67eaa` (PR synthetic merge) |
+| Shared source tree | `56fabb526b55e40e627b39af69d0cae77e0a301f` |
+| Kernel build | `eb25ca9a5873b0a4ee6fc63159129a5917b6bb741bae9660f14782ba840255e4` |
+| Wheel SHA-256 | `18a1b2a4eb73bc1b58b88a8be4953032bb12be3705db43305152c000d819372a` |
+| Sdist SHA-256 | `3a5de9f47627a55e956da1a92678d30fc1269e258e4951eecc2d0d23cc9433ad` |
+
+The different CI/tag commit IDs identify different Git commits with the same tested tree; they are not interchangeable labels. A new post-release main tree is also distinct, even if source-code-only build identity stays the same.
+
+## Digest names are not interchangeable
+
+`orchestrator identity.contract_inventory_sha256` hashes packaged `contracts.json` bytes:
+`6bc6374b863e2cd775f7fd6188b00088b278ee4bc67205422d0e085d52825e9f`.
+
+`artifact-identity.json.inventory_digest` hashes the inventory's canonical JSON value, using `json-schema-positions-v2` as the recorded schema canonicalizer:
+`31988330fc42f783923dd0582b83b303983aa4cc670d1933c8c84d290796bc9d`.
+
+The two values intentionally differ. Neither a package version nor a kernel-source hash alone identifies distribution metadata, external provider binaries or the dependency environment. Skill SHA-256:
+`6fd02ef76fb6d5128d2fb571df7d2edf8ae13d6483deff540301ead8729f1f8f`.
+
+## Final CI, not post-release CI
+
+Release CI [#330 / 37431299160](https://github.com/ohayotaro/ai-orchestrator/actions/runs/37431299160) completed successfully, including build-distribution and six lanes. The owner assembled completion receipts from run/job metadata and verified them against measured JUnit and dependency files.
+
+| Lane | Python | Tests |
 | --- | --- | --- |
-| V1-01 | Position-aware normalization, complete CLI parser paths, inventory v2, mutation tests and independent comparison | Final candidate identity/CI; reviewed future baseline changes |
-| V1-02 | Explicit data/import boundary, response/error schemas, SDK signatures, actual-response conformance and export | Review final surface; no promotion of internal helpers |
-| V1-03 | SemVer/schema policy, unchanged historical fixtures/readers/writers, documented upgrade/rollback boundaries | Final upgrade/rollback guidance with chosen software/artifact |
-| V1-04 | Matrix v2, separate support axes, full artifact/configuration-bound probe checks, historical matrix retained | Actual owner final-artifact E2E, anomaly disposition, supported baseline |
-| V1-05 | Build-once six-lane CI, exact wheel/sdist/Skill identity, measured/completed evidence separation, archive/approval checker | Final 1.0.0 metadata/bytes, completed CI, durable archive, owner terms/channel and scoped approval |
+| linux-3.11-reference | 3.11.16 | 766 |
+| linux-3.12-reference | 3.12.14 | 766 |
+| linux-3.13-reference | 3.13.15 | 766 |
+| macos-3.13-reference | 3.13.15 | 766 |
+| linux-3.11-minimum | 3.11.16 | 766 |
+| linux-3.11-core-minimum | 3.11.16 | 764 |
 
-The preparatory public inventory contains 78 reviewed data records, 28 MCP tools
-and 51 CLI leaf commands. The original 0.17 inventory, legacy evidence hashes,
-E2E history and original support matrix bytes are retained. No TaskState,
-IntakeState, runtime/gate/jobs DB writer version, runtime authority rule, host
-form response, provider adapter or persistence implementation is changed.
-The generic CLI help still describes trusted-local alpha hardening; stable
-release labeling is intentionally deferred with final release metadata.
+All failures, errors and skips were zero in the owner-assembled final record. Only the core-only lane excluded the two named SDK cases. The other five lanes ran independent SDK tests. Four reference lanes installed the same primary wheel outside the checkout and compared sdist-rebuilt payloads; minimum build checks are not relabeled as reference installation checks.
 
-## Local ambient verification
+## Final owner-live qualification
 
-Environment: Linux, Python 3.13.5, Pydantic 2.13.4, PyYAML 6.0.3,
-pytest 9.0.2 and jsonschema 4.26.0. Installed the local package without downloading
-or upgrading dependencies. This is neither the reference nor minimum matrix.
+The owner reported the main campaign on 2026-10-06 and two follow-up probes on 2026-10-07. Together they produced 16 valid PASS records. The main campaign's incomplete Execution-cancel/stale-response cases were not counted as PASS until the new fixture follow-up. [E2E summary and exact coverage limits](E2E_V1.md).
 
-- Focused inventory mutations: 40 passed.
-- Focused public/inventory/release/legacy tests: 128 passed.
-- Adding the original contracts file to that focused scope: 165 passed.
-- Full explicitly core-only suite: **764 passed, 1 deselected, zero failures or
-  skips**, 206.78 seconds. The SDK interoperability file and named SDK wire test
-  were explicitly excluded locally because MCP SDK was not installed; this is
-  NOT TESTED locally, not a hidden SDK PASS.
-- Offline installed-wheel/sdist smoke: PASS outside the checkout, packaged
-  contracts/Skill/import/CLI/worker checked, reconstructed package payloads equal.
-  Dependencies were reused from the ambient environment (`ambient-offline`),
-  not a claimed clean dependency qualification.
-- Packaged/generated inventory and independent reviewed baseline: equal.
+The released supported deployment is Claude Code 2.1.284, Claude reasoning/planning/review, Codex 0.160.0 implementation, MCP 2025-06-18, macOS 26.6.2 arm64, Python 3.13.12, adapter-default model/effort. The approved configuration digest is `b8c3147fa6b6d976bb6bc6372390ccae6c7fcd2047a431a84c9891e359d17d4d`.
 
-Machine JSON snapshots were subsequently compact-formatted without changing
-parsed values. Final-head CI must validate the exact committed package bytes;
-local pre-format distribution digests are not the final CI artifact identity.
-No local distribution is represented as a published/final-live-qualified build.
+The historical host anomaly remains recorded. Its final-configuration disposition uses the successful final campaign, with unknown historical root cause and client-mediated assurance expressly retained. This is not a claim of a newly fixed host defect.
 
-Reproduction:
+## Owner decision and publication
 
-```bash
-python tools/check_contracts.py
-python -m pytest -q \
-  --ignore=tests/test_v03_sdk_interop.py \
-  --deselect=tests/test_v04_wire.py::test_official_sdk_native_elicitation_decline \
-  --junitxml=test-results.xml
-python tools/check_no_skips.py test-results.xml
-python -m compileall -q src tests tools
-python tools/check_distribution.py --offline
-```
+The owner reported qualification-only READY, followed by a separate approved manifest and normal-checker READY in both the working evidence-root and durable archive. Approval scope:
+`74411890270252c2cddc5bfd32a7c7615b0296334c6b999f357b1f6ac1d93d6f`.
 
-## Intermediate failures, not hidden qualifications
+Actor: `ohayotaro`. Terms: Apache-2.0. Channels: GitHub Releases + PyPI. The pending manifest was retained. The approved manifest's file SHA-256 is `49589501c5e5efb7bbdfcb7b21ded568b20fe8d10b42f323ae513ce358fc78f1`; it is not the same kind of digest as approval_scope. The decision section is excluded from scope calculation; changing referenced evidence or other bound payload invalidates the existing approval.
 
-The first focused run reported 83 passed and one failure in a test fixture:
-`deepcopy` cannot copy dataclass Field mapping-proxy metadata. Replacing only the
-field objects using shallow copies fixed the mutation test; no production SDK
-signature was changed to make it pass.
+GitHub Release publication: 2026-10-07 04:54:29 UTC (13:54:29 JST). Owner-reported PyPI uploads: wheel at 05:18:32 UTC, sdist at 05:18:34 UTC. The owner compared both services' digests and downloaded bytes with the qualified artifacts; no rebuild/repack occurred. The post-release documentation work re-read GitHub release metadata/asset digests and inspected the retained CI distribution/source archives. It did not independently redownload PyPI files or rerun the private manifest checker.
 
-An early full run was invalidated by editing/adding package source while its
-long-lived test process was running. The loaded-build guard correctly refused
-later operations. That run had 62 failures, five errors, 653 passes and one
-deselection and is not product qualification. Subsequent full runs held package
-bytes fixed. An actual conformance failure then exposed omitted fields in the
-new event response schema (schema_version, event_id, source); the existing event
-output was correct and unchanged. That run was 762 passed, one failure, one
-deselection. The schema was corrected, and the full successful run above followed.
+## Evidence custody and historical records
 
-Synthetic release evidence fixtures test READY/BLOCKED decisions without any
-real host, provider, CI run, archive or publication. They are marked synthetic
-and never appear in the support matrix as observed live evidence.
+The full archive is owner-controlled and was last reported as 78 files / approximately 5.6 MB before the later decision/publication additions, read-only at file level and retained outside temporary directories. A second-machine copy has not been reported. Local file permissions do not establish immutable or redundant archival storage.
 
-## Remote and live evidence
+This repository provides a public projection, not the private archive. Full gate IDs, raw transcripts, database copies and private file references are not synthesized from abbreviated reports. Use the original controlled evidence-root to reproduce READY. [Support/evidence boundaries](SUPPORT.md).
 
-The implementation PR is the source of final-head CI run IDs, exact source
-commit/tree, seven completed jobs (build once plus six dependency/platform
-lanes), distribution artifacts and resolved dependencies. Do not merge on queued
-or failed CI. Verify the reviewed head, tested merge tree and merged source tree
-before recording completion. A later push run is distinct from pre-merge proof.
-
-No owner-runtime operation, provider dispatch, genuine host form, trust or
-permission change, license/channel selection, tag or publication was performed.
-Follow [the final live procedure](V1_LIVE_E2E.md) only after final 1.0.0 candidate
-preparation. See [release preparation](V1_RELEASE_PREPARATION.md) and
-[Japanese guide](V1_PREPARATION_ja.md).
+The [preparation verification record](V1_PREPARATION_VERIFICATION.md) is preserved byte-for-byte. Its 0.17.2 version and pending statuses are historical. Earlier [E2E records](E2E.md), [RC verification](RC_VERIFICATION.md) and the [v0.17 matrix](support-matrix-v017.json) retain their tested scope and do not become new final-v1 runs.

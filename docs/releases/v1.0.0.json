@@ -1,0 +1,52 @@
+{
+  "record_schema": "ai-orchestrator-public-release-summary-v1",
+  "record_kind": "post-release-summary-not-ReleaseManifest",
+  "status": "RELEASED / CLOSED",
+  "release_date": "2026-10-07",
+  "tag": "v1.0.0",
+  "annotated_tag_object": "5d3c31b72019c0d9deb8509d2f1d011980c0296e",
+  "tag_commit": "a566c5c22be28b942a4c8256ae1bdf56d6182f41",
+  "artifact": {
+    "package_version":"1.0.0",
+    "source_commit":"cecf86b8ab749150453a6079f6dbe8acd7f67eaa",
+    "source_tree":"56fabb526b55e40e627b39af69d0cae77e0a301f",
+    "kernel_build":"eb25ca9a5873b0a4ee6fc63159129a5917b6bb741bae9660f14782ba840255e4",
+    "inventory_digest":"31988330fc42f783923dd0582b83b303983aa4cc670d1933c8c84d290796bc9d",
+    "canonicalizer":"json-schema-positions-v2",
+    "packaged_skill_sha256":"6fd02ef76fb6d5128d2fb571df7d2edf8ae13d6483deff540301ead8729f1f8f",
+    "wheel_sha256":"18a1b2a4eb73bc1b58b88a8be4953032bb12be3705db43305152c000d819372a",
+    "sdist_sha256":"3a5de9f47627a55e956da1a92678d30fc1269e258e4951eecc2d0d23cc9433ad"
+  },
+  "packaged_contracts_file_sha256": "6bc6374b863e2cd775f7fd6188b00088b278ee4bc67205422d0e085d52825e9f",
+  "ci": {"run_id":37431299160,"run_number":330,"url":"https://github.com/ohayotaro/ai-orchestrator/actions/runs/37431299160"},
+  "github_release": {"id":405391619,"url":"https://github.com/ohayotaro/ai-orchestrator/releases/tag/v1.0.0","published_at":"2026-10-07T04:54:29Z","draft":false,"prerelease":false},
+  "pypi_release": {"url":"https://pypi.org/project/ai-orchestrator-kernel/1.0.0/","verification_source":"owner publication report received 2026-10-07T05:21:11Z; not a new PyPI download verification by this documentation edit","wheel_uploaded_at":"2026-10-07T05:18:32Z","sdist_uploaded_at":"2026-10-07T05:18:34Z"},
+  "public_assets": [
+    {"name":"ai_orchestrator_kernel-1.0.0-py3-none-any.whl","sha256":"18a1b2a4eb73bc1b58b88a8be4953032bb12be3705db43305152c000d819372a"},
+    {"name":"ai_orchestrator_kernel-1.0.0.tar.gz","sha256":"3a5de9f47627a55e956da1a92678d30fc1269e258e4951eecc2d0d23cc9433ad"},
+    {"name":"artifact-identity.json","sha256":"b36e95365c6ed8a30a56d67806474fd342a970d9c185c497d8354785765c2f7d"},
+    {"name":"release-manifest.approved.json","sha256":"49589501c5e5efb7bbdfcb7b21ded568b20fe8d10b42f323ae513ce358fc78f1"}
+  ],
+  "approval": {
+    "actor":"ohayotaro","terms":"Apache-2.0","channels":["GitHub Releases","PyPI"],
+    "approval_scope":"74411890270252c2cddc5bfd32a7c7615b0296334c6b999f357b1f6ac1d93d6f",
+    "approved_manifest_url":"https://github.com/ohayotaro/ai-orchestrator/releases/download/v1.0.0/release-manifest.approved.json",
+    "owner_decision_file_sha256":"76f0060c3b601e5edebb407e5193512e11c3224fcced85bbca000462b0c3f856",
+    "checker_result":"READY","checker_provenance":"owner-reported on both evidence-root and controlled archive; not rerun by this documentation edit"
+  },
+  "approved_deployment_configuration_sha256":"b8c3147fa6b6d976bb6bc6372390ccae6c7fcd2047a431a84c9891e359d17d4d",
+  "owner_reported_pass_records":16,
+  "evidence_custody": {
+    "full_bundle":"owner-controlled archive; not embedded in this public summary",
+    "last_reported_replication":"one owner Mac; second-copy verification not reported",
+    "public_index":"docs/support-matrix.json is a public projection, not the hash-bound original matrix",
+    "raw_evidence_imported_by_this_edit":false
+  },
+  "release_artifacts_rebuilt_or_repacked_by_this_edit":false,
+  "provenance": [
+    "GitHub release API metadata and public asset digests read during post-release documentation work.",
+    "Exact CI source archive and qualification distribution archive inspected locally.",
+    "Owner reports: main live campaign 2026-10-06T08:45:13Z; follow-up 2026-10-07T02:17:03Z; evidence assembly 2026-10-07T04:29:38Z; decision 2026-10-07T04:48:27Z; publication 2026-10-07T05:21:11Z.",
+    "No truncated gate ID, local record hash or private archive measurement has been expanded into invented full evidence."
+  ]
+}

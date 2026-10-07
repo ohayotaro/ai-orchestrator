@@ -1,13 +1,49 @@
 {
   "schema_version": 2,
-  "kernel_version": "0.17.2",
+  "kernel_version": "1.0.0",
   "target_version": "1.0.0",
   "historical_evidence": [
-    {
-      "path": "docs/support-matrix-v017.json",
-      "sha256": "e7c9d478699846ab9f777d5bdc9365c8bf874062e38bfe097a955fc01048dbea",
-      "redacted": false
-    }
+    {"path":"docs/support-matrix-v017.json","sha256":"e7c9d478699846ab9f777d5bdc9365c8bf874062e38bfe097a955fc01048dbea","redacted":false}
   ],
-  "deployments": []
+  "deployments": [
+    {
+      "id": "v1.0.0-claude-code-codex-macos-public-summary",
+      "artifact": {
+        "package_version":"1.0.0",
+        "source_commit":"cecf86b8ab749150453a6079f6dbe8acd7f67eaa",
+        "source_tree":"56fabb526b55e40e627b39af69d0cae77e0a301f",
+        "kernel_build":"eb25ca9a5873b0a4ee6fc63159129a5917b6bb741bae9660f14782ba840255e4",
+        "inventory_digest":"31988330fc42f783923dd0582b83b303983aa4cc670d1933c8c84d290796bc9d",
+        "canonicalizer":"json-schema-positions-v2",
+        "packaged_skill_sha256":"6fd02ef76fb6d5128d2fb571df7d2edf8ae13d6483deff540301ead8729f1f8f",
+        "wheel_sha256":"18a1b2a4eb73bc1b58b88a8be4953032bb12be3705db43305152c000d819372a",
+        "sdist_sha256":"3a5de9f47627a55e956da1a92678d30fc1269e258e4951eecc2d0d23cc9433ad"
+      },
+      "host": {
+        "name":"Claude Code","version":"2.1.284","protocol":"2025-06-18","form_supported":true,
+        "skill_sha256":"6fd02ef76fb6d5128d2fb571df7d2edf8ae13d6483deff540301ead8729f1f8f",
+        "transport": {
+          "status":"supported",
+          "operations":["fresh_write","start_refusal","cancel_finalize","cancelled_provider_permission_prepare","untouched_submission","explicit_no","cancel","explicit_yes","timeout","stale_response","duplicate_response"],
+          "limitations":[
+            "Post-release public support projection, not the approved archive matrix; see docs/SUPPORT.md.",
+            "Complete probe and anomaly-disposition bytes remain in the controlled owner archive; empty probes here do not mean the release had no probes.",
+            "Client-mediated, not human-presence attestation. No-first does not guarantee focus or prevent accidental Yes.",
+            "Untouched is host-enforced; duplicate coverage is request_id retry; stale yes is inferred from the frozen resolver, not retained wire content.",
+            "Historical Yes-intent/No-wire root cause remains unknown; final-artifact non-reproduction is not a claimed transport fix."
+          ]
+        }
+      },
+      "os":"macOS 26.6.2 (25G83) arm64",
+      "python":"3.13.12",
+      "providers":[
+        {"role":"reasoning/planning/review","adapter":"claude","cli_version":"2.1.284","model_mode":"adapter_default","model":null,"effort_mode":"adapter_default","effort":null,"execution":{"status":"supported","operations":["fresh_write"],"limitations":["Adapter default does not attest a resolved model name."]}},
+        {"role":"implementation","adapter":"codex","cli_version":"0.160.0","model_mode":"adapter_default","model":null,"effort_mode":"adapter_default","effort":null,"execution":{"status":"supported","operations":["fresh_write"],"limitations":["Provider execution support is not Codex-host support; missing cost remains unknown."]}}
+      ],
+      "native_permission_assumptions":"Public description only: owner-attested trusted-local execution; no auto-answer, permission broadening or fallback in the final campaign. Exact configuration identity/assumptions are retained in the approved controlled archive.",
+      "anomalies":["Historical Claude Code 2.1.284 Yes-intent/No-wire anomaly; see controlled configuration-bound disposition and docs/SUPPORT.md."],
+      "anomaly_disposition":null,
+      "probes":[]
+    }
+  ]
 }
