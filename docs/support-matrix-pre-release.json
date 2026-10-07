@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "kernel_version": "0.17.2",
+  "target_version": "1.0.0",
+  "historical_evidence": [
+    {
+      "path": "docs/support-matrix-v017.json",
+      "sha256": "e7c9d478699846ab9f777d5bdc9365c8bf874062e38bfe097a955fc01048dbea",
+      "redacted": false
+    }
+  ],
+  "deployments": []
+}
