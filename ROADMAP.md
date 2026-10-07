@@ -24,7 +24,15 @@ Agent intent is not human authorization. Learning and exploration accumulate und
 
 The [finalized design](docs/V1_STABLE_CONTROL_PLANE.md) and [audit](docs/V1_DESIGN_AUDIT.md) retain the original decisions. V1-01 inventory, V1-02 public surfaces and V1-03 compatibility were implemented in the preparation cycle. V1-04 support and V1-05 release proof were completed through the final-artifact campaigns and owner release decision. Public summaries are distinct from the full controlled evidence bundle.
 
-## Post-release documentation — current work
+## v1.0.1 documentation / packaging maintenance — current candidate
+
+The next patch is **v1.0.1**, limited to packaging and documentation maintenance. It packages the reorganized README, migrates to SPDX/PEP 639 license metadata, and introduces a Trusted Publishing path that uploads exact approved GitHub Release assets without rebuilding them.
+
+Runtime control-plane behavior and public contract semantics must remain unchanged from v1.0.0. CI must mechanically compare the package source against the v1.0.0 tag and permit only version identity changes under `src/ai_orchestrator`: `__init__.py` and the package-version field in `assets/contracts.json`. The six existing CI lanes still run. v1.0.0 owner-live evidence remains historical evidence for that artifact; it must not be relabeled as live evidence for 1.0.1.
+
+See [the v1.0.1 maintenance release plan](docs/V1_0_1_RELEASE.md).
+
+## Post-release documentation — completed
 
 Rebuild README EN/JA around first use; clarify Execution versus Acceptance, setup versus normal single-terminal operation, host versus provider support, digest types and troubleshooting. Record published identities and preserve historical records. Do not modify runtime source, license metadata, Skill/contracts, the v1.0.0 tag or released files as part of this work.
 
