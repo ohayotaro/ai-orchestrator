@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — Documentation / Packaging Maintenance — Unreleased
+
+- Package the reorganized EN/JA onboarding README so PyPI displays the current first-use documentation.
+- Migrate package license metadata to PEP 639: `License-Expression: Apache-2.0` plus an explicit packaged `LICENSE` file, using Setuptools 77.0.3 or newer.
+- Add an OIDC/Trusted Publishing workflow that publishes only exact wheel/sdist assets already attached to an approved GitHub Release; the workflow does not rebuild artifacts.
+- Keep control-plane runtime behavior, provider/workflow authority, persistence writers/readers and public contract semantics unchanged from v1.0.0. The only package-source identity changes are the package version and the contract inventory's package-version field.
+- Qualify this patch as a maintenance artifact with the six existing CI lanes, contract checks, source-equivalence checks against tag `v1.0.0`, and wheel/sdist metadata checks. Do not describe v1.0.1 as a new owner-live host qualification unless new live evidence is actually collected.
+
+Publication is still a separate owner decision. Do not tag, create a GitHub Release, or publish to PyPI merely because this section exists.
+
 ## Unreleased — post-release documentation
 
 - Reorganize README EN/JA around installation, a complete calculator walkthrough, first request, approval semantics, support and troubleshooting.

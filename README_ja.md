@@ -1,12 +1,12 @@
 # AI Orchestrator
 
-[English](README.md) · [PyPI](https://pypi.org/project/ai-orchestrator-kernel/1.0.0/) · [Release](https://github.com/ohayotaro/ai-orchestrator/releases/tag/v1.0.0) · [対応状況](docs/SUPPORT.md)
+[English](README.md) · [PyPI](https://pypi.org/project/ai-orchestrator-kernel/) · [Release](https://github.com/ohayotaro/ai-orchestrator/releases) · [対応状況](docs/SUPPORT.md)
 
 **いつものAI開発ツールに、計画・承認・実装・テスト・レビュー・受入を分担させます。**
 
 AI Orchestratorは、新しいモデルやホスト型エージェントサービスではなく、ローカルで動く調整役です。対応クライアントと対話すると、オーケストレーターが別プロセスのworkerへ作業を委任します。初期設定ではClaudeが推論・計画・レビュー、Codexが実装を担当します。設定後の通常作業で、毎回workflowやDAGを書いたり、providerを指定したりする必要はありません。
 
-**v1.0.0は2026年10月7日にApache-2.0で公開されました。** まずは以下のClaude Code向け手順から始めてください。他のhost/providerの組み合わせまで検証済みという意味ではありません。[対応範囲と制限](docs/SUPPORT.md)を参照してください。
+**v1.0.1はv1 Stable Control Planeのdocumentation/packaging maintenance releaseです。** v1.0.0後に整理したこのREADMEを配布物へ反映し、license metadataとPyPI公開経路を更新します。control-planeのruntime behavior・public contracts・supported live baselineはv1.0.0から拡張しません。まずは以下のClaude Code向け手順から始めてください。他のhost/providerの組み合わせまで検証済みという意味ではありません。[対応範囲と制限](docs/SUPPORT.md)を参照してください。
 
 ## 何ができるか
 
@@ -34,7 +34,7 @@ PROJECT="$HOME/ai-orchestrator-demo"
 ```
 
 ```bash
-test ! -e "$VENV" && python3.13 -m venv "$VENV" && "$VENV/bin/python" -m pip install 'ai-orchestrator-kernel[interop]==1.0.0' 'pytest>=8,<10'
+test ! -e "$VENV" && python3.13 -m venv "$VENV" && "$VENV/bin/python" -m pip install 'ai-orchestrator-kernel[interop]==1.0.1' 'pytest>=8,<10'
 ```
 
 ```bash
@@ -42,7 +42,7 @@ ORCH="$VENV/bin/orchestrator"
 "$ORCH" --version
 ```
 
-期待値は`1.0.0`です。配布名は`ai-orchestrator-kernel`、実行コマンドは`orchestrator`です。extraには相互運用に使用するMCP SDKを含めています。pytestはこのサンプルのvalidator用です。venvの絶対パスを使うため、activateは不要です。
+期待値は`1.0.1`です。配布名は`ai-orchestrator-kernel`、実行コマンドは`orchestrator`です。extraには相互運用に使用するMCP SDKを含めています。pytestはこのサンプルのvalidator用です。venvの絶対パスを使うため、activateは不要です。
 
 ### 2. 小さなGitプロジェクトを作成
 
