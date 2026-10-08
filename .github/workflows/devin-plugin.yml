@@ -1,0 +1,51 @@
+name: Devin Provider SDK Prototype (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/devin_provider/**'
+      - 'docs/DEVIN_CLI_PROVIDER_PREFLIGHT_ja.md'
+      - '.github/workflows/devin-plugin.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-and-packaging:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.11'
+          - os: ubuntu-latest
+            python: '3.13'
+          - os: macos-latest
+            python: '3.13'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install reviewed reference dependencies
+        run: |
+          python -m pip install -r requirements/rc-reference.txt
+          python -m pip install --no-build-isolation -e '.[dev,interop]' -c requirements/rc-reference.txt
+      - name: Offline synthetic provider contract and process tests
+        run: python -m pytest -q integrations/devin_provider/tests/test_adapter.py
+      - name: Package plugin without publishing
+        run: |
+          python -m pip wheel --no-deps --no-build-isolation integrations/devin_provider -w plugin-dist
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          names = list(Path("plugin-dist").glob("ai_orchestrator_provider_devin-0.1.0-*.whl"))
+          assert len(names) == 1, names
+          with zipfile.ZipFile(names[0]) as wheel:
+              entry = [p for p in wheel.namelist() if p.endswith(".dist-info/entry_points.txt")]
+              assert len(entry) == 1
+              contents = wheel.read(entry[0]).decode()
+              assert 'devin = ai_orchestrator_provider_devin:Adapter' in contents
+          print("SDK plugin entry-point wheel: PASS (not a supported provider)")
+          PY
