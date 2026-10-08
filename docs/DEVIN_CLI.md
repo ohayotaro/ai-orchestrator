@@ -2,6 +2,39 @@
 
 Status: **DESIGN / NOT LIVE-QUALIFIED**. Researched on 2026-10-08. Proposed feature line: **v1.1.0 — Devin CLI Integration**; this document does not bump a version, implement an adapter, or declare support.
 
+## DV-01 / DV-02 observed read-only preflight — 2026-10-08
+
+**Owner-reported, not independently rerun in this PR.** The operator ran the
+version/help/Skill-path commands on their Mac, then asked Devin CLI to invoke
+only `inspect_project` against a fresh disposable
+`devin-host-probe` project. No task, provider call, validator, HumanGate,
+configuration/trust mutation, or workspace edit was performed.
+
+| Axis | Measured result | Classification |
+| --- | --- | --- |
+| Official local CLI | `devin 3000.11.3 (9c803229faa4)` | DV-01 PASS |
+| Binary | `~/.local/bin/devin` on owner's Mac | OBSERVED (local path, not packaged identity) |
+| stdio MCP transport | Connected, `inspect_project` returned | DV-02 PASS |
+| MCP client / protocol | `rmcp 3.1.0`, negotiated `2025-06-18` | PASS |
+| Form elicitation | `advertised=false`, `form=false`, `url=false`, `host_confirmation.form_supported=false` | **UNSUPPORTED for this exact host version/configuration** |
+| Start/Execution/Acceptance Yes/No/Cancel | No form request attempted | NOT TESTED |
+| Single-terminal | `enabled=true`, worker automatic but `manager_started=false` | Configuration only; not authorization |
+| Controller | `ai-orchestrator-kernel 1.0.0`, loaded=disk build `eb25ca9a5873b0a4ee6fc63159129a5917b6bb741bae9660f14782ba840255e4` | PASS identity; **not** a v1.0.1 test |
+| Packaged Skill | reported SHA-256 `6fd02ef76fb6d5128d2fb571df7d2edf8ae13d6483deff540301ead8729f1f8f` | Reported identity; no independent Skill-content audit |
+| Project trust | `trusted=false`, profile digest `4e2e0ceda82785c31609096f06b0948669fc7ac9780b9ee8a031782591eb661e` | Expected independent setup gate |
+| Provider roles | Claude supervision/planning/review, Codex implementation; no external plugin pin | Existing configuration only |
+| Product defect | None observed | No failing invocation claimed |
+
+**Decision:** no single-terminal Devin-host support claim. Current host does not
+advertise the required MCP form-elicitation capability, so the controller must
+fail closed. Trusting the profile does **not** change that transport capability.
+Do not try a HumanGate as a workaround, let Devin answer for the owner, or
+substitute CLI approval. Keep host support blocked until a different exact
+Devin version/configuration demonstrates real correlated form responses.
+
+The next workstream is a **separate** Devin provider adapter under the already
+supported Claude Code host. It does not convert this host result into PASS.
+
 ## Scope and release boundary
 
 Target Cognition's official local `devin` CLI, not a similarly named unofficial wrapper for the Devin Cloud API. Keep two independent integration axes:
