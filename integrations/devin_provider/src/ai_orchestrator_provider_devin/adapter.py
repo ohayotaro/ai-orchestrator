@@ -163,9 +163,14 @@ class ProtocolHarness:
             policy.chmod(0o600)
             argv = self.argv(request, binary=binary, prompt=prompt, config=policy)
             outcome = runner(argv, workspace, timeout=request.timeout, cancel=request.cancel)
+        if request.cancel():
+            raise ProviderExecutionError("Devin candidate cancelled after process completion", _diagnostic("provider_process", "cancelled"))
         if outcome.returncode:
             raise ProviderExecutionError("Devin candidate process reported failure", _diagnostic("provider_process", "nonzero"))
-        return self.parse(outcome.stdout, request.result_model)
+        response = self.parse(outcome.stdout, request.result_model)
+        if request.cancel():
+            raise ProviderExecutionError("Devin candidate cancelled before accepting result", _diagnostic("provider_process", "cancelled"))
+        return response
 
 
 class Adapter:
