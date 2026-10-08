@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-orchestrator-provider-devin"
+version = "0.1.0"
+description = "Unqualified, fail-closed Devin CLI Provider SDK prototype"
+requires-python = ">=3.11"
+dependencies = ["ai-orchestrator-kernel>=1.0.0,<2"]
+
+[project.entry-points."ai_orchestrator.providers"]
+devin = "ai_orchestrator_provider_devin:Adapter"
+
+[tool.setuptools.packages.find]
+where = ["src"]
