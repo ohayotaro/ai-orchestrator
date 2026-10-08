@@ -33,7 +33,7 @@ jobs:
           python -m pip install -r requirements/rc-reference.txt
           python -m pip install --no-build-isolation -e '.[dev,interop]' -c requirements/rc-reference.txt
       - name: Offline synthetic provider contract and process tests
-        run: python -m pytest -q integrations/devin_provider/tests/test_adapter.py
+        run: python -m pytest -q integrations/devin_provider/tests
       - name: Package plugin without publishing
         run: |
           python -m pip wheel --no-deps --no-build-isolation integrations/devin_provider -w plugin-dist
