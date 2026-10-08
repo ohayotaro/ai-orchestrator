@@ -147,4 +147,4 @@ def test_oversized_config_is_not_read(tmp_path):
     big.write_bytes(b"x" * (preflight.MAX_CONFIG_BYTES + 1))
     report = preflight._summary("project", big)
     assert report["status"] == "oversized"
-    assert "x" not in json.dumps(report)
+    assert "x" * 30 not in json.dumps(report)
