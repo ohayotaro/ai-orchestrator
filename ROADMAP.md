@@ -1,6 +1,6 @@
 # AI Orchestrator Roadmap
 
-Current record date: **2026-10-07**. **v1.0.0 Stable Control Plane — RELEASED / CLOSED.**
+Current record date: **2026-10-08**. **v1.0.0 Stable Control Plane — RELEASED / CLOSED.**
 
 The annotated v1.0.0 tag points to `a566c5c22be28b942a4c8256ae1bdf56d6182f41`. The qualified wheel/sdist were published to GitHub Releases and PyPI without rebuild/repack. This roadmap is a post-release record, not a mutation of the tag or approval scope. [Release identity](docs/releases/v1.0.0.json) · [Verification](docs/V1_VERIFICATION.md).
 
@@ -32,6 +32,22 @@ Runtime control-plane behavior and public contract semantics must remain unchang
 
 See [the v1.0.1 maintenance release plan](docs/V1_0_1_RELEASE.md).
 
+## Proposed v1.1.0 — Devin CLI Integration
+
+Requested on 2026-10-08. This is a separate feature line, not an extension of the frozen v1.0.1 maintenance scope. Implementation and owner-live qualification are pending; no Devin deployment is supported by this proposal alone.
+
+Start with **Devin CLI as host**, keeping Claude reasoning/planning/review and Codex implementation unchanged. Verify the actual MCP form exchange, not merely tool discovery or Skill loading. Then add **Devin as a provider** through the existing exact-pinned, explicitly trusted Provider SDK, enabling roles only after their output/permission/cancellation contracts are demonstrated. Qualify the combined host/provider configuration last.
+
+| Step | Exit condition |
+| --- | --- |
+| DV-01 | Identify the official installed CLI and capture exact version/help/contract evidence; no delegated provider execution. |
+| DV-02 | Devin-host read-only preflight, then separately authorized real HumanGate boundary tests on a dedicated fixture. |
+| DV-03 | Opt-in Devin provider plugin; validated final results, native permission/trust handling, no recursive orchestration or implicit cloud handoff. |
+| DV-04 | Fake-CLI/contract/regression tests, then targeted owner-live verification of each changed axis on fixed artifacts. |
+| DV-05 | Version/configuration-bound support and reviewed release evidence, preserving historical v1.0.0/v1.0.1 identities. |
+
+See [Devin CLI design and unresolved contracts](docs/DEVIN_CLI.md) and the [read-only preflight prompt](docs/DEVIN_CLI_PREFLIGHT_ja.md). Existing MCP/SDK extension points are preferred; no new approval authority or weaker gate is implied. The proposed kernel version is not required for a separately versioned provider plugin or a configuration-only host probe.
+
 ## Post-release documentation — completed
 
 Rebuild README EN/JA around first use; clarify Execution versus Acceptance, setup versus normal single-terminal operation, host versus provider support, digest types and troubleshooting. Record published identities and preserve historical records. Do not modify runtime source, license metadata, Skill/contracts, the v1.0.0 tag or released files as part of this work.
@@ -48,11 +64,29 @@ Rebuild README EN/JA around first use; clarify Execution versus Acceptance, setu
 
 Potential packaging references: [PyPA pyproject metadata](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license-and-license-files) and [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/). These are follow-up plans, not changes already implemented or authorization to publish another version.
 
+## Devin CLI integration — observed preflight and next work
+
+The independently scoped draft [Devin integration design](docs/DEVIN_CLI.md) targets
+a future feature release, not the frozen v1.0.1 documentation/packaging artifact.
+Operator-reported read-only inspection on 2026-10-08 confirmed
+`devin 3000.11.3` stdio MCP + `inspect_project` with protocol `2025-06-18`,
+but **no advertised form elicitation** (`form_supported=false`). Host
+Start/Execution/Acceptance interaction was NOT TESTED, not a PASS; the exact
+Devin host is therefore unsupported for single-terminal HumanGates.
+
+Proceed separately with DV-04: a pinned external Provider SDK v1/API v2
+Devin adapter, initially restricted to implementation under the already
+qualified Claude Code host. Require independent non-billable protocol/scope/
+cancellation/refusal tests before any owner-live provider call. Unsupported
+native permission, output or trust boundaries fail closed; no implicit
+fallback, bypass, cloud handoff, or recursion. Preserve package and supported
+matrix for the frozen v1.0.1 release.
+
 ## Deferred product work
 
 Cancellation-request UX in the conversational client and safer form interaction deserve a separately scoped design. v1.0 retains CLI task cancellation and operator-only finalization; No-first is not a mis-click guarantee. Additional hosts/CLI versions/models need their own support evidence. New execution authority, fallback, learning promotion or external effects are not implied by the roadmap.
 
-No release date or next version number is promised here. Review safety, API/persistence compatibility and applicable tests before expanding scope.
+No release date is promised here. v1.1.0 is a proposed feature-line label, not a version bump or publication decision. Review safety, API/persistence compatibility and applicable tests before expanding scope.
 
 ## Historical continuity
 
