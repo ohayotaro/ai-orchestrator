@@ -49,6 +49,19 @@ def _resolve_executable(config: ProviderConfig) -> str:
     return str(Path(path).resolve())
 
 
+def _minimal_subprocess_env() -> dict[str, str]:
+    """No inherited API tokens, native permission overrides or agent guards.
+
+    This is a defense in depth for the fixture runner, not a claim that HOME
+    configuration, Keychain, remote model or native permissions are isolated.
+    """
+    allowed = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
+    result = {name: os.environ[name] for name in allowed if name in os.environ}
+    result["GIT_TERMINAL_PROMPT"] = "0"
+    result["PYTHONNOUSERSITE"] = "1"
+    return result
+
+
 def _run_bounded(argv: list[str], cwd: Path, *, timeout: float, cancel: Callable[[], bool]) -> _Result:
     """Bounded POSIX child with process-group cancellation, no shell or output logs."""
     if os.name != "posix" or timeout <= 0 or cancel():
@@ -58,7 +71,7 @@ def _run_bounded(argv: list[str], cwd: Path, *, timeout: float, cancel: Callable
         try:
             proc = subprocess.Popen(
                 argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
-                start_new_session=True,
+                start_new_session=True, env=_minimal_subprocess_env(),
             )
         except OSError as exc:
             raise ProviderExecutionError("Devin process could not start", _diagnostic("provider_process", "spawn")) from exc
@@ -190,9 +203,9 @@ class Adapter:
         executable = _resolve_executable(config)
         try:
             version = subprocess.run([executable, "--version"], cwd=workspace,
-                                     capture_output=True, timeout=10, text=True)
+                                     capture_output=True, timeout=10, text=True, env=_minimal_subprocess_env())
             help_result = subprocess.run([executable, "--help"], cwd=workspace,
-                                         capture_output=True, timeout=10, text=True)
+                                         capture_output=True, timeout=10, text=True, env=_minimal_subprocess_env())
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise OrchestratorError("Devin CLI metadata probe failed") from exc
         if version.returncode or version.stdout.strip() != REVIEWED_CLI_VERSION:
