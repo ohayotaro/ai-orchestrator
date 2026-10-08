@@ -148,3 +148,19 @@ def test_oversized_config_is_not_read(tmp_path):
     report = preflight._summary("project", big)
     assert report["status"] == "oversized"
     assert "x" * 30 not in json.dumps(report)
+
+
+def test_preflight_reports_override_names_not_values(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    home.mkdir()
+    project.mkdir()
+    (project / ".git").mkdir()
+    monkeypatch.setenv("DEVIN_PERMISSION_MODE", "dangerous")
+    monkeypatch.setenv("DEVIN_MODEL", "PRIVATE-CUSTOM-MODEL")
+    result = preflight.inspect(project, home=home, binary=None)
+    assert sorted(result["environment_override_names_present"]) == [
+        "DEVIN_MODEL", "DEVIN_PERMISSION_MODE",
+    ]
+    assert "agent_environment_overrides_present" in result["reasons"]
+    assert "PRIVATE-CUSTOM-MODEL" not in json.dumps(result)
