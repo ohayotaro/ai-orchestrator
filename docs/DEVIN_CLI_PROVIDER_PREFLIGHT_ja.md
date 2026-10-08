@@ -72,6 +72,44 @@ done
 加算されるhooksが消えるとは限りません。** 実効権限が確定できない場合は
 実行を拒否したままにします。
 
+## 設定リスクの機械可読な照合（read-only）
+
+手作業の確認に加えて、独立したpreflight inspector
+[`integrations/devin_provider/tools/inspect_devin.py`](../integrations/devin_provider/tools/inspect_devin.py)
+を追加しました。Devinのモデル・MCP・認証・クラウド・既存projectの
+stateを呼び出しません。CLIは`--version`と`--help`だけを参照し、
+JSONC設定については**生の内容・permission rule文字列・MCP URL・hook
+command・secret値を出力せず**、存在・件数・未確認条件だけをJSONで表示します。
+
+最新版のPRを確認した作業用checkoutにスクリプトが存在する場合、通常の
+Terminalで次を実行してください。現在の本番リポジトリを上書きせず、
+使い捨てprojectを対象にしてください。
+
+```bash
+python3 integrations/devin_provider/tools/inspect_devin.py \
+  --project "$HOME/ai-orchestrator-devin-host-probe"
+```
+
+実際にスクリプトが存在しない場合、別版の`main`から推測して実行せず、
+PR #63のファイルを確認してから取得します。`--no-cli-probe`はCLI起動を
+完全に避けるオプションです。
+
+結果の`status=REVIEW_REQUIRED`は正常な監査上の分類であり、
+**「Devin provider実行OK」ではありません**。特にenterprise policy、
+session-level permission、直接`edit`/`write`ツールの範囲、
+imported hooksの実効動作、ネットワーク隔離、headless trust、
+`--print`の正規化可能性は静的scanだけでは立証できません。
+既存projectにMCPが登録されていたり、ユーザー側設定がある場合は
+必ず`REVIEW_REQUIRED`を維持します。
+
+**重要なバージョン差**：公式の現行documentationでは
+`--sandbox --permission-mode autonomous`が存在しますが、
+ownerが提示したDevin CLI 3000.11.3の`--help`には
+`autonomous`が列挙されていません。この差異は利用可能性の証明では
+ありません。実際に有料の`devin --print`を実行して推測を埋めず、
+版固有の契約を別途確認するまで実行側をfail-closedにします。
+
+
 ## 実行対応へ進むために必要な証拠
 
 1. **最終結果の権威性**：`devin --print`の応答に、単一で境界が明確な
