@@ -1,32 +1,35 @@
-# Devin CLI provider — read-only qualification preflight (Japanese)
+# Devin CLI provider：読み取り専用preflight
 
-Status: **PROVIDER EXECUTION NOT ENABLED / NOT OWNER-LIVE QUALIFIED**. Scope:
-Devin CLI 3000.11.3 (build 9c803229faa4) as a *delegated implementation provider*
-behind a separately qualified Claude Code HumanGate host. This is not a Devin-host
-MCP form test; the owner measured Devin host `form_supported=false`.
+状態：**Provider実行は未有効・owner-live未検証**。対象はDevin CLI
+3000.11.3（build `9c803229faa4`）を、既存のClaude Code
+HumanGate hostから実装担当として呼び出す構成です。Devin自身をhostにする
+検証ではありません。直前のhost診断では`form_supported=false`でした。
 
-## Purpose and release separation
+## 目的とリリース境界
 
-The draft independent distribution
-`integrations/devin_provider/ai-orchestrator-provider-devin` contains Provider
-SDK v1 / Adapter API v2 metadata and an offline fixture protocol harness. Its
-actual `Adapter.execute()` **always refuses before dispatch**, with
-`failure_category=configuration`. It deliberately advertises no
-`code_edit` or `write_files` capability. Do not pin, trust, route paid tasks
-to, or publish this prototype expecting working Devin implementation.
+`integrations/devin_provider/`には、Provider SDK v1 / Adapter API v2に
+準拠する独立パッケージのprototypeを配置しています。実際の
+`Adapter.execute()`は**Devinを起動せず、必ず拒否**します。SDKの
+`code_edit`と`write_files`も現時点では広告しません。インストールしても
+自動有効化されず、将来の有効化にはpackage/version/entry pointの明示pin、
+profileの確認・再trustと別途実機証拠が必要です。
 
-Keep v1.0.1's approved source tree, release manifest, CI evidence, tags and
-artifacts unchanged. No experimental plugin execution is qualified by a
-successful core/fixture CI run.
+このprototypeをDevin実装担当として設定したり、実タスクを委任したりしないで
+ください。テスト用`ProtocolHarness`はfake CLIで起動引数・一時ファイル・
+JSON拒否・取消/timeoutを検証するだけで、`Adapter.execute`とは接続して
+いません。
 
-## Phase 0 — read-only terminal inspection, no agent calls
+v1.0.1の承認済みsource tree、manifest、CI、tag、wheel/sdistを変更しません。
 
-Use a **normal terminal**, not a nested Claude/Devin agent shell, on a clean
-disposable project. Before running any command, verify that you are not inside
-a previous v1.0.0/v1.0.1 qualification fixture.
+## Phase 0：通常Terminalからread-onlyの仕様確認
 
-Capture only command versions and presence/path metadata. Do not display tokens,
-secret values, full user/project configurations or historic session content.
+新規の使い捨てprojectで行います。過去のv1.0.0/v1.0.1 qualification
+fixtureを使用しないでください。Claude/Devin内のagent shellではなく、
+通常のTerminalを使います。token、設定ファイル全文、secret値、session
+historyを表示・共有しないでください。
+
+次のコマンドはCLIの場所・バージョン・helpとsandbox前提条件だけを確認します。
+**`devin -p`やproviderへの有料呼び出しは行いません。**
 
 ```bash
 command -v devin
@@ -35,14 +38,15 @@ devin --help
 devin sandbox setup
 ```
 
-The user previously observed `devin 3000.11.3 (9c803229faa4)`, with
-`--print`, `--prompt-file`, `--config`, `--sandbox`,
-`--permission-mode`, `--model` and
-`--respect-workspace-trust`. If an update changed the version or help
-contract, classify as **REVIEW REQUIRED**, not implicitly supported.
+前回の観測値は`devin 3000.11.3 (9c803229faa4)`です。`--print`、
+`--prompt-file`、`--config`、`--sandbox`、
+`--permission-mode`、`--model`、
+`--respect-workspace-trust`を確認します。更新によりversion/helpが
+変わった場合は、互換と仮定せず**REVIEW REQUIRED**としてください。
 
-With the project root and user home resolved, inspect only **presence and
-file-type** of relevant config paths; do not dump contents:
+Devinの設定はuser/project/localの複数層から統合されます。以下は
+**存在の有無とファイル種別だけ**を確認します。内容を`cat`しません。
+macOS環境のread-onlyコマンドです。
 
 ```bash
 for path in \
@@ -56,42 +60,45 @@ for path in \
 done
 ```
 
-Inspect whether imported configurations, hooks, native permission grants,
-MCP servers and sandbox exclusions are present through an operator-controlled
-redacted report. Merely passing `--config` with a temporary file does not
-erase higher-precedence project settings and additive hooks. If their effects
-cannot be established, keep execution blocked.
+次の事項はoperator自身が機密値を伏せた上で報告してください。
 
-## Required next design/evidence gates
+- user/project/localで有効なpermission設定、特にglobal allowや
+  `dangerous`/bypass/外部書き込みの有無
+- 他ツールからのconfig import、hooks、MCP server、sandbox exclusionの有無
+- worktreeの位置・trust状態（過去の未完了fixtureを混ぜない）
+- ネイティブsandboxの前提条件が満たされるか
 
-1. **Native response:** establish an authoritative, bounded final response
-   for `devin --print` and demonstrate exact schema conformance. Printed
-   prose, markdown code fences, a partially valid transcript, or exit code
-   zero without validated payload are failures. Do not fabricate a
-   `--json-schema` flag.
-2. **Isolation:** demonstrate actual implementation write behavior in a fresh
-   isolated worktree; negative checks cover root/outside-worktree files and
-   external effects. Devin's sandbox excludes direct file-edit tools from
-   sandbox confinement, and network filtering is not a proven blockade.
-3. **Permissions:** verify all merged user/project/local policy layers,
-   imported other-client settings, MCP servers and hooks. Never add
-   `--permission-mode dangerous` or
-   `--respect-workspace-trust false` as an unattended workaround.
-4. **Fresh session and recursion:** no `--continue`, `--resume`,
-   `--cloud`, auto-handoff, recursive ai-orchestrator MCP invocation,
-   commit/push or deployment; verify with bounded real-host observation.
-5. **Failure discipline:** timeout, cancellation, child process-group cleanup,
-   permission denial, invalid output, rate limit/authentication and malformed
-   version all refuse without retry or fallback. Unknown usage/cost stays
-   unknown.
-6. **Release identity:** pin plugin distribution/version/entry-point only after
-   review, explicitly re-trust the project, then qualify the exact
-   kernel/CLI/plugin/configuration with real owner-live permission gates.
+**一時的な`--config`ファイルを指定しても、優先度の高いproject設定や
+加算されるhooksが消えるとは限りません。** 実効権限が確定できない場合は
+実行を拒否したままにします。
 
-## Stop here
+## 実行対応へ進むために必要な証拠
 
-The above is *read-only preflight*. Even a clean report is **not permission
-to execute `devin -p`** or to create a task/HumanGate. Request a separate
-explicit owner authorization for a bounded paid/live experiment. Until then,
-retain the plugin's fail-closed `execute` implementation and leave the host
-axis unsupported.
+1. **最終結果の権威性**：`devin --print`の応答に、単一で境界が明確な
+   最終結果があることを確認します。完全なJSON Schema検証ができなければ
+   成功としません。通常の文章、コードフェンス、途中の会話、exit 0だけでは
+   不十分です。存在未確認の`--json-schema`引数を捏造しません。
+2. **書き込み隔離**：新規の分離worktreeで実装を行い、root/outside
+   worktreeや外部サービスへの影響がないことをnegative evidenceで
+   検証します。Devinのsandboxは直接edit/writeツールを同じ形で閉じ込めず、
+   network filteringも完全な遮断として立証されていません。
+3. **ネイティブ権限**：user/project/localの許可・import・hook・MCPを
+   確認します。unattended実行のために`--permission-mode dangerous`や
+   `--respect-workspace-trust false`を勝手に付けません。
+4. **セッションと再帰防止**：`--continue`、`--resume`、`--cloud`、
+   cloud handoff、同一orchestratorのMCPへの再帰、commit/push/deployを
+   無断で行わないことを確認します。
+5. **拒否・失敗**：timeout/cancel時の子プロセス群停止、permission拒否、
+   不正結果、quota/authentication失敗、version driftを確認します。
+   暗黙のretry/fallbackは許可しません。取得不能なusage/costはunknownです。
+6. **identityとtrust**：plugin distribution/version/entry pointを固定し、
+   profile確認・明示的再trust後、正確なkernel/Devin/plugin/configurationで
+   owner-live試験を行います。
+
+## この段階で停止
+
+ここまでの作業はread-only preflightです。結果がすべて正常でも、
+**`devin -p`の実行やHumanGate/taskの作成を承認したことにはなりません。**
+費用と権限を明示した別のowner承認を得てから、限定されたlive probeを設計
+してください。承認されるまでは、prototypeの`execute`はfail-closedのまま、
+Devin hostもHumanGate非対応のままです。
