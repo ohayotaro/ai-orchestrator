@@ -124,7 +124,18 @@ class ProtocolHarness:
         try:
             # The entire stdout must be one JSON object matching the exact
             # requested result contract: no fences, chatter or partial salvage.
-            payload = json.loads(raw)
+            def unique_keys(pairs):
+                data = {}
+                for key, value in pairs:
+                    if key in data:
+                        raise ValueError("duplicate JSON key")
+                    data[key] = value
+                return data
+
+            def reject_constant(value):
+                raise ValueError("non-finite JSON constant")
+
+            payload = json.loads(raw, object_pairs_hook=unique_keys, parse_constant=reject_constant)
             if not isinstance(payload, dict):
                 raise ValueError("non-object")
             return model.model_validate(payload)
