@@ -117,7 +117,7 @@ def test_harness_fixture_accepts_only_exact_json(tmp_path):
     assert not prompt_path.exists()
 
 
-@pytest.mark.parametrize("raw",["", "accepted", chr(96)*3 + 'json\n{"value": 7}\n' + chr(96)*3, "[]", '{"value":"text"}', '{"value": 7} trailing'])
+@pytest.mark.parametrize("raw",["", "accepted", chr(96)*3 + 'json\n{"value": 7}\n' + chr(96)*3, "[]", '{"value":"text"}', '{"value": 7} trailing', '{"value": 1, "value": 7}', '{"value": NaN}'])
 def test_harness_malformed_result_never_becomes_success(tmp_path,raw):
     with pytest.raises(ProviderExecutionError) as raised:
         ProtocolHarness().run_fixture(request(tmp_path),binary="fake",runner=lambda *a,**kw:_Result(0,raw))
