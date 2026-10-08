@@ -64,6 +64,24 @@ Rebuild README EN/JA around first use; clarify Execution versus Acceptance, setu
 
 Potential packaging references: [PyPA pyproject metadata](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license-and-license-files) and [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/). These are follow-up plans, not changes already implemented or authorization to publish another version.
 
+## Devin CLI integration — observed preflight and next work
+
+The independently scoped draft [Devin integration design](docs/DEVIN_CLI.md) targets
+a future feature release, not the frozen v1.0.1 documentation/packaging artifact.
+Operator-reported read-only inspection on 2026-10-08 confirmed
+`devin 3000.11.3` stdio MCP + `inspect_project` with protocol `2025-06-18`,
+but **no advertised form elicitation** (`form_supported=false`). Host
+Start/Execution/Acceptance interaction was NOT TESTED, not a PASS; the exact
+Devin host is therefore unsupported for single-terminal HumanGates.
+
+Proceed separately with DV-04: a pinned external Provider SDK v1/API v2
+Devin adapter, initially restricted to implementation under the already
+qualified Claude Code host. Require independent non-billable protocol/scope/
+cancellation/refusal tests before any owner-live provider call. Unsupported
+native permission, output or trust boundaries fail closed; no implicit
+fallback, bypass, cloud handoff, or recursion. Preserve package and supported
+matrix for the frozen v1.0.1 release.
+
 ## Deferred product work
 
 Cancellation-request UX in the conversational client and safer form interaction deserve a separately scoped design. v1.0 retains CLI task cancellation and operator-only finalization; No-first is not a mis-click guarantee. Additional hosts/CLI versions/models need their own support evidence. New execution authority, fallback, learning promotion or external effects are not implied by the roadmap.
