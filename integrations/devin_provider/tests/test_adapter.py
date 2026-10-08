@@ -159,3 +159,16 @@ def test_harness_does_not_convert_process_exceptions_to_success(tmp_path):
         raise ProviderExecutionError("no raw content",{"failure_category":"provider_process","stage":"timeout"})
     with pytest.raises(ProviderExecutionError,match="no raw content"):
         ProtocolHarness().run_fixture(request(tmp_path),binary="fake",runner=timeout)
+
+
+def test_harness_late_cancel_never_accepts_valid_result(tmp_path):
+    state = {"count": 0}
+    def cancel():
+        state["count"] += 1
+        return state["count"] >= 2
+    with pytest.raises(ProviderExecutionError) as raised:
+        ProtocolHarness().run_fixture(
+            request(tmp_path, cancel=cancel), binary="fake",
+            runner=lambda *args, **kwargs: _Result(0, '{"value": 7}'),
+        )
+    assert raised.value.diagnostics["stage"] == "cancelled"
