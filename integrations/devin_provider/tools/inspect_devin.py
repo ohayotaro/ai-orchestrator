@@ -267,6 +267,15 @@ def inspect(project: Path, *, home: Path, binary: str | None) -> dict:
         reasons.append("subagents_not_explicitly_disabled")
     if present["user"].get("sandbox_exclusions_present") is not False:
         reasons.append("sandbox_exclusions_not_attested_absent")
+    known_env_overrides = (
+        "DEVIN_PERMISSION_MODE", "DEVIN_SANDBOX", "DEVIN_MODEL",
+        "DEVIN_CONFIG", "CLAUDECODE",
+    )
+    present_env_overrides = [
+        key for key in known_env_overrides if key in os.environ
+    ]
+    if present_env_overrides:
+        reasons.append("agent_environment_overrides_present")
     cli = _cli_summary(binary)
     if not cli.get("matches_reviewed_version") or not cli.get("required_flags_present"):
         reasons.append("cli_contract_unmatched_or_unreadable")
@@ -289,6 +298,7 @@ def inspect(project: Path, *, home: Path, binary: str | None) -> dict:
         "python": platform.python_version(),
         "workspace_git_present": workspace_git,
         "cli": cli,
+        "environment_override_names_present": present_env_overrides,
         "configuration": rows,
         "extra_sources": extra,
         "reasons": sorted(set(reasons)),
