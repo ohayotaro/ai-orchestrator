@@ -172,3 +172,18 @@ def test_harness_late_cancel_never_accepts_valid_result(tmp_path):
             runner=lambda *args, **kwargs: _Result(0, '{"value": 7}'),
         )
     assert raised.value.diagnostics["stage"] == "cancelled"
+
+
+def test_fixture_process_does_not_inherit_sensitive_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEVIN_PERMISSION_MODE", "dangerous")
+    monkeypatch.setenv("DEVIN_SANDBOX", "false")
+    monkeypatch.setenv("PYPI_TEST_SECRET", "SHOULD-NOT-BE-PASSED")
+    monkeypatch.setenv("CLAUDECODE", "nested_agent")
+    binary = fake_cli(
+        tmp_path,
+        'import json, os\n'
+        'keys=("DEVIN_PERMISSION_MODE","DEVIN_SANDBOX","PYPI_TEST_SECRET","CLAUDECODE")\n'
+        'print(json.dumps({"value": int(all(k not in os.environ for k in keys))}))\n',
+    )
+    result = ProtocolHarness().run_fixture(request(tmp_path), binary=binary)
+    assert result.value == 1
