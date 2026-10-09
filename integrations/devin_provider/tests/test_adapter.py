@@ -74,17 +74,24 @@ def test_execute_refuses_before_any_provider_call(tmp_path,monkeypatch):
 
 
 def test_doctor_verifies_exact_cli_version_and_flags_without_provider_execution(tmp_path):
-    binary=fake_cli(tmp_path,"import sys\n"+
-        'if "--version" in sys.argv: print("devin 3000.11.3 (9c803229faa4)")\n'+
-        'elif "--help" in sys.argv: print("--print --prompt-file --permission-mode --sandbox --model --config --respect-workspace-trust\\nModes: \\"auto\\" \\"accept-edits\\" \\"smart\\" \\"dangerous\\"")\n'+
-        'else: raise SystemExit(42)\n')
-    config=ProviderConfig(adapter="devin",executable=binary)
-    got=Adapter().doctor(config,tmp_path)
+    help_text = (
+        '--print --prompt-file --permission-mode --sandbox --model --config '
+        '--respect-workspace-trust\nModes: "auto" "accept-edits" "smart" "dangerous"'
+    )
+    body = (
+        "import sys\n"
+        "if '--version' in sys.argv: print('devin 3000.11.3 (9c803229faa4)')\n"
+        f"else: print({help_text!r})\n"
+    )
+    binary = fake_cli(tmp_path, body)
+    config = ProviderConfig(adapter="devin", executable=binary)
+    got = Adapter().doctor(config, tmp_path)
     assert got["version"].startswith("devin 3000.11.3")
-    assert got["execution"]=="blocked_pending_native_qualification"
-    wrong=fake_cli(tmp_path,"print('devin 9999.9.9')\n")
-    with pytest.raises(OrchestratorError,match="version differs"):
-        Adapter().doctor(ProviderConfig(adapter="devin",executable=wrong),tmp_path)
+    assert got["execution"] == "blocked_pending_native_qualification"
+    wrong = fake_cli(tmp_path, "print('devin 9999.9.9')\n")
+    with pytest.raises(OrchestratorError, match="version differs"):
+        Adapter().doctor(ProviderConfig(adapter="devin", executable=wrong), tmp_path)
+
 
 
 def test_harness_argv_keeps_prompts_private_and_denies_bypass(tmp_path):
@@ -231,8 +238,15 @@ def test_symlink_named_fake_devin_is_rejected(tmp_path, monkeypatch):
 
 
 def test_doctor_refuses_missing_auto_mode(tmp_path):
-    binary = fake_cli(tmp_path, "import sys\n"+
-        'if "--version" in sys.argv: print("devin 3000.11.3 (9c803229faa4)")\n'+
-        'else: print("--print --prompt-file --permission-mode --sandbox --model --config --respect-workspace-trust\\nModes: \\"autonomous\\"")\n')
+    help_text = (
+        '--print --prompt-file --permission-mode --sandbox --model --config '
+        '--respect-workspace-trust\nModes: "autonomous"'
+    )
+    body = (
+        "import sys\n"
+        "if '--version' in sys.argv: print('devin 3000.11.3 (9c803229faa4)')\n"
+        f"else: print({help_text!r})\n"
+    )
+    binary = fake_cli(tmp_path, body)
     with pytest.raises(OrchestratorError, match="reviewed auto permission mode"):
         Adapter().doctor(ProviderConfig(adapter="devin", executable=binary), tmp_path)
