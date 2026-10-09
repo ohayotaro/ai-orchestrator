@@ -125,21 +125,31 @@ def test_help_version_disagreement_is_review_required(tmp_path):
     result = preflight.inspect(project, home=tmp_path, binary=str(fake))
     assert result["cli"]["matches_reviewed_version"]
     assert result["cli"]["required_flags_present"]
+    assert not result["cli"]["auto_mode_listed_in_help"]
     assert not result["cli"]["autonomous_listed_in_help"]
-    assert "autonomous_mode_not_confirmed_by_exact_help" in result["reasons"]
+    assert "reviewed_auto_mode_not_confirmed_by_exact_help" in result["reasons"]
+    assert "effective_native_config_isolation_unverified" in result["reasons"]
 
 
 def test_cli_probe_has_no_prompt_or_user_data(tmp_path):
     fake = tmp_path / "devin-fake"
+    help_text = (
+        '--print --prompt-file --config --sandbox --permission-mode '
+        '--model --respect-workspace-trust\n'
+        'Modes: "auto" "accept-edits" "smart" "dangerous"'
+    )
     fake.write_text(
         "#!/bin/sh\n"
         'if [ "$1" = "--version" ]; then echo "devin 3000.11.3 (9c803229faa4)"; exit 0; fi\n'
-        'echo "--print --prompt-file --config --sandbox --permission-mode --model --respect-workspace-trust autonomous";\n'
+        f"printf '%s\\n' {__import__('shlex').quote(help_text)}\n"
     )
     fake.chmod(0o755)
     result = preflight._cli_summary(str(fake))
     assert result["matches_reviewed_version"]
-    assert result["autonomous_listed_in_help"]
+    assert result["auto_mode_listed_in_help"]
+    assert result["advertised_safe_mode_names"] == ["accept-edits", "auto"]
+    assert result["autonomous_listed_in_help"] is False
+
 
 
 def test_oversized_config_is_not_read(tmp_path):
@@ -164,3 +174,23 @@ def test_preflight_reports_override_names_not_values(tmp_path, monkeypatch):
     ]
     assert "agent_environment_overrides_present" in result["reasons"]
     assert "PRIVATE-CUSTOM-MODEL" not in json.dumps(result)
+
+
+def test_permission_modes_require_quoted_modes_line():
+    assert preflight._permission_modes_from_help(
+        '--permission-mode auto\nModes: "auto" "accept-edits" "smart" "dangerous"'
+    ) == {"auto", "accept-edits", "smart", "dangerous"}
+    assert preflight._permission_modes_from_help(
+        '--permission-mode auto --print --autonomous'
+    ) == frozenset()
+
+
+def test_metadata_help_probe_does_not_forward_devin_or_credential_env(monkeypatch):
+    monkeypatch.setenv("DEVIN_PERMISSION_MODE", "dangerous")
+    monkeypatch.setenv("DEVIN_SANDBOX", "false")
+    monkeypatch.setenv("PYPI_TEST_SECRET", "private-data")
+    monkeypatch.setenv("CLAUDECODE", "1")
+    env = preflight._metadata_env()
+    for name in ("DEVIN_PERMISSION_MODE", "DEVIN_SANDBOX", "PYPI_TEST_SECRET", "CLAUDECODE"):
+        assert name not in env
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
