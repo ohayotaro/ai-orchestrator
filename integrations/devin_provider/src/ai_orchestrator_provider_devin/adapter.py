@@ -29,6 +29,22 @@ REQUIRED_HELP_FLAGS = (
 )
 MAX_OUTPUT_BYTES = 1024 * 1024
 MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/+:-]{0,127}\Z")
+# Observed in the owner's exact 3000.11.3 --help. Neither option is an
+# authorization from ai-orchestrator. In particular "auto" does not grant
+# unattended workspace edits, and this adapter remains disabled.
+FIXTURE_PERMISSION_MODE = "auto"
+
+
+def _advertised_permission_modes(help_text: str) -> frozenset[str]:
+    """Read only quoted values in the CLI's 'Modes:' help line.
+
+    Avoid accepting a flag name or incidental prose as proof of an available
+    permission mode. Version-specific gaps fail closed.
+    """
+    for line in help_text.splitlines():
+        if re.match(r"^\s*Modes:\s*", line):
+            return frozenset(re.findall(r'"([a-z][a-z-]*)"', line))
+    return frozenset()
 
 
 @dataclass(frozen=True)
@@ -126,7 +142,10 @@ class ProtocolHarness:
             raise ProviderExecutionError("Devin model selector is not a safe identifier", _diagnostic("configuration", "model"))
         args = [
             binary, "--print", "--prompt-file", str(prompt), "--config", str(config),
-            "--sandbox", "--permission-mode", "autonomous", "--respect-workspace-trust", "true",
+            # The exact 3000.11.3 help lists "auto", not "autonomous".
+            # This mode may require interactive approval for edits. The
+            # protocol harness remains fixture-only; do not enable execute.
+            "--sandbox", "--permission-mode", FIXTURE_PERMISSION_MODE, "--respect-workspace-trust", "true",
         ]
         if request.config.model:
             args += ["--model", request.config.model]
@@ -160,6 +179,18 @@ class ProtocolHarness:
         workspace = request.workspace.resolve(strict=True)
         if not workspace.is_dir():
             raise ProviderExecutionError("Devin candidate workspace is invalid", _diagnostic("configuration", "workspace"))
+        if runner is _run_bounded:
+            # The synthetic process test must never accidentally invoke the
+            # real, potentially billable Devin CLI. An injected fake runner
+            # executes no process here; it is not a security boundary.
+            fixture = Path(binary)
+            if (not fixture.is_absolute() or fixture.is_symlink() or
+                    fixture.name != "fake-devin" or
+                    not fixture.is_file() or not fixture.resolve().is_relative_to(workspace)):
+                raise ProviderExecutionError(
+                    "Devin fixture executable is not an in-workspace fake",
+                    _diagnostic("configuration", "fixture_binary"),
+                )
         if request.cancel():
             raise ProviderExecutionError("Devin candidate was cancelled before invocation", _diagnostic("provider_process", "cancelled"))
         with tempfile.TemporaryDirectory(prefix="orchestrator-devin-fixture-") as directory:
@@ -210,8 +241,11 @@ class Adapter:
             raise OrchestratorError("Devin CLI metadata probe failed") from exc
         if version.returncode or version.stdout.strip() != REVIEWED_CLI_VERSION:
             raise OrchestratorError("Devin CLI version differs from reviewed 3000.11.3")
-        if help_result.returncode or any(flag not in help_result.stdout + help_result.stderr for flag in REQUIRED_HELP_FLAGS):
+        help_text = help_result.stdout + help_result.stderr
+        if help_result.returncode or any(flag not in help_text for flag in REQUIRED_HELP_FLAGS):
             raise OrchestratorError("Devin CLI lacks required reviewed flags")
+        if FIXTURE_PERMISSION_MODE not in _advertised_permission_modes(help_text):
+            raise OrchestratorError("Devin CLI does not advertise the reviewed auto permission mode")
         return {"version": REVIEWED_CLI_VERSION, "family": self.family,
                 "authentication": "not_checked", "execution": "blocked_pending_native_qualification"}
 
