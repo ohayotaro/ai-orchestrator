@@ -18,7 +18,10 @@ sys.path.insert(0, str(CORE / "src"))
 from ai_orchestrator.models import Contract, ProviderConfig, OrchestratorError
 from ai_orchestrator.provider_sdk import RunRequest, ProviderExecutionError, assert_provider_adapter_conforms
 from ai_orchestrator.runtime_options import RuntimeOptionsDescriptor
-from ai_orchestrator_provider_devin.adapter import Adapter, ProtocolHarness, _run_bounded, _Result
+from ai_orchestrator_provider_devin.adapter import (
+    Adapter, ProtocolHarness, _run_bounded, _Result,
+    _advertised_permission_modes, FIXTURE_PERMISSION_MODE,
+)
 
 
 class Result(Contract):
@@ -73,7 +76,7 @@ def test_execute_refuses_before_any_provider_call(tmp_path,monkeypatch):
 def test_doctor_verifies_exact_cli_version_and_flags_without_provider_execution(tmp_path):
     binary=fake_cli(tmp_path,"import sys\n"+
         'if "--version" in sys.argv: print("devin 3000.11.3 (9c803229faa4)")\n'+
-        'elif "--help" in sys.argv: print("--print --prompt-file --permission-mode --sandbox --model --config --respect-workspace-trust")\n'+
+        'elif "--help" in sys.argv: print("--print --prompt-file --permission-mode --sandbox --model --config --respect-workspace-trust\\nModes: \\"auto\\" \\"accept-edits\\" \\"smart\\" \\"dangerous\\"")\n'+
         'else: raise SystemExit(42)\n')
     config=ProviderConfig(adapter="devin",executable=binary)
     got=Adapter().doctor(config,tmp_path)
@@ -90,7 +93,9 @@ def test_harness_argv_keeps_prompts_private_and_denies_bypass(tmp_path):
     cmd=harness.argv(r,binary="/fixture/devin",prompt=tmp_path/"prompt.txt",config=tmp_path/"config.json")
     assert cmd[0]=="/fixture/devin"
     assert "--prompt-file" in cmd and "--print" in cmd
-    assert "--sandbox" in cmd and "autonomous" in cmd
+    assert "--sandbox" in cmd and FIXTURE_PERMISSION_MODE == "auto"
+    assert cmd[cmd.index("--permission-mode") + 1] == "auto"
+    assert "autonomous" not in cmd and "dangerous" not in cmd
     assert "--respect-workspace-trust" in cmd and "true" in cmd
     assert "--cloud" not in cmd and "--continue" not in cmd and "--resume" not in cmd
     assert "--respect-workspace-trust false" not in " ".join(cmd)
@@ -187,3 +192,47 @@ def test_fixture_process_does_not_inherit_sensitive_env(tmp_path, monkeypatch):
     )
     result = ProtocolHarness().run_fixture(request(tmp_path), binary=binary)
     assert result.value == 1
+
+
+def test_permission_mode_parser_requires_explicit_advertisement():
+    help_text = '--permission-mode <PERMISSION_MODE>\n    Modes: "auto" "accept-edits" "smart" "dangerous"'
+    assert _advertised_permission_modes(help_text) == {
+        "auto", "accept-edits", "smart", "dangerous",
+    }
+    assert _advertised_permission_modes("--permission-mode auto --print") == frozenset()
+    assert "autonomous" not in _advertised_permission_modes(help_text)
+
+
+@pytest.mark.parametrize("binary", [
+    "devin",
+    "/usr/local/bin/devin",
+    "/tmp/devin",
+])
+def test_real_devin_is_never_run_by_fixture(tmp_path, binary, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("fixture must not launch a real Devin executable")
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    with pytest.raises(ProviderExecutionError) as raised:
+        ProtocolHarness().run_fixture(request(tmp_path), binary=binary)
+    assert raised.value.diagnostics == {
+        "failure_category": "configuration", "stage": "fixture_binary",
+    }
+
+
+def test_symlink_named_fake_devin_is_rejected(tmp_path, monkeypatch):
+    external = tmp_path.parent / "devin-outside"
+    external.write_text("not a permitted fixture")
+    binary = tmp_path / "fake-devin"
+    binary.symlink_to(external)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: pytest.fail("spawn"))
+    with pytest.raises(ProviderExecutionError) as raised:
+        ProtocolHarness().run_fixture(request(tmp_path), binary=str(binary))
+    assert raised.value.diagnostics["stage"] == "fixture_binary"
+
+
+def test_doctor_refuses_missing_auto_mode(tmp_path):
+    binary = fake_cli(tmp_path, "import sys\n"+
+        'if "--version" in sys.argv: print("devin 3000.11.3 (9c803229faa4)")\n'+
+        'else: print("--print --prompt-file --permission-mode --sandbox --model --config --respect-workspace-trust\\nModes: \\"autonomous\\"")\n')
+    with pytest.raises(OrchestratorError, match="reviewed auto permission mode"):
+        Adapter().doctor(ProviderConfig(adapter="devin", executable=binary), tmp_path)
