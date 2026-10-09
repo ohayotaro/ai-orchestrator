@@ -20,7 +20,7 @@ from ai_orchestrator.provider_sdk import RunRequest, ProviderExecutionError, ass
 from ai_orchestrator.runtime_options import RuntimeOptionsDescriptor
 from ai_orchestrator_provider_devin.adapter import (
     Adapter, ProtocolHarness, _run_bounded, _Result,
-    _advertised_permission_modes, FIXTURE_PERMISSION_MODE,
+    _advertised_permission_modes, FIXTURE_PERMISSION_MODE, FIXTURE_IMPORT_SOURCES,
 )
 
 
@@ -122,6 +122,10 @@ def test_harness_fixture_accepts_only_exact_json(tmp_path):
         conf=pathlib.Path(argv[argv.index("--config")+1])
         assert conf.stat().st_mode & 0o777 == 0o600
         assert '"mcp__*"' in conf.read_text()
+        policy = __import__("json").loads(conf.read_text())
+        assert set(policy["read_config_from"]) == set(FIXTURE_IMPORT_SOURCES)
+        assert all(value is False for value in policy["read_config_from"].values())
+        assert policy["subagents_enabled"] is False
         return _Result(0,'{"value": 7}')
     value=ProtocolHarness().run_fixture(request(tmp_path),binary="fake-devin",runner=fake)
     assert value.value==7 and len(runner_calls)==1
