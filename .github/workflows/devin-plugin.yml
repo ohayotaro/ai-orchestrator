@@ -34,6 +34,21 @@ jobs:
           python -m pip install --no-build-isolation -e '.[dev,interop]' -c requirements/rc-reference.txt
       - name: Offline synthetic provider contract and process tests
         run: python -m pytest -q integrations/devin_provider/tests
+      - name: DV-04B synthetic write-boundary probe (no Devin CLI)
+        run: |
+          python integrations/devin_provider/tools/dv04b_fixture.py > dv04b-fixture.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('dv04b-fixture.json').read_text())
+          assert report['status'] == 'REVIEW_REQUIRED'
+          assert report['result'] == 'PASS_SYNTHETIC_DETECTION_ONLY'
+          assert report['execution_authorized'] is False
+          assert report['provider_calls'] == 0
+          assert report['checks']['synthetic_outside_write_observed']
+          assert 'native_direct_edit_write_scope' in report['still_unverified']
+          print('DV-04B synthetic detection: PASS; native isolation remains UNKNOWN')
+          PY
       - name: Package plugin without publishing
         run: |
           python -m pip wheel --no-deps --no-build-isolation integrations/devin_provider -w plugin-dist
