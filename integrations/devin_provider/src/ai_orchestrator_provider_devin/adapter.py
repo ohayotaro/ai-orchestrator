@@ -85,7 +85,27 @@ def _minimal_subprocess_env() -> dict[str, str]:
     return result
 
 
-def _run_bounded(argv: list[str], cwd: Path, *, timeout: float, cancel: Callable[[], bool]) -> _Result:
+def _fixture_subprocess_env(home: Path) -> dict[str, str]:
+    """Synthetic child only: clean environment and disposable HOME/XDG dirs.
+
+    Does NOT attest the effective Devin native permissions, network limits,
+    editor write tools, or inherited team/session policy.
+    """
+    if not home.is_dir() or home.is_symlink():
+        raise ProviderExecutionError("Synthetic HOME is not a directory", _diagnostic("configuration", "fixture_home"))
+    result = _minimal_subprocess_env()
+    result.update({
+        "HOME": str(home),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "XDG_DATA_HOME": str(home / ".local" / "share"),
+        "TMPDIR": str(home / "tmp"),
+    })
+    return result
+
+
+def _run_bounded(argv: list[str], cwd: Path, *, timeout: float, cancel: Callable[[], bool],
+                 env: dict[str, str] | None = None) -> _Result:
     """Bounded POSIX child with process-group cancellation, no shell or output logs."""
     if os.name != "posix" or timeout <= 0 or cancel():
         raise ProviderExecutionError("Devin process preflight refused", _diagnostic("configuration", "preflight"))
@@ -94,7 +114,7 @@ def _run_bounded(argv: list[str], cwd: Path, *, timeout: float, cancel: Callable
         try:
             proc = subprocess.Popen(
                 argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
-                start_new_session=True, env=_minimal_subprocess_env(),
+                start_new_session=True, env=_minimal_subprocess_env() if env is None else env,
             )
         except OSError as exc:
             raise ProviderExecutionError("Devin process could not start", _diagnostic("provider_process", "spawn")) from exc
@@ -183,6 +203,8 @@ class ProtocolHarness:
 
     def run_fixture(self, request: RunRequest, *, binary: str, runner: Callable[..., _Result] = _run_bounded) -> Contract:
         """Offline fake-CLI fixture only; never called by Adapter.execute."""
+        if request.workspace.is_symlink():
+            raise ProviderExecutionError("Symlinked fixture workspace refused", _diagnostic("configuration", "workspace_symlink"))
         workspace = request.workspace.resolve(strict=True)
         if not workspace.is_dir():
             raise ProviderExecutionError("Devin candidate workspace is invalid", _diagnostic("configuration", "workspace"))
@@ -202,6 +224,10 @@ class ProtocolHarness:
             raise ProviderExecutionError("Devin candidate was cancelled before invocation", _diagnostic("provider_process", "cancelled"))
         with tempfile.TemporaryDirectory(prefix="orchestrator-devin-fixture-") as directory:
             base = Path(directory)
+            home = base / "home"
+            home.mkdir(mode=0o700)
+            for item in (".config", ".cache", ".local", ".local/share", "tmp"):
+                (home / item).mkdir(parents=True, exist_ok=True, mode=0o700)
             prompt = base / "prompt.txt"
             prompt.write_text(request.prompt, encoding="utf-8")
             prompt.chmod(0o600)
@@ -213,7 +239,11 @@ class ProtocolHarness:
             }), encoding="utf-8")
             policy.chmod(0o600)
             argv = self.argv(request, binary=binary, prompt=prompt, config=policy)
-            outcome = runner(argv, workspace, timeout=request.timeout, cancel=request.cancel)
+            if runner is _run_bounded:
+                outcome = runner(argv, workspace, timeout=request.timeout,
+                                 cancel=request.cancel, env=_fixture_subprocess_env(home))
+            else:
+                outcome = runner(argv, workspace, timeout=request.timeout, cancel=request.cancel)
         if request.cancel():
             raise ProviderExecutionError("Devin candidate cancelled after process completion", _diagnostic("provider_process", "cancelled"))
         if outcome.returncode:
