@@ -254,3 +254,35 @@ def test_doctor_refuses_missing_auto_mode(tmp_path):
     binary = fake_cli(tmp_path, body)
     with pytest.raises(OrchestratorError, match="reviewed auto permission mode"):
         Adapter().doctor(ProviderConfig(adapter="devin", executable=binary), tmp_path)
+
+
+def test_default_fake_runner_uses_disposable_home_and_no_parent_credentials(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEVIN_PERMISSION_MODE", "dangerous")
+    monkeypatch.setenv("DEVIN_SANDBOX", "false")
+    monkeypatch.setenv("TWINE_PASSWORD", "fake-not-a-real-token")
+    monkeypatch.setenv("HOME", str(tmp_path.parent / "parent-user-home"))
+    fake = fake_cli(tmp_path, (
+        "import json, os, pathlib\n"
+        "h = pathlib.Path(os.environ['HOME'])\n"
+        "assert h.is_dir() and h != pathlib.Path.cwd()\n"
+        "assert 'orchestrator-devin-fixture-' in str(h)\n"
+        "assert pathlib.Path(os.environ['XDG_CONFIG_HOME']) == h / '.config'\n"
+        "assert pathlib.Path(os.environ['TMPDIR']) == h / 'tmp'\n"
+        "assert not any(key in os.environ for key in ('DEVIN_PERMISSION_MODE', 'DEVIN_SANDBOX', 'TWINE_PASSWORD'))\n"
+        "print(json.dumps({'value': 41}))\n"
+    ))
+    result = ProtocolHarness().run_fixture(request(tmp_path), binary=fake)
+    assert result.value == 41
+
+
+def test_symlink_workspace_refused_without_runner(tmp_path):
+    workspace = tmp_path / "actual"
+    workspace.mkdir()
+    link = tmp_path / "symlink"
+    link.symlink_to(workspace, target_is_directory=True)
+    with pytest.raises(ProviderExecutionError) as exc:
+        ProtocolHarness().run_fixture(
+            request(link), binary="fake",
+            runner=lambda *a, **kw: pytest.fail("symlinked workspace must not dispatch"),
+        )
+    assert exc.value.diagnostics["stage"] == "workspace_symlink"
