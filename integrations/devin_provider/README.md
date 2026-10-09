@@ -52,3 +52,18 @@ Next step: run the read-only preflight from `docs/DEVIN_CLI_PROVIDER_PREFLIGHT_j
 then independently authorize a tightly scoped live campaign with Claude Code
 as HumanGate host and Devin *only* as Implementer. Future activation must be a
 reviewed new adapter version, not a runtime flag bypassing this refusal.
+
+## DV-04B (synthetic process boundary)
+
+A separate, non-billable probe is available at
+`integrations/devin_provider/tools/dv04b_fixture.py`. It creates only
+throwaway workspace/HOME/XDG paths and a fake Python child; it never runs Devin.
+The probe verifies HOME/environment scrubbing **and** intentionally detects
+that an unconfined fake child can write to a disposable sibling *outside its cwd*.
+This is a negative control, **not** proof of native Devin sandbox confinement
+or a Devin vulnerability. In the default offline harness, the synthetic child
+receives a disposable HOME/XDG and symlinked workspaces are refused. The actual
+provider remains disabled regardless of fixture PASS.
+
+Details and outstanding DV-04C owner-live gates are in
+[the Japanese DV-04B boundary report](../../docs/DV04B_BOUNDARY_ja.md).
