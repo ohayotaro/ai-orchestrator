@@ -202,13 +202,37 @@ def _summary(label: str, path: Path) -> dict:
     return row
 
 
+def _metadata_env() -> dict[str, str]:
+    """Only pass minimal OS path/locale variables to read-only help probes.
+
+    This does not change the operator's environment or prove native
+    configuration isolation; it only avoids forwarding DEVIN_* overrides or
+    credential-shaped environment variables to metadata subprocesses.
+    """
+    allowed = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
+    return {
+        **{key: os.environ[key] for key in allowed if key in os.environ},
+        "GIT_TERMINAL_PROMPT": "0",
+        "PYTHONNOUSERSITE": "1",
+    }
+
+
+def _permission_modes_from_help(help_text: str) -> frozenset[str]:
+    """Parse explicitly quoted options on a 'Modes:' CLI help line."""
+    for line in help_text.splitlines():
+        if re.match(r"^\s*Modes:\s*", line):
+            return frozenset(re.findall(r'"([a-z][a-z-]*)"', line))
+    return frozenset()
+
+
 def _cli_summary(binary: str | None) -> dict:
     if not binary:
         return {"status": "missing", "matches_reviewed_version": False}
     try:
         for command in ("--version", "--help"):
             result = subprocess.run(
-                [binary, command], capture_output=True, timeout=8, check=False
+                [binary, command], capture_output=True, timeout=8, check=False,
+                env=_metadata_env()
             )
             if result.returncode != 0 or len(result.stdout) + len(result.stderr) > 256 * 1024:
                 return {"status": "probe_failed", "matches_reviewed_version": False}
@@ -218,14 +242,19 @@ def _cli_summary(binary: str | None) -> dict:
                 help_text = (result.stdout + result.stderr).decode("utf-8", errors="replace")
     except (OSError, subprocess.TimeoutExpired):
         return {"status": "probe_failed", "matches_reviewed_version": False}
+    modes = _permission_modes_from_help(help_text)
     return {
         "status": "inspected",
         "matches_reviewed_version": version == EXPECTED_VERSION,
         "required_flags_present": all(flag in help_text for flag in REQUIRED_HELP_FLAGS),
-        "autonomous_listed_in_help": bool(re.search(r"\bautonomous\b", help_text)),
-        # The observed 3000.11.3 help listed only auto/accept-edits/smart/
-        # dangerous, while later public docs mention autonomous. This is
-        # unresolved until the owner tests the exact binary without bypass.
+        "auto_mode_listed_in_help": "auto" in modes,
+        # Historical diagnostic retained, but absence is no longer a blocker
+        # because the fixture does not request this unsupported mode.
+        "autonomous_listed_in_help": "autonomous" in modes,
+        "advertised_safe_mode_names": sorted(modes & {"auto", "accept-edits"}),
+        "unexpected_permission_mode_advertised": bool(
+            modes - {"auto", "accept-edits", "smart", "dangerous"}
+        ),
     }
 
 
@@ -279,10 +308,13 @@ def inspect(project: Path, *, home: Path, binary: str | None) -> dict:
     cli = _cli_summary(binary)
     if not cli.get("matches_reviewed_version") or not cli.get("required_flags_present"):
         reasons.append("cli_contract_unmatched_or_unreadable")
-    if not cli.get("autonomous_listed_in_help"):
-        reasons.append("autonomous_mode_not_confirmed_by_exact_help")
+    if not cli.get("auto_mode_listed_in_help"):
+        reasons.append("reviewed_auto_mode_not_confirmed_by_exact_help")
+    if cli.get("unexpected_permission_mode_advertised"):
+        reasons.append("unreviewed_permission_mode_advertised")
     # These cannot be established by local static inspection.
     reasons.extend([
+        "effective_native_config_isolation_unverified",
         "effective_team_and_session_policy_unverified",
         "direct_edit_write_scope_unverified",
         "network_filter_not_qualified",
