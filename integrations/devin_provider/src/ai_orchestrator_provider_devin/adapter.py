@@ -33,6 +33,13 @@ MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/+:-]{0,127}\Z")
 # authorization from ai-orchestrator. In particular "auto" does not grant
 # unattended workspace edits, and this adapter remains disabled.
 FIXTURE_PERMISSION_MODE = "auto"
+# These switches are documented as config-import sources; setting them false
+# in a synthetic file does NOT prove the full effective native config is
+# isolated from global rules, hooks, team policy or external MCP tools.
+FIXTURE_IMPORT_SOURCES = (
+    "agents_standard", "cursor", "windsurf", "claude",
+    "copilot", "opencode", "vscode", "zed",
+)
 
 
 def _advertised_permission_modes(help_text: str) -> frozenset[str]:
@@ -201,7 +208,7 @@ class ProtocolHarness:
             policy = base / "config.json"
             policy.write_text(json.dumps({
                 "permissions": {"allow": [], "deny": ["mcp__*"], "ask": []},
-                "read_config_from": {"cursor": False, "windsurf": False, "claude": False},
+                "read_config_from": {source: False for source in FIXTURE_IMPORT_SOURCES},
                 "subagents_enabled": False,
             }), encoding="utf-8")
             policy.chmod(0o600)
