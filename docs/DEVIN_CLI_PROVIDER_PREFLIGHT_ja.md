@@ -102,13 +102,42 @@ imported hooksの実効動作、ネットワーク隔離、headless trust、
 既存projectにMCPが登録されていたり、ユーザー側設定がある場合は
 必ず`REVIEW_REQUIRED`を維持します。
 
-**重要なバージョン差**：公式の現行documentationでは
-`--sandbox --permission-mode autonomous`が存在しますが、
-ownerが提示したDevin CLI 3000.11.3の`--help`には
-`autonomous`が列挙されていません。この差異は利用可能性の証明では
-ありません。実際に有料の`devin --print`を実行して推測を埋めず、
-版固有の契約を別途確認するまで実行側をfail-closedにします。
+**CLI互換性の修正（2026-10-09）**：ownerの実機
+`devin 3000.11.3 (9c803229faa4)`では、`--permission-mode`の候補は
+`auto`、`accept-edits`、`smart`、`dangerous`であり、
+`autonomous`は広告されていません。PR #63のoffline fixture harnessは
+無効な`autonomous`を廃止し、確認済みの`auto`に変更しました。
+ただし**`auto`は実装編集の無人承認を与えません**。実際の
+`Adapter.execute()`は引き続きprovider起動前に拒否します。
 
+preflight JSONの`cli.auto_mode_listed_in_help`がtrueでも、証明できるのは
+そのCLI helpにmode名が列挙されたことだけです。
+`cli.autonomous_listed_in_help`は履歴比較の参考情報に残しますが、
+false自体は新しいblocking reasonではありません。
+`effective_native_config_isolation_unverified`は、global設定、
+project hooks、team/session policy、MCP、直接edit/write、networkの
+実効権限が静的scanで確定できないことを示します。
+**全importのFalse設定をsynthetic configに記述しても、実効隔離の証拠には
+なりません。** 原因を閉じるにはowner-localの別途検証が必要であり、
+有料`devin --print`の無承認実行はしません。
+
+
+## 2026-10-09 owner read-only preflight evidence
+
+入力はownerが共有した読み取り専用レポートです。CLI 3000.11.3は
+必要なhelp flagsを報告し、provider_calls=0、execution_authorized=false、
+task_or_gate_mutations=0でした。古いinspector出力では
+`autonomous_mode_not_confirmed_by_exact_help`がありましたが、新版では
+`auto_mode_listed_in_help`を検査するため、その理由だけは解消できる見込みです。
+
+引き続きblockerとなるのは設定import 8種類の未固定、
+再利用したhost fixtureのMCP登録1件と.orchestrator state、
+subagentsの未無効化、effective team/session policy、
+direct edit/write権限、network filtering、headless trustと
+terminal resultの未検証です。新しい使い捨てprovider fixtureで
+再診断する場合も、operator globalの状態は残り得ます。
+新版preflightが`REVIEW_REQUIRED`を返した場合に、
+自動的に設定ファイルを書き換えたりproviderを起動したりしないでください。
 
 ## 実行対応へ進むために必要な証拠
 
