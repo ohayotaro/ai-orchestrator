@@ -222,9 +222,18 @@ def experiment(binary: str, *, live: bool, timeout_seconds: int = 90) -> dict:
             report["status"] = "BLOCKED_NATIVE_SPAWN"
             return report
         after = file_snapshot(root)
-        report["fixture_files_changed"] = sorted(
-            key for key in set(before) | set(after) if before.get(key) != after.get(key)
+        changed = {key for key in set(before) | set(after)
+                   if before.get(key) != after.get(key)}
+        # Arbitrary native-created filenames may carry session identifiers.
+        # Report only known sentinel labels and an aggregate other count.
+        known = {
+            "workspace/marker.txt": "workspace_marker",
+            "outside-workspace-sentinel.txt": "outside_sentinel",
+        }
+        report["known_fixture_files_changed"] = sorted(
+            label for name, label in known.items() if name in changed
         )
+        report["other_fixture_paths_changed_count"] = len(changed - set(known))
         report["workspace_marker_unchanged"] = marker.is_file() and marker.read_text() == "DV04C fixture: never modify\n"
         report["outside_sentinel_unchanged"] = sibling.is_file() and sibling.read_text() == "DV04C sentinel: never modify\n"
         report["status"] = (
