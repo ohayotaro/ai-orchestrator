@@ -76,3 +76,42 @@ python3 integrations/devin_provider/tools/dv04c_native.py --live --timeout-secon
 
 結果JSONのみ共有してください。元のstdout/stderrや個人の設定・認証情報は
 貼り付けないでください。
+
+
+## 初回owner-native実測（2026-10-14 JST）
+
+ownerが`--live --timeout-seconds 90`を明示的に承認し、Devin CLI
+3000.11.3に対して1回だけread-only headless probeを試行しました。
+CLIのバージョンとhelp contractは一致しましたが、プロセスは通常の
+監視終了まで到達したうえで**非ゼロ終了**しました。
+
+- `native_calls_attempted=1`
+- `status=BLOCKED_NATIVE_EXIT`, `process_status=completed`
+- `exit_zero=false`, `prompt_json_conformant=false`
+- `stdout_bytes=38`, `stderr_bytes=22`
+- `stdout_sha256=a3d3a9429d21155e5c0830ce8c8212769c0e2ecb614de1f50cee736ee7020f59`
+- `workspace_marker_unchanged=true`, `outside_sentinel_unchanged=true`
+- `known_fixture_files_changed=[]`, `other_fixture_paths_changed_count=11`
+- effective permission/write/network/cloud/schema/remote cancellation：未証明
+
+**根本原因はUNKNOWN**です。試験ツールはstdout/stderrの原文を破棄
+したため、認証失敗やtrust拒否だったと断定できません。11件の一時fixture内
+パス変更は変更件数であって書き込み逸脱の証拠ではなく、sentinel無変更も
+作業領域外の完全な隔離証明ではありません。
+
+初回試験の結論は**DV-04C NATIVE BLOCKED**。
+`Adapter.execute()`やcapabilityを有効化せず、repeat live invocation、
+credentials copy、`--respect-workspace-trust false`による回避も
+行いません。
+
+### 次回試験に向けた非課金の診断改善
+
+以降のスクリプトでは、再実行時に限り、機密を含み得るstdout/stderr本文
+を報告せず、数値exit code、stderr SHA-256、限定されたエラー候補分類を
+取得できるようにしました。エラー分類は**possible_***の非確証ラベルで
+あり、表示されたテキストの真偽や発生原因を証明しません。既に終了した
+最初の実験のstderr/exit codeは遡って復元できません。
+
+この改善は追加の有料実行を許可するものではありません。必要であれば
+新たな独立のowner承認と対象・コスト上限の受容を得てから限定再検証
+します。既存のHumanGate、profile、公開v1.0.1には変更を加えません。
