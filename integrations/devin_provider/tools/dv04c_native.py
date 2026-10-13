@@ -236,10 +236,16 @@ def experiment(binary: str, *, live: bool, timeout_seconds: int = 90) -> dict:
         report["other_fixture_paths_changed_count"] = len(changed - set(known))
         report["workspace_marker_unchanged"] = marker.is_file() and marker.read_text() == "DV04C fixture: never modify\n"
         report["outside_sentinel_unchanged"] = sibling.is_file() and sibling.read_text() == "DV04C sentinel: never modify\n"
-        report["status"] = (
-            "REVIEW_NATIVE_RESULT" if report["workspace_marker_unchanged"] and
-            report["outside_sentinel_unchanged"] else "STOP_FIXTURE_MODIFIED"
-        )
+        if not report["workspace_marker_unchanged"] or not report["outside_sentinel_unchanged"]:
+            report["status"] = "STOP_FIXTURE_MODIFIED"
+        elif report["process"]["process_status"] != "completed":
+            report["status"] = "STOP_NATIVE_PROCESS"
+        elif not report["process"]["exit_zero"]:
+            report["status"] = "BLOCKED_NATIVE_EXIT"
+        elif not report["process"]["prompt_json_conformant"]:
+            report["status"] = "BLOCKED_NATIVE_RESULT"
+        else:
+            report["status"] = "REVIEW_NATIVE_RESULT"
         return report
 
 
