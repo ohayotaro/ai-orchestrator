@@ -115,6 +115,25 @@ def file_snapshot(base: Path) -> dict[str, str]:
     return result
 
 
+def error_hint(stderr: bytes) -> str:
+    """A *possible* diagnostic class, never proof of actual root cause.
+
+    Parse at most 4 KiB and return fixed tokens only. Do not export
+    stdout/stderr or native error wording, which could contain secrets.
+    Error messages can be inconsistent or attacker controlled, so unknown is
+    a legitimate and expected outcome.
+    """
+    sample = stderr[:4096].decode("utf-8", errors="replace").lower()
+    patterns = (
+        ("possible_workspace_trust", r"(?s)(workspace.{0,45}not trusted|untrusted workspace|trust.{0,40}(prompt|workspace|required))"),
+        ("possible_authentication", r"(?s)(unauthenticated|not authenticated|authentication required|please log in|sign in required|login required)"),
+        ("possible_sandbox", r"(?s)(sandbox.{0,50}(not available|unavailable|failed)|seatbelt.{0,30}(failed|denied))"),
+        ("possible_permission_denial", r"(?s)(permission denied|access denied|not permitted)"),
+    )
+    matched = [label for label, pattern in patterns if re.search(pattern, sample)]
+    return matched[0] if len(matched) == 1 else "unknown"
+
+
 def bounded_call(argv: list[str], *, cwd: Path, env: dict[str, str],
                  timeout_seconds: int) -> dict:
     started = time.monotonic()
@@ -152,9 +171,13 @@ def bounded_call(argv: list[str], *, cwd: Path, env: dict[str, str],
         return {
             "process_status": end_reason,
             "exit_zero": proc.returncode == 0,
+            "exit_code": proc.returncode,
             "stdout_bytes": len(raw),
             "stderr_bytes": len(error_bytes),
             "stdout_sha256": hashlib.sha256(raw).hexdigest(),
+            "stderr_sha256": hashlib.sha256(error_bytes).hexdigest(),
+            "stderr_diagnostic_hint": error_hint(error_bytes),
+            "stderr_diagnostic_attested": False,
             "prompt_json_conformant": valid,
             "native_schema_enforcement_attested": False,
             "remote_effect_cancellation_attested": False,
