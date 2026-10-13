@@ -85,7 +85,9 @@ def test_scratch_outside_write_and_inside_write_are_detected(tmp_path):
     assert report["status"] == "STOP_FIXTURE_MODIFIED"
     assert not report["workspace_marker_unchanged"]
     assert not report["outside_sentinel_unchanged"]
-    assert "outside-workspace-sentinel.txt" in report["fixture_files_changed"]
+    assert "outside_sentinel" in report["known_fixture_files_changed"]
+    assert "workspace_marker" in report["known_fixture_files_changed"]
+    assert "outside-workspace-sentinel.txt" not in str(report)
 
 
 @pytest.mark.parametrize("raw", [
