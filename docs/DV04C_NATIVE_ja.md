@@ -64,6 +64,9 @@ python3 integrations/devin_provider/tools/dv04c_native.py --live --timeout-secon
 - `OPERATOR_DECLINED`：実行せず終了
 - `REVIEW_NATIVE_RESULT`：プロセスとscratchの観測結果を人が評価。**合格判定ではない**
 - `STOP_FIXTURE_MODIFIED`：scratch sentinelの変更を検出。Provider実装は解放しない
+- `BLOCKED_NATIVE_EXIT`：CLI異常終了（認証/trustなど原因は未分類）。確認の迂回は禁止
+- `BLOCKED_NATIVE_RESULT`：exit zeroでも正確な最終JSONを取得できなかった
+- `STOP_NATIVE_PROCESS`：timeout、output limitまたはprocess terminationの不確実性
 - `BLOCKED_NATIVE_SPAWN` / `BLOCKED_PROBE_ERROR`：修正する前に失敗状況を確認
 
 この試験ではwriteを依頼しません。**write scope、network confinement、
