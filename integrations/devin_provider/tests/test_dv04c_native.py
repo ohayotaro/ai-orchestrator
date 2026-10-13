@@ -75,6 +75,7 @@ def test_fake_native_failure_does_not_promote_output_to_success(tmp_path):
     fake = fake_binary(tmp_path, mode="invalid")
     report = probe.experiment(fake, live=True, timeout_seconds=15)
     assert report["native_calls_attempted"] == 1
+    assert report["status"] == "BLOCKED_NATIVE_RESULT"
     assert report["process"]["prompt_json_conformant"] is False
     assert not report["process"]["native_schema_enforcement_attested"]
 
