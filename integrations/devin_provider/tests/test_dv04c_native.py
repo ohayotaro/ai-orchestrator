@@ -131,3 +131,40 @@ def test_bounded_local_process_terminates_on_deadline(tmp_path):
                                 timeout_seconds=0.2)
     assert result["process_status"] == "timeout"
     assert not result["prompt_json_conformant"]
+
+
+@pytest.mark.parametrize(("message", "category"), [
+    (b"please log in first", "possible_authentication"),
+    (b"untrusted workspace", "possible_workspace_trust"),
+    (b"sandbox unavailable", "possible_sandbox"),
+    (b"permission denied", "possible_permission_denial"),
+    (b"unclassifiable error", "unknown"),
+    (b"permission denied; authentication required", "unknown"),
+])
+def test_allowlisted_error_hints_are_conservative(message, category):
+    assert probe.error_hint(message) == category
+
+
+def test_native_error_evidence_is_redacted(tmp_path):
+    secret = "do-not-print-private-string"
+    fake = tmp_path / "fake-native-error"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"sys.stderr.write('please log in first\\n{secret}\\n')\n"
+        "print('not a result')\n"
+        "raise SystemExit(17)\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o700)
+    result = probe.bounded_call(
+        [str(fake)], cwd=tmp_path, env=probe.child_env(tmp_path),
+        timeout_seconds=3,
+    )
+    assert result["exit_code"] == 17
+    assert not result["exit_zero"]
+    assert result["stderr_diagnostic_hint"] == "possible_authentication"
+    assert result["stderr_diagnostic_attested"] is False
+    assert len(result["stderr_sha256"]) == 64
+    assert secret not in str(result)
+    assert "please log in first" not in str(result)
